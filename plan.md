@@ -44,7 +44,7 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D4 | ✅ Inquiry timeouts and retries | Use the **per-service table in §7-3** (8–15 s, 1–2 retries), not the flat 30 s with 3 retries. The whole run must stay within the **25 s budget** (P99, §9-1). All *configurable*. | §5, §5.1 |
 | D5 | ✅ Session lifetime | Access token **15 min** for everyone. Refresh token **8 h** for branch, admin and agency users. **Customers:** a single **30-minute** session with no refresh token. All *configurable*. | §6 |
 | D6 | ✅ Collateral formulas | Taken from the SRS. | §4.3 |
-| D7 | ✅ Where the browser keeps tokens | Access token **in memory**, sent as `Authorization: Bearer`. Refresh token in an **`HttpOnly; Secure; SameSite=Strict` cookie**, with CSRF protection on `/auth/refresh` only. Nothing in `localStorage`. | §6 |
+| D7 | ✅ Where the browser keeps tokens | **No cookies** (an infrastructure restriction). Both tokens are sent only as `Authorization: Bearer`, so **no CSRF protection is needed**. Access token **in memory**. Staff and agency refresh token in **`sessionStorage`**, with **rotation and reuse detection**. Customers: **memory only**, with no refresh token. Nothing in `localStorage`. | §6 |
 | D8 | ✅ CI/CD | **GitHub Actions** while the code is on GitHub. The stages mirror §8-2, so the pipeline moves cleanly to GitLab CI later. | §7 Phase 0 |
 | D9 | ✅ Versions | **Java 21 (LTS), Spring Boot 4.1.x, Spring Modulith 2.1.x, Angular 22 with Nx.** Versions are pinned in the build. This replaces Boot 3.2, Java 17 and Angular 17 from §1-4, which are past upstream support. | §3 |
 | D10 | ✅ Runtime | **Build a Docker image (executable jar) now.** Keep a Tomcat/WAR profile possible. Decide Kubernetes versus VMs with the ops team before Phase 10. | §7 Phase 10 |
@@ -57,6 +57,7 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D17 | ✅ Revocation while the branch is mid-work | **Issuance actions stop**, except for recording a guarantee number that was *already* issued in Farangin. The revocation request goes **straight to the user who holds the lock**. An admin can reassign it with force-release. | §4.2 |
 | D18 | ✅ Rounding | Collateral amounts are **rounded up to the whole rial** (`BigDecimal`, `CEILING`), so the bank is never under-covered. | §4.3 |
 | D19 | ✅ Guarantee expiry | **There is no `EXPIRED` status, and no job changes issued guarantees.** Asan Zeman has no connection to Farangin, where the guarantee actually lives, so it can't know when one really ends. `expiry_date` is stored as information only (shown in tracking and reports, and usable as a filter). An `ISSUED` request can be revoked at any time. | §4.2 |
+| D20 | ✅ Database migrations | **Flyway replaces Liquibase** (§5-4). Versioned SQL migrations, **forward-fix only**, because Flyway undo is a paid feature. A risky change gets a hand-written undo script for the DBA. | §4, Phase 0 |
 
 The original issue descriptions are in this file's git history (commit `d2c7498`).
 
@@ -81,7 +82,7 @@ asanzeman/
 │       ├── report/
 │       ├── scheduler/
 │       └── integration/         ← AAAClient, YaghutClient, BankApiGatewayClient (+ mock impls)
-│   └── src/main/resources/db/changelog/   ← Liquibase (§5-4)
+│   └── src/main/resources/db/migration/   ← Flyway SQL migrations (D20)
 ├── frontend/                    ← Nx monorepo (ADR-007)
 │   ├── apps/bank-panel/
 │   ├── apps/agency-panel/
@@ -311,7 +312,21 @@ Each strategy is an immutable value class. The factors, the cap and the share ra
 - **Anti-corruption layer:** each external service gets its own adapter that maps its format to domain types.
 - **Resilience4j** (§7-6): circuit breaker opens at 50 % failures over a 20-call window and stays open 30 s. Timeouts and retries per service, from the §7-3 table (8–15 s, 1–2 retries with exponential backoff, on 5xx and timeouts only; D4). Bulkhead of 20. Rate limiter of 10 req/s. All values configurable per client.
 - Every call sends an `Idempotency-Key` header and the correlation/trace ID.
-- **Mock implementations** of every client go under the `mock` Spring profile, with configurable scenarios (success, negative, timeout, 5xx). These are what unblock development before the bank gives us access to its services.
+- **Mocks: two layers**, built from the bank's service documents, one service at a time:
+  - **WireMock server (main layer):** runs in docker-compose and answers exactly like the real service (URLs, headers, JSON or SOAP, error codes). The app's **real** client code calls it, so serialisation, auth, timeouts and retries are all exercised. It's also used in integration tests.
+  - **In-app fakes:** Java implementations of the same client interfaces, under the `fake` profile, for fast unit tests and frontend work with no server.
+- **What each service gets:**
+  - a contract summary in `docs/integrations/<service>.md`, which includes the classification of every result code as business-negative or technical (it drives D3)
+  - a client interface with DTOs and an adapter (the anti-corruption layer)
+  - WireMock stubs for the happy path, each business negative, and the technical failures: delay past the timeout, 5xx, a malformed body, a dropped connection, and "fails then recovers" using WireMock scenarios
+  - client tests
+- **Test personas:** the national code picks the scenario (for example, `0000000001` means all OK, `0000000002` means deceased, `0000000009` means Sepad times out once and then succeeds), so any case can be reproduced without changing config. A persona table goes in `docs/integrations/personas.md`.
+- **Only synthetic data** goes in stubs and in the repo. Any real customer data in the bank's documents is replaced before it is committed.
+- **Order:**
+  1. Gateway token, ARcaptcha and Notifier (Phase 1)
+  2. AAAService and Yaghut `loginStatic`
+  3. Yaghut `getCustomerDetailInfo`, `getBranch` and `getDeposit`
+  4. the 9 inquiries
 
 ### 5.1 Running the customer inquiries (UC-09, resolves D3 and D4)
 
@@ -364,7 +379,14 @@ A result is only `NEGATIVE` when the service clearly says so. Anything unclear c
 
 - **JWT:** RS256. Claims: `sub`, `role`, `branch_code` / `agency_id`, `iat` and `exp`. Revocation through `jwt_blacklist`.
 - **Session lifetime (D5):** access token **15 min** for everyone. Refresh token **8 h** for branch, admin and agency users. **Customers** get a single **30-minute** session with no refresh token, enough to complete one request. All configurable.
-- **Token storage in the browser (D7):** the access token is kept **in memory** and sent as `Authorization: Bearer`. The refresh token is in an `HttpOnly; Secure; SameSite=Strict` cookie scoped to `/api/auth/refresh`, which is also CSRF-protected. Nothing goes in `localStorage` or `sessionStorage`. After a page reload, the panel calls refresh silently to get a new access token.
+- **Token storage in the browser (D7). No cookies are used anywhere.**
+  - Every call sends `Authorization: Bearer <access token>`. The browser never attaches a credential by itself, so there's no CSRF exposure and no CSRF tokens. This replaces the CSRF and SameSite parts of §6-5.
+  - **Access token:** in memory only (an Angular service), never written to storage.
+  - **Refresh token, for staff and agency users:** in `sessionStorage`. It belongs to one tab, isn't shared with other tabs, and is wiped when the tab closes, so it survives an F5 but not closing the browser. After a reload, the panel calls `POST /api/auth/refresh` with the refresh token in the request body and gets a new pair.
+  - **Rotation:** every refresh returns a **new** refresh token and invalidates the old one. Only a hash of each token is stored, in `refresh_tokens`, grouped by a `family_id` per login.
+  - **Reuse detection:** if an already-used refresh token is presented again, the **whole family is revoked**, the user has to log in again, and a security audit event is written.
+  - **Customers:** the 30-minute session token stays in memory only, with no refresh token. A reload means logging in again with OTP, which is acceptable for a one-off visit.
+  - **XSS defences, since storage is readable by scripts:** a strict CSP (`script-src 'self'`, no inline scripts and no third-party scripts), Angular's built-in sanitising with no `bypassSecurityTrust*` calls (checked by a lint rule), and `sessionStorage` cleared on logout.
 - **Secrets (D13):** the JWT private key, database password, gateway token and mobile-hash salt are read from **environment variables or mounted files** only, never committed to the repo. The bank's secret store (Vault, Kubernetes Secrets or encrypted files) is plugged in at deployment time.
 - **Authorization:** `@PreAuthorize` on every endpoint. Roles are `BRANCH`, `ADMIN`, `AGENCY` and `CUSTOMER`. Every query is also scoped by ownership: an agency only sees its own requests, a branch only its own branch, and a customer only their own requests.
 - **OTP:** 6 digits with a 120 s TTL, stored hashed in `otp_codes`. 3 wrong attempts trigger a 15-minute lockout. After OTP succeeds, the national code returned by Yaghut must match the request's customer.
@@ -403,7 +425,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 ### Phase 0 — Foundation
 - Repo skeleton (layout in §3): Maven backend (Java 21, Spring Boot 4.1.x, Spring Modulith 2.1.x) and Nx frontend (Angular 22). All versions pinned (D9).
 - `docker-compose` with Oracle XE (gvenzl/oracle-xe) and mock external services.
-- Liquibase baseline: the 5 schemas, `BaseEntity` columns and the reference tables (`branch`, `agency`, `rejection_reason`).
+- Flyway baseline (D20): `spring-boot-starter-flyway` plus `flyway-database-oracle`. Migrations in `db/migration`, named `V001__create_schemas.sql`, `V002__…` and so on. Flyway manages all 5 schemas, with its history table in `AZS_BUSINESS`. The first migrations create `BaseEntity` columns and the reference tables (`branch`, `agency`, `rejection_reason`). Schema users and grants that need DBA rights go in a separate `db/dba/` script that the DBA runs, not Flyway.
 - Cross-cutting pieces: error model (RFC 7807), correlation ID filter, structured JSON logging, Actuator/Micrometer, OpenTelemetry, idempotency filter, audit writer, Spring Modulith/ArchUnit boundary test.
 - CI on **GitHub Actions** (D8): build → unit tests (JaCoCo ≥ 80 %) → integration tests (Testcontainers Oracle) → SonarQube/OWASP Dependency-Check → Docker image build → Trivy image scan. The stages mirror §8-2 so they port to GitLab CI.
 - First draft of `docs/api/openapi.yaml`.
@@ -481,7 +503,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 
 ### Phase 10 — Deployment and go-live
 - Agree the runtime with the ops team (D10): Kubernetes or Docker on VMs, with Tomcat/WAR as a fallback. Then write the manifests and the rolling or blue-green release.
-- Liquibase migrations go through DBA review for production. Backup and DR runbook (RTO 2 h, RPO 15 min). Training material for branch users on the manual steps.
+- Flyway migrations go through DBA review for production. Production runs `flyway validate` before `migrate`. Backup and DR runbook (RTO 2 h, RPO 15 min). Training material for branch users on the manual steps.
 
 **Exit:** production deployment checklist signed off.
 
@@ -493,7 +515,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 |---|---|---|
 | Unit | JUnit 5, AssertJ, Mockito | State machine transitions, collateral strategies, tracking code generation, OTP rules |
 | Module | Spring Modulith `@ApplicationModuleTest` | Each module tested on its own, events published and consumed |
-| Integration | Testcontainers (Oracle XE), WireMock | Repositories, `SELECT FOR UPDATE NOWAIT` → 409, Liquibase, external client resilience |
+| Integration | Testcontainers (Oracle XE), WireMock | Repositories, `SELECT FOR UPDATE NOWAIT` → 409, Flyway migrations from an empty schema, external client resilience |
 | Contract | OpenAPI validation in CI | Backend matches `openapi.yaml`, generated Angular client compiles |
 | Architecture | ArchUnit / Modulith verify | Module boundaries, layering (no business logic in controllers) |
 | E2E | Playwright | Main path for each panel: issuance, cancellation before «اقدام», revocation, tracking, report |
@@ -507,7 +529,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 - Unit and integration tests are written, coverage is ≥ 80 % on changed code, and the module-boundary test passes.
 - State changes are audited, and POST/PUT endpoints are idempotent.
 - Metrics and logs are added. Logs contain no PII (national code masked, no mobile number).
-- The Liquibase changeset has a rollback block.
+- Database changes are a new Flyway migration. Applied migrations are never edited (forward-fix only). Risky changes include a hand-written undo script in `db/undo/` for the DBA.
 - Persian/RTL UI has been reviewed in all affected panels.
 
 ---
