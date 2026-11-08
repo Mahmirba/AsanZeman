@@ -14,7 +14,7 @@ A system for a bank to process **travel-return guarantees** (ضمانتنامه 
 
 | Piece | Description |
 |---|---|
-| **Asan Zeman Core** | One Spring Boot **modular monolith** (Java 17) inside the bank intranet. It has 6 modules: Auth, Request, Inquiry, Notification, Report and Scheduler. |
+| **Asan Zeman Core** | One Spring Boot **modular monolith** (Java 21, Spring Boot 4.1, see D9) inside the bank intranet. It has 6 modules: Auth, Request, Inquiry, Notification, Report and Scheduler. |
 | **Bank panel** | Angular SPA for branch users and admins (one app, role-based). Intranet only. Login: AAAService + ARcaptcha. |
 | **Agency panel** | Angular SPA in the DMZ at `www.asanzeman.sb24.com/agencies`. Login: Yaghut `loginStatic` + ARcaptcha. |
 | **Customer panel** | Angular SPA in the DMZ at `www.asanzeman.sb24.com`. Login: Yaghut `loginStatic` + ARcaptcha + SMS OTP. |
@@ -32,29 +32,33 @@ A system for a bank to process **travel-return guarantees** (ضمانتنامه 
 
 ---
 
-## 2. Decisions to resolve before coding
+## 2. Decision log
 
-The architecture document contradicts itself, or is silent, on the points below. Each open item lists a **proposed default**, so work can start, plus the person who needs to confirm it. Resolved items say how they were resolved.
+The architecture document contradicts itself, or is silent, on the points below. **All of them are now decided** (✅), following a review with the product owner on 1405/08/17. Where the product owner had no preference, the recommended default was adopted. Every value marked *configurable* lives in `application.yml` and can change without a release.
 
-| # | Issue | Where | Decision / proposed default | Owner |
-|---|---|---|---|---|
-| D1 | ✅ **Resolved: the lock can't span the manual work.** `SELECT … FOR UPDATE NOWAIT` only holds for one DB transaction, which means one HTTP call. Branch review, and especially `UNDER_ACTION`, lasts minutes to hours across many requests. | §3-4-3, §4-3-4, ADR-003; SRS: branch review, business rules | **Use a logical ownership lock, with `SELECT FOR UPDATE NOWAIT` guarding each change to it.** Full design in **§4.1**. ADR-003 is amended to match. | — |
-| D2 | ✅ **Resolved: the mobile number is stored only as a hash, so SMS can't be sent to it.** The system has to send OTP and notification SMS to the customer's mobile, and a hash can't be used for that. | §6-3-1 vs §3-3-5; SRS: customer login, step 11 and business rules | **Never store the mobile number in plain text. Get it from Yaghut each time it's needed.** The SRS says the number registered in Farangin is the one to use, and Yaghut returns it from `loginStatic` and `getCustomerDetailInfo`. The database stores only `mobile_hash` (salted SHA-256) and `mobile_last2` for display (`01*******09`). Full design in **§6.1**. | — |
-| D3 | **What happens when an inquiry fails.** §3-3-4 and §4-3-3 say a failure means *reject and stop*. The risk table (§11-1) says to *fall back to manual review*. | §3-3-4, §11-1 | A **negative** answer leads to reject. A **technical failure or timeout** marks the inquiry `FAILED` and blocks completion, and the customer may retry. Manual-review fallback is a later feature, controlled by a flag. | Business |
-| D4 | **Inquiry timeout and retry values conflict.** One place says a flat 30 s with 3 retries. The per-service table says 8–15 s with 1–2 retries. | §4-3-3, §4-5, §7-6 vs §7-3 | Use the **per-service table (§7-3)** and put all values in config. The overall UC-09 budget is ≤ 25 s (P99, §9-1). | Architect |
-| D5 | **Refresh-token lifetime** is given as 7 days in one place and 8 hours in another. | §3-3-2 vs §6-1-1 | Bank users get 8 h. Agency users get 8 h. Customers get no refresh token, or a short one. All values in config. | Security |
-| D6 | ✅ **Resolved: the collateral formulas** were missing from the architecture document. | §3-3-3, §4-3-2; SRS: customer completion, step 13 and calculation table | Taken from the SRS. Full rules in **§4.3**. Three small follow-ups remain: D14–D16. | — |
-| D7 | **Token transport.** The document asks for CSRF tokens and `SameSite=Strict` cookies, *and* JWT bearer tokens. | §6-2, §6-5 | Keep the access token in memory and send it as a `Authorization: Bearer` header. Put the refresh token in an `HttpOnly; Secure; SameSite=Strict` cookie, with CSRF protection on `/auth/refresh` only. | Security |
-| D8 | **CI/CD platform.** The document says GitLab CI, but this repo is on GitHub. | §8-2 | Use **GitHub Actions** while the code lives here, and keep the pipeline stages the same so they port cleanly to GitLab. | Team |
-| D9 | **Versions.** Spring Boot 3.2.x and Angular 17 are past upstream support. | §1-4 | Use the **current supported** Spring Boot 3.x line on Java 17 (or Java 21) and a current Angular LTS. Pin versions in the build. | Architect |
-| D10 | **Runtime.** Kubernetes and standalone Tomcat are both left open. | §8-1 | Build a **Docker image** (executable jar). Tomcat/WAR is a fallback profile. | Ops |
-| D11 | ✅ **Resolved: cancellation versus revocation.** | §5-2; SRS UC-11/12; product owner | **Before «اقدام»** the request goes to `CANCELLED` (لغو شده) immediately. **From «اقدام» onward** (including approved and issued requests), a revocation request goes to the branch, ending in `REVOKED` (ابطال شده). Full design in **§4.2**. *Still open:* whether `EXPIRED` is set by the scheduler when `expiry_date` passes (proposed: yes). | — |
-| D17 | **Revocation requested while the branch user is partway through** (`UNDER_REVIEW` or `UNDER_ACTION`). | §4.2 | **The issuance flow stops.** Approve and reject are disabled, except for recording a guarantee number that was *already* issued in Farangin, so the records match reality. The revocation request goes **directly to the user who holds the lock**, because they know what was done in the Digital Signature system and Farangin. An admin can reassign it with force-release. | Business (confirm) |
-| D12 | **Tracking code** is said to be 17 digits, but the scope of the "daily counter" isn't stated. | §5-3 | The counter is per (branch, agency, day). Keep it in a `tracking_counter` table that is incremented under a row lock. | Architect |
-| D13 | **Secret storage.** Vault is mentioned for the JWT private key, but it isn't in the tech stack. | §6-2 | Confirm which secret store the bank has (Vault or KMS). Locally, use a key file mounted as a secret. | Ops |
-| D14 | **The SRS pledge formula disagrees with its own worked example.** The formula reads `share% × 100% × (amount − cash)`. With 20 % cash and 80 % pledge on 1,000,000,000 rials that gives 640,000,000, but the example gives **800,000,000** (and 840,000,000 for expensive deposits). | SRS: calculation table | **Follow the worked example:** pledge = `(amount − cash) × factor`. Since cash % + pledge % = 100 %, this equals `pledge% × amount × factor`. | Business (confirm) |
-| D15 | **A pledge that mixes cheap and expensive deposits.** The SRS allows several deposits from both groups in one pledge, but doesn't say how the remainder is split between them. | SRS: step 12 notes | Fill from **cheap deposits first** (×1.00), then expensive ones (×1.05, each capped at 95 % of its balance), in the order the customer selected them. | Business (confirm) |
-| D16 | **Balances can change between completion and branch approval.** | SRS step 13; §6-3-1 (deposit data is never stored) | **Re-check balances through Yaghut `getDeposit` at approval.** If the deposits no longer cover the collateral, block approval and show the shortfall. | Business (confirm) |
+| # | Topic | Decision | Details |
+|---|---|---|---|
+| D1 | ✅ Locking across the manual work | **Ownership lock** (`locked_by` on the request), with `SELECT … FOR UPDATE NOWAIT` guarding each change to it. ADR-003 is amended. | §4.1 |
+| D2 | ✅ Customer mobile number | **Never stored in plain text.** Fetched from Yaghut whenever it's needed. Only `mobile_hash` and `mobile_last2` are kept. | §6.1 |
+| D3 | ✅ Inquiry technical failure | **Block and let the customer retry.** A *negative* answer rejects the request. A *technical* failure (timeout, 5xx, circuit open, unreadable response) blocks completion without rejecting. On retry, only the failed inquiries are re-run. A passed result is reused for **1 hour** (*configurable*). Manual-review fallback is **not** built. | §5.1 |
+| D4 | ✅ Inquiry timeouts and retries | Use the **per-service table in §7-3** (8–15 s, 1–2 retries), not the flat 30 s with 3 retries. The whole run must stay within the **25 s budget** (P99, §9-1). All *configurable*. | §5, §5.1 |
+| D5 | ✅ Session lifetime | Access token **15 min** for everyone. Refresh token **8 h** for branch, admin and agency users. **Customers:** a single **30-minute** session with no refresh token. All *configurable*. | §6 |
+| D6 | ✅ Collateral formulas | Taken from the SRS. | §4.3 |
+| D7 | ✅ Where the browser keeps tokens | Access token **in memory**, sent as `Authorization: Bearer`. Refresh token in an **`HttpOnly; Secure; SameSite=Strict` cookie**, with CSRF protection on `/auth/refresh` only. Nothing in `localStorage`. | §6 |
+| D8 | ✅ CI/CD | **GitHub Actions** while the code is on GitHub. The stages mirror §8-2, so the pipeline moves cleanly to GitLab CI later. | §7 Phase 0 |
+| D9 | ✅ Versions | **Java 21 (LTS), Spring Boot 4.1.x, Spring Modulith 2.1.x, Angular 22 with Nx.** Versions are pinned in the build. This replaces Boot 3.2, Java 17 and Angular 17 from §1-4, which are past upstream support. | §3 |
+| D10 | ✅ Runtime | **Build a Docker image (executable jar) now.** Keep a Tomcat/WAR profile possible. Decide Kubernetes versus VMs with the ops team before Phase 10. | §7 Phase 10 |
+| D11 | ✅ Cancellation versus revocation | **Before «اقدام»:** the request goes to `CANCELLED` (لغو شده) immediately. **From «اقدام» onward**, including approved and issued requests: a revocation request goes to the branch and ends in `REVOKED` (ابطال شده). | §4.2 |
+| D12 | ✅ Tracking code | 17 digits: branch (3) + agency (4) + date YYMMDD (6) + a 4-digit counter. The counter runs **per branch + agency + day**, in a `tracking_counter` table incremented under a row lock. | §4 |
+| D13 | ✅ Secret store | **Not known yet.** The app reads secrets from **environment variables or mounted files**, so Vault, Kubernetes Secrets or encrypted files can be added later without code changes. Locally, a key file is used. | §6 |
+| D14 | ✅ Pledge formula | **Follow the SRS worked example:** pledge = `(amount − cash) × factor`. For example, 1,000,000,000 rials with 20 % cash pledges 800,000,000 (840,000,000 on expensive deposits). The literal SRS formula, which gives 640,000,000, is treated as a typo. | §4.3 |
+| D15 | ✅ Mixed cheap and expensive pledge | **Cheap deposits are filled first** (×1.00), then expensive ones (×1.05, each capped at 95 % of its balance). Within each group, deposits are filled in the order the customer selected them. | §4.3 |
+| D16 | ✅ Balance changes before approval | **Balances are re-checked** through Yaghut `getDeposit` when the branch clicks approve. If the deposits no longer cover the collateral, approval is blocked and the shortfall is shown. | §4.3, Phase 4 |
+| D17 | ✅ Revocation while the branch is mid-work | **Issuance actions stop**, except for recording a guarantee number that was *already* issued in Farangin. The revocation request goes **straight to the user who holds the lock**. An admin can reassign it with force-release. | §4.2 |
+| D18 | ✅ Rounding | Collateral amounts are **rounded up to the whole rial** (`BigDecimal`, `CEILING`), so the bank is never under-covered. | §4.3 |
+| D19 | ✅ Guarantee expiry | **There is no `EXPIRED` status, and no job changes issued guarantees.** Asan Zeman has no connection to Farangin, where the guarantee actually lives, so it can't know when one really ends. `expiry_date` is stored as information only (shown in tracking and reports, and usable as a filter). An `ISSUED` request can be revoked at any time. | §4.2 |
+
+The original issue descriptions are in this file's git history (commit `d2c7498`).
 
 ---
 
@@ -118,7 +122,6 @@ stateDiagram-v2
     UNDER_REVIEW --> REVOKED: revocation completed (§4.2)
     UNDER_ACTION --> REVOKED: revocation completed (§4.2)
     ISSUED --> REVOKED: revocation completed (§4.2)
-    ISSUED --> EXPIRED: expiry_date passed (scheduler, see D11)
 ```
 
 **Revocation request** (`request_type = REVOCATION`, linked to its issuance request by `parent_request_id`). It goes through the same branch review and lock process as an issuance request:
@@ -205,7 +208,7 @@ BEGIN
   CASE status
     REGISTERED_AT_AGENCY, PENDING_BRANCH_REVIEW        → status = CANCELLED                       (لغو)
     UNDER_REVIEW, UNDER_ACTION, ISSUED                 → create REVOCATION request (parent_request_id)  (ابطال)
-    REJECTED, CANCELLED, REVOKED, EXPIRED              → 409 (nothing to cancel)
+    REJECTED, CANCELLED, REVOKED                       → 409 (nothing to cancel)
     a revocation is already open                       → 409 (duplicate)
 COMMIT
 ```
@@ -218,6 +221,7 @@ COMMIT
   - the new revocation request is assigned directly to that holder, with its status set to `UNDER_REVIEW` and its `locked_by` set to the holder
 - **When revocation completes:** the issuance request moves to `REVOKED`, an audit row is written, and the customer and agency receive an SMS. If nothing had actually been issued in Farangin, the branch confirms that instead, and the issuance request still ends as `REVOKED`.
 - **When revocation is rejected:** the revocation request becomes `REJECTED`, with a reason from the admin-managed list of revocation rejection reasons (SRS use case 6) and a comment. The issuance request is unchanged. If it was mid-work, its normal flow resumes.
+- **No expiry (D19).** Asan Zeman never changes an `ISSUED` request because of its `expiry_date`, since the real guarantee lives in Farangin. An `ISSUED` request can be revoked at any time. `expiry_date` is shown, and can be filtered on, in tracking and reports.
 - **Reports and tracking** show `CANCELLED` and `REVOKED` as separate statuses. Both the agency and the bank panels can filter on each.
 - **Tests (Phase 5):**
   - every source status gives the correct outcome, as in the table above
@@ -266,7 +270,7 @@ COMMIT
 | **Total collateral** | `C + R_cheap × 1.00 + R_exp × 1.05` | `R_cheap + R_exp = R`, split per D15 |
 
 - When one deposit is used for both cash and pledge, the cash withdrawn plus the amount blocked must fit within that deposit's withdrawable balance.
-- **Rounding:** use `BigDecimal` and round to whole rials with `CEILING`, so the bank is never under-collateralised. *Confirm this with the business.*
+- **Rounding:** use `BigDecimal` and round to whole rials with `CEILING`, so the bank is never under-collateralised (D18).
 - **Insufficient balance (SRS sub-flow 11):** show «مشتری گرامی! به دلیل کافی‌نبودن موجودی در سپرده‌های انتخابی برای وثیقه، ثبت درخواست امکان‌پذیر نیست…» (insufficient balance in the selected deposits). The request cannot be submitted.
 - **UI:** show a green tick next to each deposit row once the selection covers the required amount. When cash alone is enough at 100 %, the other rows are disabled.
 
@@ -275,7 +279,7 @@ COMMIT
 | Case | Cash | Pledge | Total collateral | Notes |
 |---|---|---|---|---|
 | 100 % cash | 1,000,000,000 | 0 | 1,000,000,000 | pledge rows disabled |
-| 20 % cash, 80 % cheap pledge | 200,000,000 | 800,000,000 | 1,000,000,000 | SRS example (see D14) |
+| 20 % cash, 80 % cheap pledge | 200,000,000 | 800,000,000 | 1,000,000,000 | SRS example (D14) |
 | 20 % cash, 80 % expensive pledge | 200,000,000 | 840,000,000 | 1,040,000,000 | SRS example; that deposit's balance must be ≥ 884,210,527 (840M ÷ 0.95, rounded up) |
 | 50 % cash, 50 % expensive pledge | 500,000,000 | 525,000,000 | 1,025,000,000 | |
 | 10 % cash | — | — | — | rejected, below the 20 % minimum |
@@ -305,16 +309,63 @@ Each strategy is an immutable value class. The factors, the cap and the share ra
 | `BankApiGatewayClient` | `apigw.int.sb24.com` | One token for everything: the 9 inquiries, ARcaptcha and Notifier (`SendOTP`, `SendSimpleSms`). |
 
 - **Anti-corruption layer:** each external service gets its own adapter that maps its format to domain types.
-- **Resilience4j** (§7-6): circuit breaker opens at 50 % failures over a 20-call window and stays open 30 s. Retry ×3 with 1 s, 2 s, 4 s backoff, on 5xx and timeouts only. Bulkhead of 20. Rate limiter of 10 req/s. Timeouts per D4.
+- **Resilience4j** (§7-6): circuit breaker opens at 50 % failures over a 20-call window and stays open 30 s. Timeouts and retries per service, from the §7-3 table (8–15 s, 1–2 retries with exponential backoff, on 5xx and timeouts only; D4). Bulkhead of 20. Rate limiter of 10 req/s. All values configurable per client.
 - Every call sends an `Idempotency-Key` header and the correlation/trace ID.
 - **Mock implementations** of every client go under the `mock` Spring profile, with configurable scenarios (success, negative, timeout, 5xx). These are what unblock development before the bank gives us access to its services.
-- **UC-09 inquiries:** run with `CompletableFuture` on a dedicated bounded executor. Sepad is only called for men aged 18–50. Results are saved to `inquiries` with the raw response. The step fails fast on the first negative answer, which cancels the remaining futures.
+
+### 5.1 Running the customer inquiries (UC-09, resolves D3 and D4)
+
+**Every inquiry result falls into one of four groups:**
+
+| Result | Meaning | Examples |
+|---|---|---|
+| `PASSED` | The service answered, and the answer is OK | alive, Shahkar matches, no bounced cheques |
+| `NEGATIVE` | The service answered, and the answer disqualifies the customer | deceased, military-service status not allowed, bounced cheque |
+| `FAILED` | **No usable answer** after the automatic retries | timeout, 5xx error, connection refused, circuit breaker open, response that can't be read |
+| `SKIPPED` | The inquiry doesn't apply to this customer | Sepad for women, or men outside ages 18–50 |
+
+A result is only `NEGATIVE` when the service clearly says so. Anything unclear counts as `FAILED`, so nobody is rejected because of a technical fault.
+
+**How the results are combined**
+- Any `NEGATIVE` → **reject** with the SRS message for that inquiry. The inquiries still running are cancelled.
+- No `NEGATIVE`, but at least one `FAILED` → **blocked**. The request stays in `REGISTERED_AT_AGENCY`; nothing is rejected and no SMS is sent. The customer sees:
+  «مشتری گرامی! در حال حاضر امکان انجام برخی استعلام‌ها وجود ندارد. لطفاً دقایقی دیگر مجدداً تلاش کنید.» ("some inquiries can't be done right now, please try again in a few minutes")
+- Everything `PASSED` or `SKIPPED` → the customer goes on to choose collateral (§4.3).
+
+**How a run works**
+- **It runs in the background.** `POST /api/customer/requests/{id}/inquiries` starts a run and returns **202** with a `runId`. The panel polls `GET …/inquiries/{runId}`, or uses server-sent events, and shows each of the 9 inquiries live (✓, ✗ or ⟳). A slow service therefore can't push the page past the proxy's HTTP timeout.
+- **The 9 inquiries run in parallel** with `CompletableFuture`, on a dedicated bounded executor. A run takes as long as its slowest inquiry, capped at the 25 s budget. Different customers' runs are independent and run side by side.
+- **Each service has its own timeout and retries** (§7-3 table, D4), applied by Resilience4j inside the client. An inquiry is marked `FAILED` only after its retries are used up. When a circuit breaker is open, the inquiry fails at once, without waiting for the timeout.
+- **One run per request at a time.** The row lock (§4.1) is held for milliseconds, only to record "a run has started". If the customer double-clicks or opens a second tab, the call **attaches to the run already in progress** and returns its `runId`, so the customer never sees an error. A run older than `azs.inquiry.run-stale-after` (default **60 s**) is treated as dead (for example, after a server restart), and a new one may start.
+
+**Retry by the customer**
+- A «تلاش مجدد» (try again) button appears, with a cooldown of `azs.inquiry.retry-cooldown` (default **60 s**).
+- On retry, **only the `FAILED` inquiries, and any whose result has gone stale, are re-run**. A `PASSED` result is reused for `azs.inquiry.result-reuse-window` (default **1 hour**).
+- The 7-day auto-reject still applies. If a service stays down for a week, the request is auto-rejected under the existing rule.
+
+**What is saved:** one `inquiry` row per inquiry per attempt, with:
+- `run_id`, `inquiry_type`, `attempt_no`, `result` and `failure_kind` (`TIMEOUT`, `UNAVAILABLE`, `CIRCUIT_OPEN` or `BAD_RESPONSE`)
+- the provider's response code, `duration_ms`, start and finish times, and the raw response with personal data masked
+
+**Monitoring:** a Micrometer counter and timer per inquiry type and result, plus an alert when an inquiry type's `FAILED` rate is above a threshold. Ops then hears about an outage before customers complain.
+
+**Tests (Phase 3):**
+- every combination of `NEGATIVE`, `FAILED` and `PASSED`
+- a double-click attaches to the running run
+- a retry re-runs only the failed and stale inquiries
+- the cooldown is enforced
+- a stale run is recovered
+- an open circuit fails fast
+- a full run stays inside the 25 s budget with injected latency
 
 ---
 
 ## 6. Security plan (§6)
 
-- **JWT:** RS256. 15-minute access token. Claims: `sub`, `role`, `branch_code` / `agency_id`, `iat` and `exp`. Revocation through `jwt_blacklist`.
+- **JWT:** RS256. Claims: `sub`, `role`, `branch_code` / `agency_id`, `iat` and `exp`. Revocation through `jwt_blacklist`.
+- **Session lifetime (D5):** access token **15 min** for everyone. Refresh token **8 h** for branch, admin and agency users. **Customers** get a single **30-minute** session with no refresh token, enough to complete one request. All configurable.
+- **Token storage in the browser (D7):** the access token is kept **in memory** and sent as `Authorization: Bearer`. The refresh token is in an `HttpOnly; Secure; SameSite=Strict` cookie scoped to `/api/auth/refresh`, which is also CSRF-protected. Nothing goes in `localStorage` or `sessionStorage`. After a page reload, the panel calls refresh silently to get a new access token.
+- **Secrets (D13):** the JWT private key, database password, gateway token and mobile-hash salt are read from **environment variables or mounted files** only, never committed to the repo. The bank's secret store (Vault, Kubernetes Secrets or encrypted files) is plugged in at deployment time.
 - **Authorization:** `@PreAuthorize` on every endpoint. Roles are `BRANCH`, `ADMIN`, `AGENCY` and `CUSTOMER`. Every query is also scoped by ownership: an agency only sees its own requests, a branch only its own branch, and a customer only their own requests.
 - **OTP:** 6 digits with a 120 s TTL, stored hashed in `otp_codes`. 3 wrong attempts trigger a 15-minute lockout. After OTP succeeds, the national code returned by Yaghut must match the request's customer.
 - **Data protection:** encryption at rest via TDE, provided by the DBA. National codes are masked in logs. Mobile numbers are handled as in §6.1. TLS 1.2+ with HSTS.
@@ -350,11 +401,11 @@ Each strategy is an immutable value class. The factors, the cap and the share ra
 Each phase ends with a demoable result and its own exit criteria. External services are mocked until the bank grants access.
 
 ### Phase 0 — Foundation
-- Repo skeleton (layout in §3), Maven backend and Nx frontend.
+- Repo skeleton (layout in §3): Maven backend (Java 21, Spring Boot 4.1.x, Spring Modulith 2.1.x) and Nx frontend (Angular 22). All versions pinned (D9).
 - `docker-compose` with Oracle XE (gvenzl/oracle-xe) and mock external services.
 - Liquibase baseline: the 5 schemas, `BaseEntity` columns and the reference tables (`branch`, `agency`, `rejection_reason`).
 - Cross-cutting pieces: error model (RFC 7807), correlation ID filter, structured JSON logging, Actuator/Micrometer, OpenTelemetry, idempotency filter, audit writer, Spring Modulith/ArchUnit boundary test.
-- CI: build → unit tests (JaCoCo ≥ 80 %) → integration tests (Testcontainers Oracle) → SonarQube/OWASP Dependency-Check → Trivy image scan.
+- CI on **GitHub Actions** (D8): build → unit tests (JaCoCo ≥ 80 %) → integration tests (Testcontainers Oracle) → SonarQube/OWASP Dependency-Check → Docker image build → Trivy image scan. The stages mirror §8-2 so they port to GitLab CI.
 - First draft of `docs/api/openapi.yaml`.
 
 **Exit:** `docker compose up` gives a running core plus Oracle, CI is green, and the health endpoint responds.
@@ -376,9 +427,9 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 **Exit:** a request created in the agency panel shows up in the customer panel.
 
 ### Phase 3 — Customer completion: inquiries and collateral (UC-09)
-- InquiryService runs the 9 inquiries in parallel, with the per-service timeouts and retries (D4) and persists each result.
+- InquiryService as designed in §5.1: background runs, the 9 inquiries in parallel, `PASSED`/`NEGATIVE`/`FAILED`/`SKIPPED`, «تلاش مجدد» with cooldown and result reuse, and per-attempt history.
 - Filter eligible deposits from `getDeposit` (individual, owner and signatory, active, rial) and classify them as cheap or expensive (§4.3).
-- CollateralService: Cash, cheap-pledge and expensive-pledge strategies (§4.3). The SRS worked examples become unit tests. Confirm D14 and D15 with the business before closing this phase.
+- CollateralService: Cash, cheap-pledge and expensive-pledge strategies (§4.3). The SRS worked examples become unit tests (D14, D15, D18).
 - `start-completion` and `complete` endpoints. Customer panel steps: review the request → inquiries → choose collateral → submit.
 
 **Exit:** the full completion flow works with the mocks, and the UC-09 P95 is ≤ 15 s with injected latency.
@@ -417,7 +468,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 
 ### Phase 8 — Scheduler
 - Leader election through `scheduler_lock`, shedlock style.
-- Jobs: auto-reject requests left incomplete after 7 days, release idle `UNDER_REVIEW` locks (§4.1), purge expired OTPs and blacklist entries, set `EXPIRED` (D11), and maintain partitions.
+- Jobs: auto-reject requests left incomplete after 7 days, release idle `UNDER_REVIEW` locks (§4.1), purge expired OTPs and blacklist entries, and maintain partitions. There is **no** expiry job for issued guarantees (D19).
 
 **Exit:** with 2 instances running, each job runs exactly once.
 
@@ -429,7 +480,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 **Exit:** all SLAs met in UAT-like conditions and no high or critical findings remain.
 
 ### Phase 10 — Deployment and go-live
-- Images, Kubernetes manifests (or Tomcat profile), and a rolling or blue-green release.
+- Agree the runtime with the ops team (D10): Kubernetes or Docker on VMs, with Tomcat/WAR as a fallback. Then write the manifests and the rolling or blue-green release.
 - Liquibase migrations go through DBA review for production. Backup and DR runbook (RTO 2 h, RPO 15 min). Training material for branch users on the manual steps.
 
 **Exit:** production deployment checklist signed off.
@@ -462,7 +513,11 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 ---
 
 ## 10. Immediate next steps
-1. D1, D2, D6 and D11 are resolved. Confirm the remaining open items with their owners, mainly **D3** (inquiry failure handling), **D14–D16** (collateral details), **D17** (revocation of a request that is mid-work) and the rounding rule in §4.3.
-2. Get the API specs for Yaghut (including the deposit type codes), AAAService and the Bank API Gateway, so the mocks match the real services.
-3. Write ADR-008 in `docs/architecture/`, recording the amendment to ADR-003 (the ownership lock in §4.1).
-4. Start **Phase 0** in this repository.
+1. All decisions D1–D19 are made (§2).
+2. Get the API specs for Yaghut (including the deposit type codes), AAAService and the Bank API Gateway, plus the §7-3 timeout table values per service, so the mocks and the config match the real services.
+3. Record the decisions that change the architecture document as ADRs in `docs/architecture/`:
+   - **ADR-008:** the ownership lock (amends ADR-003)
+   - **ADR-009:** لغو versus ابطال, and no expiry status
+   - **ADR-010:** the version upgrade (Java 21, Boot 4.1, Angular 22)
+4. Decide how Phase 0 is built and checked. This workspace can't download packages, so either GitHub Actions does the building, or the work runs on a computer that can.
+5. Start **Phase 0** in this repository.
