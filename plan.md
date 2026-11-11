@@ -12,14 +12,16 @@
 
 A system for a bank to process **travel-return guarantees** (ضمانتنامه بازگشت از سفر), from the agency's registration through branch approval to recording the guarantee number. Cancellation, revocation and reporting are included.
 
+> **Current scope: backend only (D31).** The three panels are on hold until the product owner explains the UI. The backend exposes everything through a contract-first REST API (`docs/api/openapi.yaml`).
+
 | Piece | Description |
 |---|---|
 | **Asan Zeman Core** | One Spring Boot **modular monolith** (Java 25, Spring Boot 4.1, virtual threads; see D9, D24) inside the bank intranet. It has 6 modules: Auth, Request, Inquiry, Notification, Report and Scheduler. |
-| **Bank panel** | Angular SPA for branch users and admins (one app, role-based). Intranet only. Login: AAAService + ARcaptcha. |
-| **Agency panel** | Angular SPA in the DMZ at `www.asanzeman.sb24.com/agencies`. Login: Yaghut `loginStatic` + ARcaptcha. |
-| **Customer panel** | Angular SPA in the DMZ at `www.asanzeman.sb24.com`. Login: Yaghut `loginStatic` + ARcaptcha + SMS OTP. |
+| **Bank panel** | For branch users and admins. Intranet only. Login: ARcaptcha + AAAService + personnelInfo (§6.2). *UI deferred (D31).* |
+| **Agency panel** | In the DMZ at `www.asanzeman.sb24.com/agencies`. Login: Yaghut `loginStatic` + ARcaptcha. *UI deferred (D31).* |
+| **Customer panel** | In the DMZ at `www.asanzeman.sb24.com`. Login: Yaghut `loginStatic` + ARcaptcha + SMS OTP (§6.3). *UI deferred (D31).* |
 | **Oracle 19c+** | The **only** data store. There is no Redis, Kafka or object storage. Schemas: `AZS_AUTH`, `AZS_BUSINESS`, `AZS_INQUIRY`, `AZS_AUDIT`, `AZS_OUTBOX`. |
-| **External** | **Called directly:** AAAService and Yaghut (4 services). **Through the Bank API Gateway:** the 9 inquiries, with one OAuth2 client-credentials token (D28, §5.2). **ARcaptcha and SMS Notifier** use their own authentication (documents pending). |
+| **External** | **Called directly:** AAAService, Yaghut (4 services) and the **SMS Notifier** (internal IP, its own user and password; §6.3). **Through the Bank API Gateway**, with one OAuth2 client-credentials token (D28, §5.2): the 9 inquiries and **personnelInfo**. **ARcaptcha:** document pending. |
 | **Out of scope (manual)** | Farangin (guarantee issuance and revocation) and the Digital Signature system. There is **no API integration** with either one. The branch user does this work by hand while the request is in `UNDER_ACTION`. |
 
 ### Core flows (§2-4)
@@ -36,7 +38,7 @@ A system for a bank to process **travel-return guarantees** (ضمانتنامه 
 
 The architecture document contradicts itself, or is silent, on the points below. They were reviewed with the product owner on 1405/08/17 and 1405/08/19. ✅ means decided, ⏳ means open or proposed. Where the product owner had no preference, the recommended default was adopted. Every value marked *configurable* lives in `application.yml` and can change without a release.
 
-**Still open:** D25 (structured concurrency, to be decided later) and D27 (the time budget, proposed).
+**Still open:** D25 (structured concurrency, to be decided later).
 
 | # | Topic | Decision | Details |
 |---|---|---|---|
@@ -48,10 +50,10 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D6 | ✅ Collateral formulas | Taken from the SRS. | §4.3 |
 | D7 | ✅ Where the browser keeps tokens | **No cookies** (an infrastructure restriction). Both tokens are sent only as `Authorization: Bearer`, so **no CSRF protection is needed**. Access token **in memory**. Staff and agency refresh token in **`sessionStorage`**, with **rotation and reuse detection**. Customers: **memory only**, with no refresh token. Nothing in `localStorage`. | §6 |
 | D8 | ✅ CI/CD | **GitHub Actions** while the code is on GitHub. The stages mirror §8-2, so the pipeline moves cleanly to GitLab CI later. | §7 Phase 0 |
-| D9 | ✅ Versions (**revised** 1405/08/19) | **Java 25 (LTS), Spring Boot 4.1.x, Spring Modulith 2.1.x, Angular 22 with Nx.** Versions are pinned in the build. This replaces Boot 3.2, Java 17 and Angular 17 from §1-4, which are past upstream support. Java 25 was chosen over 21 because, since Java 24, virtual threads no longer pin their carrier thread inside `synchronized` blocks (D24). | §3 |
+| D9 | ✅ Versions (**revised** 1405/08/19) | **Java 25 (LTS), Spring Boot 4.1.x, Spring Modulith 2.1.x.** Angular 22 with Nx when the UI starts (deferred, D31). Versions are pinned in the build. This replaces Boot 3.2, Java 17 and Angular 17 from §1-4, which are past upstream support. Java 25 was chosen over 21 because, since Java 24, virtual threads no longer pin their carrier thread inside `synchronized` blocks (D24). | §3 |
 | D10 | ✅ Runtime | **Build a Docker image (executable jar) now.** Keep a Tomcat/WAR profile possible. Decide Kubernetes versus VMs with the ops team before Phase 10. | §7 Phase 10 |
 | D11 | ✅ Cancellation versus revocation | **Before «اقدام»:** the request goes to `CANCELLED` (لغو شده) immediately. **From «اقدام» onward**, including approved and issued requests: a revocation request goes to the branch and ends in `REVOKED` (ابطال شده). | §4.2 |
-| D12 | ✅ Tracking code | 17 digits: branch (3) + agency (4) + date YYMMDD (6) + a 4-digit counter. The counter runs **per branch + agency + day**, in a `tracking_counter` table incremented under a row lock. | §4 |
+| D12 | ✅ Tracking code (**revised** 1405/08/20) | The **full branch code** (as Yaghut returns it, never truncated) + agency (4) + date YYMMDD (6) + a 4-digit counter, so **17–19 digits** depending on the branch. Codes can't collide, because everything after the branch code is fixed-width. Stored as `VARCHAR2(20)`. The counter runs **per branch + agency + day**, in a `tracking_counter` table incremented under a row lock. | §4 |
 | D13 | ✅ Secret store | **Not known yet.** The app reads secrets from **environment variables or mounted files**, so Vault, Kubernetes Secrets or encrypted files can be added later without code changes. Locally, a key file is used. | §6 |
 | D14 | ✅ Pledge formula | **Follow the SRS worked example:** pledge = `(amount − cash) × factor`. For example, 1,000,000,000 rials with 20 % cash pledges 800,000,000 (840,000,000 on expensive deposits). The literal SRS formula, which gives 640,000,000, is treated as a typo. | §4.3 |
 | D15 | ✅ Mixed cheap and expensive pledge | **Cheap deposits are filled first** (×1.00), then expensive ones (×1.05, each capped at 95 % of its balance). Within each group, deposits are filled in the order the customer selected them. | §4.3 |
@@ -66,9 +68,14 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D24 | ✅ Virtual threads | `spring.threads.virtual.enabled=true`, so incoming HTTP requests, inquiry runs, `@Async` work and scheduled jobs all run on virtual threads. The **Hikari connection pool** is the only limit on database work, and inquiry runs never hold a DB connection while waiting on a service. | §5.1 |
 | D25 | ⏳ **Open:** structured concurrency | Java 25's `StructuredTaskScope` would suit each inquiry stage, but it is still a **preview** feature. The product owner will decide later. **Working default:** `CompletableFuture` on virtual threads. Only `StageRunner` would change if we switch. | §5.1 |
 | D26 | ✅ Inquiry order: two stages | **Stage 1: Sabte Ahval alone.** It supplies the authoritative gender and birth date. **Stage 2: the other 8 in parallel.** Sepad runs only for men aged 18–50 *inclusive*, using Sabte Ahval's data. Implemented as **one chain of stages** (Chain of Responsibility), with **one Strategy class per inquiry**. The stage list is configurable. | §5.1 |
-| D27 | ⏳ **Proposed:** time budget | §7-3's timeouts × attempts can't fit the 25 s budget (Sabte Ahval alone is 15 s × 3 = 45 s). **Proposal: deadline-aware retries.** Each stage gets a deadline (stage 1: **10 s**, stage 2: **15 s**, both configurable). A retry starts **only if the time left in the stage is at least that service's timeout**; otherwise the inquiry is `FAILED`, and the customer can retry (D3). *Needs product-owner confirmation.* | §5.1 |
-| D28 | ✅ Gateway token | OAuth2 **client credentials** from `apigw.int.sb2.com/ApiContainer.sso.RCL1/connect/token`. One token per app instance, kept in memory and refreshed before its 2-hour expiry. It is used by **the 9 inquiries only**; ARcaptcha and Notifier have their own authentication. `invalid_client` (HTTP 400) is a configuration error and is not retried. | §5.2 |
+| D27 | ✅ Time budget (agreed 1405/08/20) | §7-3's timeouts × attempts can't fit the 25 s budget (Sabte Ahval alone is 15 s × 3 = 45 s). **Proposal: deadline-aware retries.** Each stage gets a deadline (stage 1: **10 s**, stage 2: **15 s**, both configurable). A retry starts **only if the time left in the stage is at least that service's timeout**; otherwise the inquiry is `FAILED`, and the customer can retry (D3). | §5.1 |
+| D28 | ✅ Gateway token | OAuth2 **client credentials** from `apigw.int.sb2.com/ApiContainer.sso.RCL1/connect/token`. One token per app instance, kept in memory and refreshed before its 2-hour expiry. It is used by **the 9 inquiries and personnelInfo**. The Notifier has its own user and password (D34), and ARcaptcha is still pending. `invalid_client` (HTTP 400) is a configuration error and is not retried. | §5.2 |
 | D29 | ✅ Rejection messages | Taken **from the SRS** for every inquiry. The exception is Sabte Ahval `300` (wrong details), which uses the product owner's text because the SRS has none. All messages live in a message config file. | §5.3 |
+| D30 | ✅ National code validation | **Exactly 10 digits** after converting Persian and Arabic digits and trimming. Codes made of one repeated digit are rejected, and the **check digit** must pass (§4.5). It's always on, in every environment, with **no zero-padding**: `81029310` is rejected. Enforced on every request DTO (`@IranianNationalCode`) and again before every inquiry. Stored as `VARCHAR2(10)`. | §4.5 |
+| D31 | ✅ Backend only for now | **No UI work** (no Nx or Angular workspace, screens or validators) until the product owner explains how the UI should work. The backend is built contract-first, so the panels can follow later. | §1, §7 |
+| D32 | ✅ Branches come from Yaghut | There's **no branch form** in the base data. `BranchSyncJob` fills and updates `branch` from Yaghut `getBranch`. Each branch has a **`parent_branch`**: itself when open, its **replacement** when closed. Replacements are set **only by database scripts**. Both the original branch and the replacement can see and act on a closed branch's requests, including revocations. | §4.4 |
+| D33 | ✅ Bank user's branch | It comes from **personnelInfo** (`abrnchcod` only), fetched at every login. `accountName` is the login username without `@sb24.ir`. There's no check that the branch exists in `branch`. The lock holder's display name is `accountName`. | §6.2 |
+| D34 | ✅ OTP via the Notifier | The **Notifier generates and checks** a 4-digit code (`SendOtp` and `OtpValidate`); Asan Zeman never stores it. `SendOtp` is called **synchronously**, not through the outbox, because the `sId` is needed at once. Validity is `azs.otp.validity` (120 s). **3 wrong attempts per customer** (not per code) → 15-minute lockout. Each code is used only once. The number is sent as `09xxxxxxxxx`, with `ClientName` `AZS` and its own credentials. | §6.3 |
 
 The original issue descriptions are in this file's git history (commit `d2c7498`).
 
@@ -94,7 +101,7 @@ asanzeman/
 │       ├── scheduler/
 │       └── integration/         ← AAAClient, YaghutClient, GatewayTokenProvider, one client per inquiry (+ fakes)
 │   └── src/main/resources/db/migration/   ← Flyway SQL migrations (D20)
-├── frontend/                    ← Nx monorepo (ADR-007)
+├── frontend/                    ← Nx monorepo (ADR-007), DEFERRED (D31): not created yet
 │   ├── apps/bank-panel/
 │   ├── apps/agency-panel/
 │   ├── apps/customer-panel/
@@ -112,7 +119,7 @@ asanzeman/
 ### Entities (§5-1)
 `Customer`, `Agency`, `Branch`, `Request`, `Companion` (≤ 5 per request), `Collateral`, `Inquiry`, `RejectionReason` and `AuditLog`. All of them extend `BaseEntity`, which has `id RAW(16)` (SYS_GUID), `created_at`, `updated_at`, `created_by` and `updated_by`.
 
-Supporting tables: `otp_codes`, `refresh_tokens`, `jwt_blacklist`, `outbox_messages`, `scheduler_lock`, `idempotency_keys`, `tracking_counter`.
+Supporting tables: `app_user` (bank users: `accountName`, `prsnCode`, branch and position from personnelInfo), `otp_challenge` (§6.3), `refresh_tokens`, `jwt_blacklist`, `outbox_messages`, `scheduler_lock`, `idempotency_keys`, `tracking_counter`. `branch` is described in §4.4.
 
 ### Request lifecycle (§4-3-1, §7-5)
 
@@ -198,7 +205,7 @@ stateDiagram-v2
 | `force-release` (ADMIN only, reason required) | locked by anyone | `PENDING_BRANCH_REVIEW`, clears the lock, **audited** |
 | any other mutating call while `locked_by ≠ me` | — | **409**, with the holder's name and the time it was locked |
 
-- **Inbox (SRS):** locked requests are removed from other users' *action* lists but stay **visible read-only**, labelled "در حال بررسی / در حال اقدام — {name}". All branch users can still open the details.
+- **Inbox (SRS):** locked requests are removed from other users' *action* lists but stay **visible read-only**, labelled "در حال بررسی / در حال اقدام — {name}". All branch users can still open the details. Which requests a user sees and can act on follows the branch rule in §4.4. The holder's name shown is their `accountName` (D33).
 - **Stale locks.** ADR-003 says the lock is freed if the user's session crashes, but an ownership lock doesn't free itself. So:
   - **`UNDER_REVIEW`:** a scheduler job releases locks idle longer than `azs.lock.review-idle-timeout` (default **60 min**, configurable) back to `PENDING_BRANCH_REVIEW`. This is audited as `AUTO_RELEASE`.
   - **`UNDER_ACTION`:** **never** released automatically, because the user may be partway through Farangin. It is freed only by the holder (abandon or complete) or by an admin force-release.
@@ -310,6 +317,77 @@ Each strategy is an immutable value class. The factors, the cap and the share ra
 
 **Balances are never saved** (§6-3-1). They are fetched again at branch approval (D16).
 
+### 4.4 Branches (D32)
+
+**The table:** `branch` in `AZS_BUSINESS`:
+
+| Column | Source |
+|---|---|
+| `branch_code` (PK, `VARCHAR2`) | Yaghut `getBranch`, with the full code as returned (D12) |
+| name and other fields | Yaghut `getBranch`. The exact fields will be filled in once its document arrives |
+| `parent_branch` (FK to `branch.branch_code`) | **set to `branch_code` when the branch is first inserted, and never overwritten by the sync** |
+| `active` | `false` once Yaghut stops returning the branch. Yaghut doesn't return closed branches |
+| `last_synced_at` | when the job last saw the branch |
+
+**`BranchSyncJob`** (Scheduler module):
+- **When:** at startup if the table is empty, then on a schedule (default nightly at 02:00, configurable). Leader election means one instance runs it.
+- **What it does, in one transaction:**
+  - a **new** branch is inserted, with `parent_branch = branch_code`
+  - an **existing** branch has its details updated, but its `parent_branch` is left alone
+  - a branch **missing** from Yaghut is set to `active = false`. It's never deleted, because requests and agency contracts point to it
+- **If Yaghut fails:** nothing changes, ops gets an alert, and the next run tries again.
+- **Afterwards:** the branch cache is cleared, and a summary is logged and audited.
+- There is **no** admin form or API for branches.
+
+**Closed branches and their replacements**
+- A branch is **closed** when `active = false` **or** `parent_branch ≠ branch_code`.
+- A closed branch can't be chosen for new requests.
+- **Replacements are set only by database script.** `db/dba/set_branch_replacement.sql` is a reviewed template with two parameters: the closed branch and its replacement. It:
+  - checks that the replacement is active and not closed itself
+  - sets `parent_branch`
+  - **re-points every branch that pointed to the closed one**, so there are never chains (A → B → C becomes A → C)
+  - writes an audit row
+- **Integrity check job** (nightly and at startup) raises an alert on:
+  - cycles
+  - chains
+  - parents that are inactive or closed
+  - **inactive branches with no replacement** («شعبه X بسته شده اما شعبه جایگزین ندارد»)
+- **Cache:** branch data is cached for a short time (default 5 minutes), so a script's change reaches the inboxes without a restart.
+
+**Who sees and acts on a request** (issuance and revocation alike):
+
+```
+handling_branch(request) = branch(request.branch_code).parent_branch
+can_act(user, request)   = user.branch == request.branch_code        -- original branch, even if closed
+                        || user.branch == handling_branch(request)  -- current replacement
+```
+
+- The same rule decides the **list or inbox** and **every action** («اقدام», approve, reject, the guarantee number, revocation review and confirmation). The API enforces it, and an index on `parent_branch` keeps the inbox query fast.
+- The **ownership lock (§4.1)** stops the two branches from colliding: whoever clicks «اقدام» first owns the request.
+- **When a branch closes, no locks are released.** The holder keeps access and can finish the work they started in Farangin. D17 is unchanged.
+- **Revocations** of a closed branch's `ISSUED` requests reach both branches. A revocation already pending at the moment of closure moves to the replacement too, because the rule is applied when the inbox is queried.
+- **Requests keep their original `branch_code`** for history. Reports show both the "original branch" and the "handled by" branch.
+- **Agency contracts** stay on the old branch code, and the replacement serves them through `parent_branch`. No records are moved.
+- **An in-between branch loses access:** if A is replaced by B and B is later replaced by C, A's requests are re-pointed to C, so A's and C's users can act on them, and B's can't.
+- **Tests:** every flow against a closed branch (issuance review, revocation after closure, a revocation pending at closure, a lock held at closure); both branches able to act; a third branch refused; the script's checks; and each integrity-check alert.
+
+### 4.5 National code validation (D30)
+
+One class, `NationalCode`, is used by the `@IranianNationalCode` Bean Validation annotation and by the check that runs before each inquiry:
+
+1. **Normalise:** convert Persian (`۰–۹`) and Arabic (`٠–٩`) digits to `0–9`, and trim.
+2. **Format:** exactly 10 digits. There's **no zero-padding**, so 8 or 9 digits are rejected.
+3. **Repeated digits:** reject a code made of one digit repeated (`0000000000` … `9999999999`).
+4. **Check digit:**
+   ```
+   s = Σ d[i]×(10−i) for i = 0..8;   r = s mod 11
+   valid ⇔ (r < 2 ∧ d[9] = r) ∨ (r ≥ 2 ∧ d[9] = 11 − r)
+   ```
+
+- **Error message:** «کد ملی وارد شده معتبر نیست.» (HTTP 400, RFC 7807).
+- **Always on**, in every environment.
+- **Tests:** valid codes; every wrong check digit; repeated digits; Persian and Arabic digits; 8, 9 and 11 digits; letters and spaces.
+
 ---
 
 ## 5. Integration plan (§4-5, §7)
@@ -320,7 +398,9 @@ Each strategy is an immutable value class. The factors, the cap and the share ra
 | `YaghutClient` | Yaghut (direct HTTPS) | Four calls: `loginStatic`, `getBranch`, `getDeposit` and `getCustomerDetailInfo`. Deposit data is **never stored**. |
 | `GatewayTokenProvider` | `apigw.int.sb2.com` (token endpoint) | OAuth2 client credentials (D28). The token is added to **the 9 inquiry clients only** (§5.2). |
 | 9 inquiry clients | `apigw.int.sb24.com` / `apigw3p.int.sb24.com` | One client per inquiry, with its own host, path and request fields in config (§5.3). |
-| `ArcaptchaClient`, `NotifierClient` | — | Their own authentication. **Documents pending.** |
+| `PersonnelInfoClient` | `apigw.int.sb24.com` (gateway token) | Gives the logged-in bank user's branch (§6.2, D33). |
+| `NotifierOtpClient` | internal IP, for example `x.x.x.x:8012` (direct, `user` and `pass`) | `SendOtp` and `OtpValidate` (§6.3, D34). Notification SMS (`SendSimpleSms`?): document pending. |
+| `ArcaptchaClient` | — | **Document pending.** |
 
 - **Anti-corruption layer:** each external service gets its own adapter that maps its format to domain types.
 - **Resilience4j** (§7-6): circuit breaker opens at 50 % failures over a 20-call window and stays open 30 s. Timeouts and retries per service, from the §7-3 table (8–15 s, 1–2 retries with exponential backoff, on 5xx and timeouts only; D4), with retries limited by the stage deadline (D27). **No bulkheads or rate limiters** (D23). All values are configurable per client.
@@ -333,7 +413,7 @@ Each strategy is an immutable value class. The factors, the cap and the share ra
   - a client interface with DTOs and an adapter (the anti-corruption layer)
   - WireMock stubs for the happy path, each business negative, and the technical failures: delay past the timeout, 5xx, a malformed body, a dropped connection, and "fails then recovers" using WireMock scenarios
   - client tests
-- **Test personas:** the national code picks the scenario (for example, `0000000001` means all OK, `0000000002` means deceased, `0000000009` means Sepad times out once and then succeeds), so any case can be reproduced without changing config. A persona table goes in `docs/integrations/personas.md`.
+- **Test personas:** the national code picks the scenario, so any case can be reproduced without changing config. **Every persona code passes the check digit (D30)**; codes like `0000000001` aren't valid. For example: `1000000011` means all OK, `1000000028` deceased, `1000000036` Sabte Ahval mismatch, `1000000044` Shahkar mismatch, `1000000125` Sepad times out once and then succeeds. The full table goes in `docs/integrations/personas.md`.
 - **Only synthetic data** goes in stubs and in the repo. Any real customer data in the bank's documents is replaced before it is committed.
 - **Order:**
   1. Gateway token, ARcaptcha and Notifier (Phase 1)
@@ -441,7 +521,7 @@ A result is only `NEGATIVE` when the service clearly says so. Anything unclear c
 | 6 | **Samat** (non-current loans) | `apigw.int.sb24.com/ApiContainer.SBSamatWrp/api/CbiSamat/GetEstelamAsli2` | `cstmrShenase` (national code), `cstmrType "1"`, `estlmId "1"` (all strings) | Σ over all loans, at every bank, of (`amSarResid` + `amMoavagh` + `amMashkuk`) **= 0**, including when there are no loans | that sum **> 0** → «…به دلیل دارا بودن بدهی (تسهیلات) غیرجاری…» | `hasError: true` (`errorCd "11"` national code → alert); `returnValue: null`. Amounts are `BigDecimal`. `amSukht`, `dasteBandi` and `badHesabiDate` are stored but don't affect the result |
 | 7 | **BoardRelation** (credit limits) | `apigw.int.sb24.com/ApiContainer.SBCBIBoardRelation/api/SBQueryLimit/QueryLimit` | `amount` (the guarantee amount, in rials), `customerType 1`, `nationalIdOrLegalId`, `birthDateOrRegisterDate "yyyyMMdd"` | `result: true` | `result: false` → «…به دلیل محدودیت‌های بانک مرکزی… لطفاً به آژانس هواپیمایی خود مراجعه کنید.» The service's `description` (which limit was broken) is saved for the branch | `result` missing; HTTP 400 → alert |
 | 8 | **ImportCommitment** (varedati) | `apigw.int.sb24.com/ApiContainer.SBRafTaahodArzi.RCL1/api/RafeTaahodArzi/GetTaahodArziRafNashodeh` | header `ChanelCode: 15`; body `shenasehMelliOrShomarehKartBazargani` (the 10-digit national code) | `returnData` has items, all with `izMojaz: true` | any `izMojaz: false` → «…به دلیل محدودیت‌های بانک مرکزی… لطفاً به آژانس هواپیمایی خود مراجعه کنید.» | `returnData` empty or `null`; HTTP 404. The percentage and amount strings are parsed to `BigDecimal` and saved |
-| 9 | **ExportCommitment** | ⏳ *document pending* | — | — | — (SRS sub-flow 10 message) | — |
+| 9 | **ExportCommitment** | **GET** `apigw.int.sb24.com/ApiContainer.SBICEPbn/api/Status/{nationalCode}` | the national code **in the URL path**, with no body | `commitment_creation: true`, **or** HTTP 404 with `detail` «No MerchantCommitment matches the given query.» (not an exporter) | `commitment_creation: false` → «…به دلیل محدودیت‌های بانک مرکزی… لطفاً به آژانس هواپیمایی خود مراجعه کنید.» | HTTP 404 with **any other** `detail` (a wrong URL must never approve customers; the text is kept in config) → alert; `commitment_creation` missing. The other fields are saved for the branch. **The opposite of ImportCommitment**, where "no data" is `FAILED` |
 
 - **Customer messages:** the SRS texts are shortened above («…»). The full texts go in `messages_fa.properties`, and the SRS typo «شماه» is corrected to «شماره».
 - **Contract docs and stubs:** each inquiry gets a `docs/integrations/<inquiry>.md`, WireMock stubs for every row above, and test personas (§5).
@@ -463,7 +543,7 @@ A result is only `NEGATIVE` when the service clearly says so. Anything unclear c
   - **XSS defences, since storage is readable by scripts:** a strict CSP (`script-src 'self'`, no inline scripts and no third-party scripts), Angular's built-in sanitising with no `bypassSecurityTrust*` calls (checked by a lint rule), and `sessionStorage` cleared on logout.
 - **Secrets (D13):** the JWT private key, database password and gateway `client_id`/`client_secret` are read from **environment variables or mounted files** only, never committed to the repo. The bank's secret store (Vault, Kubernetes Secrets or encrypted files) is plugged in at deployment time.
 - **Authorization:** `@PreAuthorize` on every endpoint. Roles are `BRANCH`, `ADMIN`, `AGENCY` and `CUSTOMER`. Every query is also scoped by ownership: an agency only sees its own requests, a branch only its own branch, and a customer only their own requests.
-- **OTP:** 6 digits with a 120 s TTL, stored hashed in `otp_codes`. 3 wrong attempts trigger a 15-minute lockout. After OTP succeeds, the national code returned by Yaghut must match the request's customer.
+- **OTP:** generated and checked by the Notifier (§6.3, D34). After OTP succeeds, the national code returned by Yaghut must match the request's customer.
 - **Data protection:** encryption at rest via TDE, provided by the DBA, and TLS 1.2+ with HSTS. Customer data is stored in plain text (D21), and **nothing is masked** (D22).
 - **Audit:** an append-only `audit_log` table in `AZS_AUDIT`, partitioned monthly and kept 7 years. The app's DB user has `INSERT`-only grants on it. It is written for every state change and every admin edit, with old/new JSON, IP and user agent.
 - **Abuse protection:** **no rate limiting** (D23). Login pages use ARcaptcha, OTPs lock out after 3 wrong attempts, CSP headers are set, and Angular's auto-escaping is relied on.
@@ -486,6 +566,42 @@ A result is only `NEGATIVE` when the service clearly says so. Anything unclear c
 - **OTP stays fast and still uses the outbox**, as the architecture document requires. It's written with priority `HIGH`, and the dispatcher is woken immediately after commit. The OTP has a short TTL, so it is never retried after it expires.
 - **Risk accepted by the product owner:** the architecture document (§6-3-1) asked for the mobile number to be protected. With plain-text storage and no masking, anyone with read access to the database, a backup, the logs or an export can see customers' mobile numbers and identity details. TDE still protects disks and backups at rest. Masking can be switched back on with `azs.privacy.masking-enabled` (D22).
 
+### 6.2 Bank user login (D33)
+
+```
+ARcaptcha → AAAService (identity + role) → personnelInfo (branch) → JWT { sub, role, branch_code }
+```
+
+- **personnelInfo request:** `POST https://apigw.int.sb24.com/ApiContainer.GetOverallPersonelInfo/api/GetOverallPersonelInfo/GetOverallPersonelInfo`, with the gateway token.
+  - The body is `{ "cfcifNO": 0, "accountName": "<username>", "personelCode": 0 }`.
+  - `accountName` is the username typed at login, with any `@sb24.ir` suffix removed (the suffix is configurable).
+- **The user's branch is `userInfo.abrnchcod`.** `abrnchcodmain` and `prAcvBranch` are ignored and not saved.
+  - `prsnCode`, `personelUserName`, `aBranchName`, `position` and `job` are saved in `app_user` for the audit log.
+- **When it's fetched:** at **every login**. A user moved to another branch gets the new one at their next login, and the branch stays fixed for the 8-hour session.
+- **No check that the branch is in `branch`.** A head-office user, for example, can log in but will see no requests.
+- **Errors:**
+  - HTTP 404 «اطلاعات یافت نشد» → login refused with «اطلاعات پرسنلی شما یافت نشد. لطفاً با راهبر سامانه تماس بگیرید.»
+  - 5xx, a timeout or a broken response → login fails with "try again later". Nobody is let in without a branch.
+- **Display name** (for example the lock holder in the inbox): the `accountName`.
+
+### 6.3 Customer OTP through the Notifier (D34)
+
+The Notifier is called **directly** at an internal address (for example `https://x.x.x.x:8012`), with no gateway token. Host, port and paths are configured per environment.
+
+| Call | Body | Success | Errors |
+|---|---|---|---|
+| `POST /api/v1/Sms/SendOtp` | `user`, `pass`, `number` (`09xxxxxxxxx`, as stored), `ClientName` (`AZS`), `args` (default `["آسان ضمان"]`, configurable; the SMS centre's template inserts the 4-digit code itself), `lang: "fa"` | `retval[] { number, smsId, sId }` | **403** «please contact the SamanBank Sms Center support» → a configuration error with an alert; **500**, a timeout or a broken response → "try again later" |
+| `POST /api/v1/Sms/OtpValidate` | the same identification fields, plus `OtpCode` (what the customer typed) and `OtpId` (the `sId`) | `{"isValid": true}` | **410** or `{"isValid": false}` → the code is wrong or expired |
+
+- **The code** is 4 digits, generated and checked by the Notifier. **Asan Zeman never sees or stores it.**
+- **`SendOtp` is synchronous**, not sent through the outbox, because the `sId` is needed immediately and the customer is waiting. The outbox stays for notification SMS.
+- **`otp_challenge` table:** `id`, customer and request, `otp_id` (the `sId`), `sms_id`, `sent_at`, `status` (`SENT`, `VERIFIED`, `EXPIRED`), plus the customer's attempt counter and `locked_until`.
+- **Expiry:** decided on our side with `azs.otp.validity` (default 120 s, which should match the Notifier's own setting). After that time the Notifier isn't called, and the customer sees «کد تأیید منقضی شده است. لطفاً کد جدید دریافت کنید.» Within the time, 410 or `isValid: false` → «کد تأیید وارد شده صحیح نیست.»
+- **Attempt limit:** the Notifier has none, so Asan Zeman enforces it. **3 wrong attempts per customer**, counted across codes so that a new code doesn't reset the count, → a **15-minute lockout**. Both values are configurable.
+- **One use per code:** after `isValid: true`, the challenge becomes `VERIFIED`, and its `sId` can't be used again.
+- **Credentials:** `ClientName`, `user` and `pass` are issued by the SMS centre for Asan Zeman and come only from the secret store (D13).
+- **Mock personas:** `SendOtp` returns a fixed `sId`; the code `1234` is valid and anything else gets 410; specific mobile numbers trigger 403, 500 and a slow answer.
+
 ---
 
 ## 7. Delivery phases
@@ -493,7 +609,7 @@ A result is only `NEGATIVE` when the service clearly says so. Anything unclear c
 Each phase ends with a demoable result and its own exit criteria. External services are mocked until the bank grants access.
 
 ### Phase 0 — Foundation
-- Repo skeleton (layout in §3): Maven backend (Java 25, Spring Boot 4.1.x, Spring Modulith 2.1.x, `spring.threads.virtual.enabled=true`) and Nx frontend (Angular 22). All versions pinned (D9, D24).
+- Repo skeleton (layout in §3): **Maven backend only** (Java 25, Spring Boot 4.1.x, Spring Modulith 2.1.x, `spring.threads.virtual.enabled=true`). All versions pinned (D9, D24). There's **no frontend workspace** (D31).
 - `docker-compose` with Oracle XE (gvenzl/oracle-xe) and mock external services.
 - Flyway baseline (D20): `spring-boot-starter-flyway` plus `flyway-database-oracle`. Migrations in `db/migration`, named `V001__create_schemas.sql`, `V002__…` and so on. Flyway manages all 5 schemas, with its history table in `AZS_BUSINESS`. The first migrations create `BaseEntity` columns and the reference tables (`branch`, `agency`, `rejection_reason`). Schema users and grants that need DBA rights go in a separate `db/dba/` script that the DBA runs, not Flyway.
 - Cross-cutting pieces: error model (RFC 7807), correlation ID filter, structured JSON logging, Actuator/Micrometer, OpenTelemetry, idempotency filter, audit writer, Spring Modulith/ArchUnit boundary test.
@@ -503,36 +619,38 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 **Exit:** `docker compose up` gives a running core plus Oracle, CI is green, and the health endpoint responds.
 
 ### Phase 1 — Auth module
-- Bank login: ARcaptcha → AAAService → JWT with the user's role.
+- Bank login (§6.2): ARcaptcha → AAAService → personnelInfo (`abrnchcod`) → JWT with role and `branch_code`.
 - Agency login: ARcaptcha → Yaghut `loginStatic` → agency profile → JWT.
-- Customer login: ARcaptcha → `loginStatic` → OTP via Notifier → verify → JWT.
-- Refresh, logout and blacklist. OTP table with attempt limits and lockout.
-- Angular: shared `auth` library, a login screen per app, HTTP interceptor and route guards, RTL layout.
+- Customer login (§6.3): ARcaptcha → `loginStatic` → `SendOtp` → `OtpValidate` → JWT, with `otp_challenge`, the validity check, the per-customer lockout and one use per code.
+- Gateway token provider (§5.2), shared by personnelInfo and the inquiries.
+- Refresh with rotation and reuse detection, logout, and the JWT blacklist.
+- `@IranianNationalCode` and the `NationalCode` class (§4.5).
 
-**Exit:** all three panels can log in against the mocks. The OTP brute-force limits are covered by tests.
+**Exit:** all three login flows work **through the API** against the mocks. The OTP lockout, expiry and one-use rules, and the national-code rules, are covered by tests.
 
 ### Phase 2 — Request registration (agency side)
 - Agency registers an issuance request: customer lookup with `getCustomerDetailInfo`, whose **snapshot is saved for the life of the request** (D21); branch selection (`getBranch`); amount; expiry date (informational only, D19); and companions (≤ 5).
 - Tracking-code generator (D12) and the `Request` aggregate with the state machine and domain events.
 - SMS notifying the customer, through the outbox (pulled forward from Phase 6 in its minimal form).
 
-**Exit:** a request created in the agency panel shows up in the customer panel.
+**Exit:** a request registered through the agency API can be fetched through the customer API.
 
 ### Phase 3 — Customer completion: inquiries and collateral (UC-09)
 - InquiryService as designed in §5.1: background runs, the **two-stage chain** (Sabte Ahval, then 8 in parallel, D26) on virtual threads, stage deadlines (D27), `PASSED`/`NEGATIVE`/`FAILED`/`SKIPPED`, «تلاش مجدد» with cooldown and result reuse, and per-attempt history.
-- The gateway token provider (§5.2) and the 9 inquiry clients with their WireMock stubs, following the catalogue in §5.3. ExportCommitment follows when its document arrives.
+- The 9 inquiry clients with their WireMock stubs and personas, following the catalogue in §5.3.
 - Filter eligible deposits from `getDeposit` (individual, owner and signatory, active, rial) and classify them as cheap or expensive (§4.3).
 - CollateralService: Cash, cheap-pledge and expensive-pledge strategies (§4.3). The SRS worked examples become unit tests (D14, D15, D18).
-- `start-completion` and `complete` endpoints. Customer panel steps: review the request → inquiries → choose collateral → submit.
+- API endpoints for each step: review the request → run the inquiries → choose collateral → submit.
 
 **Exit:** the full completion flow works with the mocks, and the UC-09 P95 is ≤ 15 s with injected latency.
 
 ### Phase 4 — Branch review and manual issuance
-- Branch inbox (`status, branch_id` index), scoped to the user's branch and its contracted agencies (SRS).
+- `BranchSyncJob`, the integrity check, and the `set_branch_replacement.sql` template (§4.4). `branch` must be populated before requests can be registered, so the sync job can be pulled forward into Phase 2.
+- Branch inbox and the `can_act` rule (§4.4): the original branch **or** its replacement, enforced by the API.
 - Ownership lock as designed in §4.1: «اقدام», approve, reject, abandon, admin force-release, and the idle auto-release job for `UNDER_REVIEW`.
 - Re-check balances at approval (D16).
-- `UNDER_ACTION` screen: checklist for the manual steps (digital signature, then Farangin), guarantee-number entry with format validation, and «انصراف از درخواست».
-- Inbox shows locked requests read-only, with the holder's name.
+- `UNDER_ACTION` API: guarantee-number entry with format validation, and «انصراف از درخواست».
+- The inbox API returns locked requests with the holder's `accountName`.
 
 **Exit:** all the §4.1 lock tests pass, including concurrent «اقدام» clicks where exactly one wins. The full issuance path reaches `ISSUED` with an SMS sent.
 
@@ -555,13 +673,13 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 ### Phase 7 — Tracking and reporting
 - Agency tracking: filters, pagination and Excel export.
 - Bank reports: advanced filters and SXSSF streaming export. Reports use a read-only datasource that can point at the Data Guard standby.
-- Admin: CRUD for agencies, rejection reasons and other reference data, with a Caffeine cache that is invalidated on writes.
+- Admin API: CRUD for agencies, rejection reasons and other reference data, with a Caffeine cache that is invalidated on writes. **Branches are excluded:** they come only from Yaghut and database scripts (D32).
 
 **Exit:** a 100k-row export runs in bounded memory. A 1,000-row export meets P95 ≤ 10 s.
 
 ### Phase 8 — Scheduler
 - Leader election through `scheduler_lock`, shedlock style.
-- Jobs: auto-reject requests left incomplete after 7 days, release idle `UNDER_REVIEW` locks (§4.1), purge expired OTPs and blacklist entries, and maintain partitions. There is **no** expiry job for issued guarantees (D19).
+- Jobs: auto-reject requests left incomplete after 7 days, release idle `UNDER_REVIEW` locks (§4.1), `BranchSyncJob` and the branch integrity check (§4.4), purge old `otp_challenge` rows and blacklist entries, and maintain partitions. There is **no** expiry job for issued guarantees (D19).
 
 **Exit:** with 2 instances running, each job runs exactly once.
 
@@ -589,16 +707,16 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 | Integration | Testcontainers (Oracle XE), WireMock | Repositories, `SELECT FOR UPDATE NOWAIT` → 409, Flyway migrations from an empty schema, external client resilience |
 | Client | WireMock (`wiremock-spring-boot`), **no mock beans** | Each external client against its stubs: success, every error code, timeout, 503 then success, the 401 token refresh |
 | Web slice | `@WebMvcTest` + `@MockitoBean` for the service behind the controller | Validation, the 409 mapping, security rules |
-| Contract | OpenAPI validation in CI | Backend matches `openapi.yaml`, generated Angular client compiles |
+| Contract | OpenAPI validation in CI | Backend matches `openapi.yaml` |
 | Architecture | ArchUnit / Modulith verify | Module boundaries, layering (no business logic in controllers) |
-| E2E | Playwright | Main path for each panel: issuance, cancellation before «اقدام», revocation, tracking, report |
+| API end-to-end | `@SpringBootTest` + Testcontainers Oracle + WireMock | The main paths **through the REST API**: issuance, cancellation before «اقدام», revocation, closed-branch handling, tracking, report. Browser E2E (Playwright) is deferred with the UI (D31) |
+| Performance | k6 or Gatling | SLA table in §9-1 |
+| Security | OWASP ZAP, Dependency-Check, Trivy | Pipeline gates |
 
 **Mocking rules.** `@MockBean` was removed in Spring Boot 4, and its replacement is `@MockitoBean`.
 - Use **`@MockitoBean`** only to cut a test off at *our own* boundaries: a controller's service, or another module's API inside `@ApplicationModuleTest`.
 - **Never use it for external services.** Those are always tested through WireMock, so the HTTP, serialisation, timeouts, retries and result-code mapping are exercised.
 - Keep the number of distinct `@MockitoBean` combinations small, because each one forces a new Spring context and slows the suite down.
-| Performance | k6 or Gatling | SLA table in §9-1 |
-| Security | OWASP ZAP, Dependency-Check, Trivy | Pipeline gates |
 
 ---
 
@@ -608,24 +726,27 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 - State changes are audited, and POST/PUT endpoints are idempotent.
 - Metrics and logs are added. Nothing is masked (D22).
 - Database changes are a new Flyway migration. Applied migrations are never edited (forward-fix only). Risky changes include a hand-written undo script in `db/undo/` for the DBA.
-- Persian/RTL UI has been reviewed in all affected panels.
+- Persian error and message texts are in the message config. UI review is deferred (D31).
 
 ---
 
 ## 10. Immediate next steps
-1. **Decide D25** (structured concurrency) and **confirm D27** (stage deadlines and deadline-aware retries).
+1. **Decide D25** (structured concurrency) before the inquiry stage runner is written in Phase 3.
 2. **Documents still to come:**
-   - the **ExportCommitment** inquiry
-   - **ARcaptcha** and **Notifier** (their own authentication)
-   - **AAAService**
-   - **Yaghut** (`loginStatic`, `getCustomerDetailInfo`, `getBranch`, `getDeposit`, including the deposit type codes)
+   - **ARcaptcha**
+   - **notification SMS** (`SendSimpleSms`?)
+   - **AAAService**, including whether it returns a role
+   - **Yaghut** (`loginStatic`, `getCustomerDetailInfo`, `getBranch` with its fields and whether it returns the full list, `getDeposit` with the deposit type codes)
    - each inquiry's token **scope**
-3. **Rotate** the gateway client secret that was shared during the review.
+3. **Rotate** the gateway client secret and the Notifier credentials that were shared during the review. Ask the SMS centre for Asan Zeman's own `ClientName` (`AZS`), user and password.
 4. Record the decisions that change the architecture document as ADRs in `docs/architecture/`:
    - **ADR-008:** the ownership lock (amends ADR-003)
    - **ADR-009:** لغو versus ابطال, and no expiry status
-   - **ADR-010:** the version upgrade (Java 25, Boot 4.1, Angular 22) and virtual threads
+   - **ADR-010:** the version upgrade (Java 25, Boot 4.1) and virtual threads
    - **ADR-011:** plain-text customer data, no masking, no rate limiting (amends §6-3-1 and §6)
    - **ADR-012:** the two-stage inquiry chain
-5. Decide how Phase 0 is built and checked. This workspace can't download packages, so either GitHub Actions does the building, or the work runs on a computer that can.
-6. Start **Phase 0** in this repository.
+   - **ADR-013:** branches from Yaghut, with `parent_branch` replacement
+   - **ADR-014:** the Notifier is called directly and `SendOtp` is synchronous (amends §7-4)
+5. **UI:** waits for the product owner's explanation (D31).
+6. Decide how Phase 0 is built and checked. This workspace can't download packages, so either GitHub Actions does the building, or the work runs on a computer that can.
+7. Start **Phase 0** (backend only) in this repository.
