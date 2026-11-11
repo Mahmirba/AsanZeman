@@ -36,9 +36,9 @@ A system for a bank to process **travel-return guarantees** (ضمانتنامه 
 
 ## 2. Decision log
 
-The architecture document contradicts itself, or is silent, on the points below. They were reviewed with the product owner on 1405/08/17 and 1405/08/19. ✅ means decided, ⏳ means open or proposed. Where the product owner had no preference, the recommended default was adopted. Every value marked *configurable* lives in `application.yml` and can change without a release.
+The architecture document contradicts itself, or is silent, on the points below. They were reviewed with the product owner on 1405/08/17, 1405/08/19 and 1405/08/20. ✅ means decided, ⏳ means open or proposed. Where the product owner had no preference, the recommended default was adopted. Every value marked *configurable* lives in the single `application.properties` (D36) and can change without a release.
 
-**Still open:** D25 (structured concurrency, to be decided later).
+**Still open:** D25 (structured concurrency, to be decided later). Some Yaghut details are also still open (§5.4).
 
 | # | Topic | Decision | Details |
 |---|---|---|---|
@@ -54,15 +54,15 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D10 | ✅ Runtime | **Build a Docker image (executable jar) now.** Keep a Tomcat/WAR profile possible. Decide Kubernetes versus VMs with the ops team before Phase 10. | §7 Phase 10 |
 | D11 | ✅ Cancellation versus revocation | **Before «اقدام»:** the request goes to `CANCELLED` (لغو شده) immediately. **From «اقدام» onward**, including approved and issued requests: a revocation request goes to the branch and ends in `REVOKED` (ابطال شده). | §4.2 |
 | D12 | ✅ Tracking code (**revised** 1405/08/20) | The **full branch code** (as Yaghut returns it, never truncated) + agency (4) + date YYMMDD (6) + a 4-digit counter, so **17–19 digits** depending on the branch. Codes can't collide, because everything after the branch code is fixed-width. Stored as `VARCHAR2(20)`. The counter runs **per branch + agency + day**, in a `tracking_counter` table incremented under a row lock. | §4 |
-| D13 | ✅ Secret store | **Not known yet.** The app reads secrets from **environment variables or mounted files**, so Vault, Kubernetes Secrets or encrypted files can be added later without code changes. Locally, a key file is used. | §6 |
+| D13 | ✅ Secrets (**revised** 1405/08/20) | **All secrets live in the single `application.properties`** (D36): the Yaghut technical account, gateway `client_id`/`client_secret`, Notifier `user`/`pass`, database password and JWT signing key. **The repo copy holds only placeholders (`CHANGE_ME`).** The real values exist only in the copy on each server, readable by ops only. The app refuses to start while any secret is still `CHANGE_ME`. | §6 |
 | D14 | ✅ Pledge formula | **Follow the SRS worked example:** pledge = `(amount − cash) × factor`. For example, 1,000,000,000 rials with 20 % cash pledges 800,000,000 (840,000,000 on expensive deposits). The literal SRS formula, which gives 640,000,000, is treated as a typo. | §4.3 |
 | D15 | ✅ Mixed cheap and expensive pledge | **Cheap deposits are filled first** (×1.00), then expensive ones (×1.05, each capped at 95 % of its balance). Within each group, deposits are filled in the order the customer selected them. | §4.3 |
-| D16 | ✅ Balance changes before approval | **Balances are re-checked** through Yaghut `getDeposit` when the branch clicks approve. If the deposits no longer cover the collateral, approval is blocked and the shortfall is shown. | §4.3, Phase 4 |
+| D16 | ✅ Balance changes before approval | **Balances are re-checked** through Yaghut `deposit`, using the **technical account's** session (D35), when the branch clicks approve. If the deposits no longer cover the collateral, approval is blocked and the shortfall is shown. | §4.3, Phase 4 |
 | D17 | ✅ Revocation while the branch is mid-work | **Issuance actions stop**, except for recording a guarantee number that was *already* issued in Farangin. The revocation request goes **straight to the user who holds the lock**. An admin can reassign it with force-release. | §4.2 |
 | D18 | ✅ Rounding | Collateral amounts are **rounded up to the whole rial** (`BigDecimal`, `CEILING`), so the bank is never under-covered. | §4.3 |
 | D19 | ✅ Guarantee expiry | **There is no `EXPIRED` status, and no job changes issued guarantees.** Asan Zeman has no connection to Farangin, where the guarantee actually lives, so it can't know when one really ends. `expiry_date` is stored as information only (shown in tracking and reports, and usable as a filter). An `ISSUED` request can be revoked at any time. | §4.2 |
 | D20 | ✅ Database migrations | **Flyway replaces Liquibase** (§5-4). Versioned SQL migrations, **forward-fix only**, because Flyway undo is a paid feature. A risky change gets a hand-written undo script for the DBA. | §4, Phase 0 |
-| D21 | ✅ Customer data snapshot | When the agency registers a request, Yaghut `getCustomerDetailInfo` is called **once**. The mobile number and the other details are saved **in plain text** and used for **the whole life of the request** (Shahkar, OTP, SMS, display). They are never refreshed from Yaghut or `loginStatic`. **Exception:** gender and birth date for the inquiries come from Sabte Ahval, because Yaghut's gender is unreliable (D26). | §6.1 |
+| D21 | ✅ Customer data snapshot | When the agency registers a request, Yaghut `customerDetailInfo` is called **once**, with the **agency user's own Yaghut session** (D35). The mobile number and the other details are saved **in plain text** and used for **the whole life of the request** (Shahkar, OTP, SMS, display). They are never refreshed from Yaghut or `loginStatic`. **Exception:** gender and birth date for the inquiries come from Sabte Ahval, because Yaghut's gender is unreliable (D26). | §6.1 |
 | D22 | ✅ No masking | **Nothing is masked anywhere**: screens, Excel exports, logs, the audit log, error messages and saved raw responses. The masking code stays behind `azs.privacy.masking-enabled: false`, so it can be switched on later without a code change. | §6 |
 | D23 | ✅ No rate limiting or bulkheads | **No rate limits** (neither the 100 requests/min per-IP filter from §6, nor the 10 requests/s limiter on outgoing calls) and **no semaphores or bulkheads** on external services. What remains: per-service timeouts and retries, circuit breakers, ARcaptcha, and the OTP lockout. | §5, §6 |
 | D24 | ✅ Virtual threads | `spring.threads.virtual.enabled=true`, so incoming HTTP requests, inquiry runs, `@Async` work and scheduled jobs all run on virtual threads. The **Hikari connection pool** is the only limit on database work, and inquiry runs never hold a DB connection while waiting on a service. | §5.1 |
@@ -73,9 +73,11 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D29 | ✅ Rejection messages | Taken **from the SRS** for every inquiry. The exception is Sabte Ahval `300` (wrong details), which uses the product owner's text because the SRS has none. All messages live in a message config file. | §5.3 |
 | D30 | ✅ National code validation | **Exactly 10 digits** after converting Persian and Arabic digits and trimming. Codes made of one repeated digit are rejected, and the **check digit** must pass (§4.5). It's always on, in every environment, with **no zero-padding**: `81029310` is rejected. Enforced on every request DTO (`@IranianNationalCode`) and again before every inquiry. Stored as `VARCHAR2(10)`. | §4.5 |
 | D31 | ✅ Backend only for now | **No UI work** (no Nx or Angular workspace, screens or validators) until the product owner explains how the UI should work. The backend is built contract-first, so the panels can follow later. | §1, §7 |
-| D32 | ✅ Branches come from Yaghut | There's **no branch form** in the base data. `BranchSyncJob` fills and updates `branch` from Yaghut `getBranch`. Each branch has a **`parent_branch`**: itself when open, its **replacement** when closed. Replacements are set **only by database scripts**. Both the original branch and the replacement can see and act on a closed branch's requests, including revocations. | §4.4 |
+| D32 | ✅ Branches come from Yaghut | There's **no branch form** in the base data. `BranchSyncJob` fills and updates `branch` from Yaghut `branches`, using the technical account (D35). Each branch has a **`parent_branch`**: itself when open, its **replacement** when closed. Replacements are set **only by database scripts**. Both the original branch and the replacement can see and act on a closed branch's requests, including revocations. | §4.4 |
 | D33 | ✅ Bank user's branch | It comes from **personnelInfo** (`abrnchcod` only), fetched at every login. `accountName` is the login username without `@sb24.ir`. There's no check that the branch exists in `branch`. The lock holder's display name is `accountName`. | §6.2 |
 | D34 | ✅ OTP via the Notifier | The **Notifier generates and checks** a 4-digit code (`SendOtp` and `OtpValidate`); Asan Zeman never stores it. `SendOtp` is called **synchronously**, not through the outbox, because the `sId` is needed at once. Validity is `azs.otp.validity` (120 s). **3 wrong attempts per customer** (not per code) → 15-minute lockout. Each code is used only once. The number is sent as `09xxxxxxxxx`, with `ClientName` `AZS` and its own credentials. | §6.3 |
+| D35 | ✅ Yaghut sessions and faults | Yaghut is **session-based**: `loginStatic` returns cookies (`JSESSIONID`, and any others such as the F5 `BIGipServer…`), which are sent on every later call. **Whose session:** the **Asan Zeman technical account** (credentials in `application.properties`) for branch-side calls and `BranchSyncJob`; the **agency user's own session** for `customerDetailInfo` at registration; the **customer's own session** for `deposit` during completion. **A session is reused until** it's null, its `sessionExpirationDate` passes, or Yaghut rejects it. Then there's one new login and one retry, and only the technical account can log in again by itself. **Faults** are found by name in the error body. The `context` (arg0) fields are ignored. Clients use Spring `RestClient`, not Feign. | §5.4 |
+| D36 | ✅ One config file | The whole project uses **one `application.properties`**, with no profile files (`application-dev.properties` and so on). Each server has its own copy with real values. Tests override the few values they need with `@DynamicPropertySource`. All examples in this plan use the `.properties` format. | §5.4, §6 |
 
 The original issue descriptions are in this file's git history (commit `d2c7498`).
 
@@ -255,7 +257,7 @@ COMMIT
 - **Cash (وجه نقد):** money is **withdrawn** from the customer's deposits.
 - **Deposit pledge (توثیق سپرده):** money is **blocked** in the customer's deposits.
 
-**Deposits shown to the customer** come from Yaghut `getDeposit`, filtered in the backend. A deposit is shown only if it is:
+**Deposits shown to the customer** come from Yaghut `deposit` (§5.4), using the customer's own session. They're filtered in the request and again in the backend. A deposit is shown only if it is:
 - held individually (انفرادی), not joint, with the customer as owner **and** signatory
 - open and active, and not blocked for debit or credit (مسدود بدهکار/بستانکار)
 - in rials. Foreign-currency deposits are never shown.
@@ -270,7 +272,23 @@ COMMIT
 | Long-term (بلندمدت) | Expensive | ❌ | ✅ (block ≤ 95 % of balance) |
 | Short-term special (کوتاه‌مدت ویژه) | Expensive | ❌ | ✅ (block ≤ 95 % of balance) |
 
-> The SRS table row for cash lists fewer types than its own deposit-filter rules. This plan follows the **filter rules**, which give the full list above. The mapping from Yaghut deposit type codes to price class goes in a reference table, so it can change without a release.
+> The SRS table row for cash lists fewer types than its own deposit-filter rules. This plan follows the **filter rules**, which give the full list above.
+
+**Mapping Yaghut deposits to these types.** Yaghut returns a `group` (`depositGroupTypeWS`) and a numeric `depositType`. The mapping lives in configuration, so it can change without a release:
+
+| Yaghut `group` | Type | Price class |
+|---|---|---|
+| `SHORT_ACCOUNT` | short-term normal | cheap |
+| `PASANDAZ` | Qard-al-Hasan savings | cheap |
+| `JARI_ACCOUNT` | Qard-al-Hasan current | cheap |
+| `LONG_ACCOUNT` | long-term | expensive |
+| `SPECIAL_SHORT_ACCOUNT` | short-term special | expensive |
+| `SPECIAL_LONG_ACCOUNT` | ⏳ open: expensive, or not eligible? | — |
+| `ANDOKHTE_ACCOUNT`, `EDARE_SHODE`, `OTHERS` | not eligible (proposed) | — |
+| *(by `depositType` code)* | ⏳ short-term Win, savings Win: codes still needed | cheap |
+
+- **The withdrawable balance used for the collateral rules is `availableBalance`.**
+- **Individual versus joint** is read from `owner` (`depositOwnerTypeWS`). Its values are still needed.
 
 **Share percentages (SRS step 12)**
 - Cash share `c`: 20 % to 100 %, in steps of 10. **At least 20 % cash is mandatory.**
@@ -323,14 +341,15 @@ Each strategy is an immutable value class. The factors, the cap and the share ra
 
 | Column | Source |
 |---|---|
-| `branch_code` (PK, `VARCHAR2`) | Yaghut `getBranch`, with the full code as returned (D12) |
-| name and other fields | Yaghut `getBranch`. The exact fields will be filled in once its document arrives |
+| `branch_code` (PK, `VARCHAR2`) | Yaghut `branches` → `branchCode` (a string; the deprecated numeric `code` isn't used), with the full code as returned (D12) |
+| `name`, `city`, `address`, `tel`, `fax`, `zip_code` | Yaghut `branches` |
 | `parent_branch` (FK to `branch.branch_code`) | **set to `branch_code` when the branch is first inserted, and never overwritten by the sync** |
 | `active` | `false` once Yaghut stops returning the branch. Yaghut doesn't return closed branches |
 | `last_synced_at` | when the job last saw the branch |
 
 **`BranchSyncJob`** (Scheduler module):
 - **When:** at startup if the table is empty, then on a schedule (default nightly at 02:00, configurable). Leader election means one instance runs it.
+- **Fetching:** the technical account's session (D35), paging with `offset`/`length` until `totalRecord` is reached. The changes are applied **only after every page has been read**.
 - **What it does, in one transaction:**
   - a **new** branch is inserted, with `parent_branch = branch_code`
   - an **existing** branch has its details updated, but its `parent_branch` is left alone
@@ -395,7 +414,7 @@ One class, `NationalCode`, is used by the `@IranianNationalCode` Bean Validation
 | Client | Target | Notes |
 |---|---|---|
 | `AAAClient` | AAAService (direct HTTPS) | Login for branch/admin users. Returns the user and their role (`ROLE_BRANCH` or `ROLE_ADMIN`) and the branch code. |
-| `YaghutClient` | Yaghut (direct HTTPS) | Four calls: `loginStatic`, `getBranch`, `getDeposit` and `getCustomerDetailInfo`. Deposit data is **never stored**. |
+| `YaghutClient` + `YaghutSessionManager` | Yaghut (direct HTTPS, session cookies) | Four calls: `loginStatic`, `branches`, `customerDetailInfo` and `deposit` (§5.4). Deposit data is **never stored**. |
 | `GatewayTokenProvider` | `apigw.int.sb2.com` (token endpoint) | OAuth2 client credentials (D28). The token is added to **the 9 inquiry clients only** (§5.2). |
 | 9 inquiry clients | `apigw.int.sb24.com` / `apigw3p.int.sb24.com` | One client per inquiry, with its own host, path and request fields in config (§5.3). |
 | `PersonnelInfoClient` | `apigw.int.sb24.com` (gateway token) | Gives the logged-in bank user's branch (§6.2, D33). |
@@ -417,8 +436,8 @@ One class, `NationalCode`, is used by the `@IranianNationalCode` Bean Validation
 - **Only synthetic data** goes in stubs and in the repo. Any real customer data in the bank's documents is replaced before it is committed.
 - **Order:**
   1. Gateway token, ARcaptcha and Notifier (Phase 1)
-  2. AAAService and Yaghut `loginStatic`
-  3. Yaghut `getCustomerDetailInfo`, `getBranch` and `getDeposit`
+  2. AAAService, personnelInfo and Yaghut `loginStatic`
+  3. Yaghut `customerDetailInfo`, `branches` and `deposit`
   4. the 9 inquiries
 
 ### 5.1 Running the customer inquiries (UC-09, resolves D3 and D4)
@@ -527,6 +546,70 @@ A result is only `NEGATIVE` when the service clearly says so. Anything unclear c
 - **Contract docs and stubs:** each inquiry gets a `docs/integrations/<inquiry>.md`, WireMock stubs for every row above, and test personas (§5).
 - **The bank's samples contain real-looking personal data and tokens.** None of it goes into the repo; the stubs use synthetic personas only.
 
+### 5.4 Yaghut (D35)
+
+**The four calls.** Each is a REST call to `{yaghut-base-url}/…`. The request body is only the request bean; the `context` (arg0) fields are ignored.
+
+| Call | Path | Request | Response used | Faults |
+|---|---|---|---|---|
+| `loginStatic` | `/user/loginStatic` | `username`, `password` | **cookies from `Set-Cookie`**, `sessionExpirationDate`, `cif`, `code` (national code), `name`, `mobile` | `InvalidCredentialsWSException`, `SuspectedCustomerWSException` |
+| `branches` | `/branches` | `offset`, `length` (paging) | `totalRecord`, `branches[] {branchCode, name, city, address, tel, fax, zipCode}` | — |
+| `customerDetailInfo` | `/customerDetailInfo` | **exactly one** of `cif` or `code`. We send `code`, the national code | the snapshot fields (§6.1), `personalityType`, `pervasiveId` | `InvalidCustomerWSException` |
+| `deposit` | `/deposit` | `cif`, `depositStatus: OPEN`, `personality: [ACTUAL]`, `signatureStatus: [OWNER_OF_DEPOSIT_AND_SIGNATURE]`, `includeCurrency: [rial]`, `needWithdrawableBalance: true`, `includeCreditAccount: false`, `includeSupportAccount: false` | `depositNumber`, `group`, `depositType`, `availableBalance`, `owner`, `depositStatus`, `currency` | none. An invalid or unrelated deposit just gives an **empty list** |
+
+**Whose session is used:**
+
+| Use | Session |
+|---|---|
+| `BranchSyncJob` (`branches`), nightly | **Asan Zeman technical account** |
+| `deposit` re-check at branch approval (D16) | **Asan Zeman technical account** |
+| `customerDetailInfo` at agency registration | **the agency user's own session**, from their login |
+| `deposit` during customer completion | **the customer's own session**, from their login |
+
+**`YaghutSessionManager`**
+- **Reading cookies:** after `loginStatic`, **every** `Set-Cookie` header is read. The `NAME=value` part of each one is kept, and the attributes after `;` are dropped. All of them are sent back as one `Cookie` header, so a load-balancer cookie (F5 `BIGipServer…`) travels with `JSESSIONID` if there is one.
+  - A login that returns no `JSESSIONID` is an **error**. The old session is never reused instead.
+- **Reuse:** the session is reused until it's **null**, its `sessionExpirationDate` passes, or Yaghut answers with the session-expired fault (name still needed). There's no early refresh.
+- **The technical account** has one session per app instance, kept in memory.
+  - A `ReentrantLock` (rather than `synchronized`, which suits virtual threads) means that when several callers need a login at the same moment, only one `loginStatic` is sent and the others reuse its result.
+  - On the session-expired fault it logs in again once and retries the call.
+  - `InvalidCredentialsWSException` on this account is a **configuration error**: ops gets an alert, and the call **isn't retried**, so the account doesn't get locked.
+- **Agency and customer sessions** are kept server-side with their Asan Zeman session. Their password is never stored, so these sessions **can't be renewed by themselves**. When the Yaghut session ends, the user has to log in again.
+  - *Proposed:* cap the agency's Asan Zeman session at the earlier of 8 hours and Yaghut's `sessionExpirationDate`. ⏳ Needs confirmation.
+
+**Faults** come back as an error response whose **body contains the fault's name**. The `RestClient` error handler reads the body (null-safe) and matches it against a list of known names:
+
+| Fault or condition | Result |
+|---|---|
+| `InvalidCredentialsWSException` (agency or customer login) | login refused: «نام کاربری یا رمز عبور اشتباه است.» |
+| `InvalidCredentialsWSException` (technical account) | configuration error: ops alert and "try again later" |
+| `SuspectedCustomerWSException` | login refused. ⏳ Message text needed |
+| `InvalidCustomerWSException` | agency registration refused: «مشتری با این کد ملی در بانک یافت نشد.» |
+| the session-expired fault (⏳ name needed) | log in again (technical account) or ask the user to log in again |
+| `WebserviceException`, an unknown fault, or no body | technical: "try again later" (503) |
+| timeout, connection error, 5xx | technical: "try again later" (503). **Never** reported as a 400 |
+
+The raw error body is always logged in full (D22), so a new fault name shows up in the logs and can be added to the list.
+
+**Example settings** (`application.properties`, D36):
+
+```properties
+azs.integration.yaghut.base-url=CHANGE_ME
+azs.integration.yaghut.technical-user.username=CHANGE_ME
+azs.integration.yaghut.technical-user.password=CHANGE_ME
+azs.integration.yaghut.deposit.include-currency=IRR
+azs.integration.yaghut.fault.session-expired=CHANGE_ME
+```
+
+**⏳ Still open for Yaghut:**
+1. the **session-expired fault name**, and whether the F5 `BIGipServer…` cookie is required
+2. **temporary sessions** (`temporarySessionId`, `TICKET_LOGIN`, `DIGITAL_SIGNATURE_LOGIN`), **expired passwords** and **suspected customers** at login. Proposed: refuse each, with a message
+3. how an **agency** is identified after `loginStatic`: `cif` or `code`
+4. the **deposit details**: Win `depositType` codes, `SPECIAL_LONG_ACCOUNT`, the rial currency code and the `owner` values
+5. whether to refuse customers who aren't **`ACTUAL`**, or have a `pervasiveId` (foreign nationals), at registration
+6. whether Yaghut **`branchCode`** can have leading zeros. If so, it's compared with personnelInfo's numeric `abrnchcod` after removing them
+7. capping the agency session at Yaghut's expiry
+
 ---
 
 ## 6. Security plan (§6)
@@ -541,7 +624,7 @@ A result is only `NEGATIVE` when the service clearly says so. Anything unclear c
   - **Reuse detection:** if an already-used refresh token is presented again, the **whole family is revoked**, the user has to log in again, and a security audit event is written.
   - **Customers:** the 30-minute session token stays in memory only, with no refresh token. A reload means logging in again with OTP, which is acceptable for a one-off visit.
   - **XSS defences, since storage is readable by scripts:** a strict CSP (`script-src 'self'`, no inline scripts and no third-party scripts), Angular's built-in sanitising with no `bypassSecurityTrust*` calls (checked by a lint rule), and `sessionStorage` cleared on logout.
-- **Secrets (D13):** the JWT private key, database password and gateway `client_id`/`client_secret` are read from **environment variables or mounted files** only, never committed to the repo. The bank's secret store (Vault, Kubernetes Secrets or encrypted files) is plugged in at deployment time.
+- **Secrets (D13, D36):** the JWT private key, database password, gateway `client_id`/`client_secret`, Notifier `user`/`pass` and the Yaghut technical account all live in the single `application.properties`. The repo copy holds only `CHANGE_ME` placeholders. The real values exist only in each server's copy, readable by ops only (`chmod 600`), and the app refuses to start while any secret is still `CHANGE_ME`.
 - **Authorization:** `@PreAuthorize` on every endpoint. Roles are `BRANCH`, `ADMIN`, `AGENCY` and `CUSTOMER`. Every query is also scoped by ownership: an agency only sees its own requests, a branch only its own branch, and a customer only their own requests.
 - **OTP:** generated and checked by the Notifier (§6.3, D34). After OTP succeeds, the national code returned by Yaghut must match the request's customer.
 - **Data protection:** encryption at rest via TDE, provided by the DBA, and TLS 1.2+ with HSTS. Customer data is stored in plain text (D21), and **nothing is masked** (D22).
@@ -551,8 +634,8 @@ A result is only `NEGATIVE` when the service clearly says so. Anything unclear c
 
 ### 6.1 Customer data and the mobile number (D2 revised, D21, D22)
 
-- **When:** as the agency registers a request, Yaghut `getCustomerDetailInfo` is called once.
-- **What is saved:** the mobile number and the other customer details (name, father's name, birth date, …), in plain text, in the request's customer record.
+- **When:** as the agency registers a request, Yaghut `customerDetailInfo` is called once, with the agency user's session (D35).
+- **What is saved**, in plain text, in the request's customer record: `cif`, `code` (national code), first, last and full name, `fatherName`, `birthDate`, `mobile`, `ssn`, the certificate serial and series, `personalityType`, and `gender`. Gender is stored, but not used (D26).
 - **How long:** that snapshot is used for the **whole life of the request**. It is **not** refreshed later from Yaghut or `loginStatic`.
 
 | Where it is needed | Where it comes from |
@@ -620,8 +703,9 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 
 ### Phase 1 — Auth module
 - Bank login (§6.2): ARcaptcha → AAAService → personnelInfo (`abrnchcod`) → JWT with role and `branch_code`.
-- Agency login: ARcaptcha → Yaghut `loginStatic` → agency profile → JWT.
-- Customer login (§6.3): ARcaptcha → `loginStatic` → `SendOtp` → `OtpValidate` → JWT, with `otp_challenge`, the validity check, the per-customer lockout and one use per code.
+- Agency login: ARcaptcha → Yaghut `loginStatic` (the agency user's own credentials; the session is kept server-side, D35) → agency profile (⏳ by `cif` or `code`) → JWT.
+- `YaghutSessionManager`, with the technical account, cookie handling and fault mapping (§5.4).
+- Customer login (§6.3): ARcaptcha → `loginStatic` (the session is kept for `deposit`; `code` must equal the request's national code) → `SendOtp` → `OtpValidate` → JWT, with `otp_challenge`, the validity check, the per-customer lockout and one use per code.
 - Gateway token provider (§5.2), shared by personnelInfo and the inquiries.
 - Refresh with rotation and reuse detection, logout, and the JWT blacklist.
 - `@IranianNationalCode` and the `NationalCode` class (§4.5).
@@ -629,7 +713,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 **Exit:** all three login flows work **through the API** against the mocks. The OTP lockout, expiry and one-use rules, and the national-code rules, are covered by tests.
 
 ### Phase 2 — Request registration (agency side)
-- Agency registers an issuance request: customer lookup with `getCustomerDetailInfo`, whose **snapshot is saved for the life of the request** (D21); branch selection (`getBranch`); amount; expiry date (informational only, D19); and companions (≤ 5).
+- Agency registers an issuance request: customer lookup with `customerDetailInfo` (the agency's session), whose **snapshot is saved for the life of the request** (D21); branch selection from the synced `branch` table (open branches only, §4.4); amount; expiry date (informational only, D19); and companions (≤ 5).
 - Tracking-code generator (D12) and the `Request` aggregate with the state machine and domain events.
 - SMS notifying the customer, through the outbox (pulled forward from Phase 6 in its minimal form).
 
@@ -638,7 +722,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 ### Phase 3 — Customer completion: inquiries and collateral (UC-09)
 - InquiryService as designed in §5.1: background runs, the **two-stage chain** (Sabte Ahval, then 8 in parallel, D26) on virtual threads, stage deadlines (D27), `PASSED`/`NEGATIVE`/`FAILED`/`SKIPPED`, «تلاش مجدد» with cooldown and result reuse, and per-attempt history.
 - The 9 inquiry clients with their WireMock stubs and personas, following the catalogue in §5.3.
-- Filter eligible deposits from `getDeposit` (individual, owner and signatory, active, rial) and classify them as cheap or expensive (§4.3).
+- Filter eligible deposits from Yaghut `deposit` (the customer's session; individual, owner and signatory, open, rial) and classify them as cheap or expensive by `group` and `depositType` (§4.3).
 - CollateralService: Cash, cheap-pledge and expensive-pledge strategies (§4.3). The SRS worked examples become unit tests (D14, D15, D18).
 - API endpoints for each step: review the request → run the inquiries → choose collateral → submit.
 
@@ -736,7 +820,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
    - **ARcaptcha**
    - **notification SMS** (`SendSimpleSms`?)
    - **AAAService**, including whether it returns a role
-   - **Yaghut** (`loginStatic`, `getCustomerDetailInfo`, `getBranch` with its fields and whether it returns the full list, `getDeposit` with the deposit type codes)
+   - **Yaghut follow-ups** (§5.4): the session-expired fault, login edge cases, how agencies are identified, the deposit details, customer type and the branch-code format
    - each inquiry's token **scope**
 3. **Rotate** the gateway client secret and the Notifier credentials that were shared during the review. Ask the SMS centre for Asan Zeman's own `ClientName` (`AZS`), user and password.
 4. Record the decisions that change the architecture document as ADRs in `docs/architecture/`:
@@ -747,6 +831,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
    - **ADR-012:** the two-stage inquiry chain
    - **ADR-013:** branches from Yaghut, with `parent_branch` replacement
    - **ADR-014:** the Notifier is called directly and `SendOtp` is synchronous (amends §7-4)
+   - **ADR-015:** Yaghut sessions, with a technical account plus user sessions, and one `application.properties` for all configuration and secrets
 5. **UI:** waits for the product owner's explanation (D31).
 6. Decide how Phase 0 is built and checked. This workspace can't download packages, so either GitHub Actions does the building, or the work runs on a computer that can.
 7. Start **Phase 0** (backend only) in this repository.
