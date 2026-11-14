@@ -36,9 +36,9 @@ A system for a bank to process **travel-return guarantees** (ضمانتنامه 
 
 ## 2. Decision log
 
-The architecture document contradicts itself, or is silent, on the points below. They were reviewed with the product owner on 1405/08/17, 1405/08/19 and 1405/08/20. ✅ means decided, ⏳ means open or proposed. Where the product owner had no preference, the recommended default was adopted. Every value marked *configurable* lives in the single `application.properties` (D36) and can change without a release.
+The architecture document contradicts itself, or is silent, on the points below. They were reviewed with the product owner on 1405/08/17, 1405/08/19, 1405/08/20 and 1405/08/22. ✅ means decided, ⏳ means open or proposed. Where the product owner had no preference, the recommended default was adopted. Every value marked *configurable* lives in the single `application.properties` (D36) and can change without a release.
 
-**Still open:** D25 (structured concurrency, to be decided later). Some Yaghut details are also still open (§5.4).
+**Still open:** D25 (structured concurrency; the product owner is checking it), the Yaghut deposit details (§5.4), and how Phase 0 is built (§10).
 
 | # | Topic | Decision | Details |
 |---|---|---|---|
@@ -46,7 +46,7 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D2 | ✅ Customer mobile number (**revised** 1405/08/17) | **Stored in plain text**, together with the other customer details, when the agency registers the request (see D21). This replaces the earlier rule "never stored, fetched from Yaghut each time". | §6.1 |
 | D3 | ✅ Inquiry technical failure | **Block and let the customer retry.** A *negative* answer rejects the request. A *technical* failure (timeout, 5xx, circuit open, unreadable response) blocks completion without rejecting. On retry, only the failed inquiries are re-run. A passed result is reused for **1 hour** (*configurable*). Manual-review fallback is **not** built. | §5.1 |
 | D4 | ✅ Inquiry timeouts and retries | Use the **per-service table in §7-3** (8–15 s, 1–2 retries), not the flat 30 s with 3 retries. The whole run must stay within the **25 s budget** (P99, §9-1). All *configurable*. | §5, §5.1 |
-| D5 | ✅ Session lifetime | Access token **15 min** for everyone. Refresh token **8 h** for branch, admin and agency users. **Customers:** a single **30-minute** session with no refresh token. All *configurable*. | §6 |
+| D5 | ✅ Session lifetime | Access token **15 min** for everyone. Refresh token **8 h** for branch, admin and agency users. **The agency session is capped at the earlier of 8 h and the agency user's Yaghut `sessionExpirationDate`** (D35). **Customers:** a single **30-minute** session with no refresh token. All *configurable*. | §6, §5.4 |
 | D6 | ✅ Collateral formulas | Taken from the SRS. | §4.3 |
 | D7 | ✅ Where the browser keeps tokens | **No cookies** (an infrastructure restriction). Both tokens are sent only as `Authorization: Bearer`, so **no CSRF protection is needed**. Access token **in memory**. Staff and agency refresh token in **`sessionStorage`**, with **rotation and reuse detection**. Customers: **memory only**, with no refresh token. Nothing in `localStorage`. | §6 |
 | D8 | ✅ CI/CD | **GitHub Actions** while the code is on GitHub. The stages mirror §8-2, so the pipeline moves cleanly to GitLab CI later. | §7 Phase 0 |
@@ -76,7 +76,7 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D32 | ✅ Branches come from Yaghut | There's **no branch form** in the base data. `BranchSyncJob` fills and updates `branch` from Yaghut `branches`, using the technical account (D35). Each branch has a **`parent_branch`**: itself when open, its **replacement** when closed. Replacements are set **only by database scripts**. Both the original branch and the replacement can see and act on a closed branch's requests, including revocations. | §4.4 |
 | D33 | ✅ Bank user's branch | It comes from **personnelInfo** (`abrnchcod` only), fetched at every login. `accountName` is the login username without `@sb24.ir`. There's no check that the branch exists in `branch`. The lock holder's display name is `accountName`. | §6.2 |
 | D34 | ✅ OTP via the Notifier | The **Notifier generates and checks** a 4-digit code (`SendOtp` and `OtpValidate`); Asan Zeman never stores it. `SendOtp` is called **synchronously**, not through the outbox, because the `sId` is needed at once. Validity is `azs.otp.validity` (120 s). **3 wrong attempts per customer** (not per code) → 15-minute lockout. Each code is used only once. The number is sent as `09xxxxxxxxx`, with `ClientName` `AZS` and its own credentials. | §6.3 |
-| D35 | ✅ Yaghut sessions and faults | Yaghut is **session-based**: `loginStatic` returns cookies (`JSESSIONID`, and any others such as the F5 `BIGipServer…`), which are sent on every later call. **Whose session:** the **Asan Zeman technical account** (credentials in `application.properties`) for branch-side calls and `BranchSyncJob`; the **agency user's own session** for `customerDetailInfo` at registration; the **customer's own session** for `deposit` during completion. **A session is reused until** it's null, its `sessionExpirationDate` passes, or Yaghut rejects it. Then there's one new login and one retry, and only the technical account can log in again by itself. **Faults** are found by name in the error body. The `context` (arg0) fields are ignored. Clients use Spring `RestClient`, not Feign. | §5.4 |
+| D35 | ✅ Yaghut sessions and faults | Yaghut is **session-based**: `loginStatic` returns a **`JSESSIONID` cookie**, which is the **only** thing sent on later calls. The body's `sessionId` and any other cookies are ignored. **Whose session:** the **Asan Zeman technical account** (credentials in `application.properties`) for branch-side calls and `BranchSyncJob`. **In the agency and customer panels, every Yaghut call uses that user's own login session.** **A session is reused until** it's null, its `sessionExpirationDate` passes, or Yaghut answers `InvalidSessionWSException`. Only the technical account can log in again by itself; agency and customer users must log in again. **Faults** come as JSON `{exception, exception_params, success:false, exception_message}` and are matched on `exception`. **Login refusals:** temporary sessions, expired passwords, suspected customers and non-`ACTUAL` customers. **Agencies are identified by `cif`.** The `context` (arg0) fields are ignored. Clients use Spring `RestClient`, not Feign. | §5.4 |
 | D36 | ✅ One config file | The whole project uses **one `application.properties`**, with no profile files (`application-dev.properties` and so on). Each server has its own copy with real values. Tests override the few values they need with `@DynamicPropertySource`. All examples in this plan use the `.properties` format. | §5.4, §6 |
 
 The original issue descriptions are in this file's git history (commit `d2c7498`).
@@ -121,7 +121,7 @@ asanzeman/
 ### Entities (§5-1)
 `Customer`, `Agency`, `Branch`, `Request`, `Companion` (≤ 5 per request), `Collateral`, `Inquiry`, `RejectionReason` and `AuditLog`. All of them extend `BaseEntity`, which has `id RAW(16)` (SYS_GUID), `created_at`, `updated_at`, `created_by` and `updated_by`.
 
-Supporting tables: `app_user` (bank users: `accountName`, `prsnCode`, branch and position from personnelInfo), `otp_challenge` (§6.3), `refresh_tokens`, `jwt_blacklist`, `outbox_messages`, `scheduler_lock`, `idempotency_keys`, `tracking_counter`. `branch` is described in §4.4.
+The `agency` table has a unique **`cif`** column, used to find the agency after its user logs in (D35). Supporting tables: `app_user` (bank users: `accountName`, `prsnCode`, branch and position from personnelInfo), `otp_challenge` (§6.3), `refresh_tokens`, `jwt_blacklist`, `outbox_messages`, `scheduler_lock`, `idempotency_keys`, `tracking_counter`. `branch` is described in §4.4.
 
 ### Request lifecycle (§4-3-1, §7-5)
 
@@ -341,7 +341,7 @@ Each strategy is an immutable value class. The factors, the cap and the share ra
 
 | Column | Source |
 |---|---|
-| `branch_code` (PK, `VARCHAR2`) | Yaghut `branches` → `branchCode` (a string; the deprecated numeric `code` isn't used), with the full code as returned (D12) |
+| `branch_code` (PK, `VARCHAR2`) | Yaghut `branches` → `branchCode`, **always handled as a string** (the deprecated numeric `code` isn't used), with the full code as returned (D12). Matched to a bank user's `String.valueOf(abrnchcod)` exactly |
 | `name`, `city`, `address`, `tel`, `fax`, `zip_code` | Yaghut `branches` |
 | `parent_branch` (FK to `branch.branch_code`) | **set to `branch_code` when the branch is first inserted, and never overwritten by the sync** |
 | `active` | `false` once Yaghut stops returning the branch. Yaghut doesn't return closed branches |
@@ -552,9 +552,9 @@ A result is only `NEGATIVE` when the service clearly says so. Anything unclear c
 
 | Call | Path | Request | Response used | Faults |
 |---|---|---|---|---|
-| `loginStatic` | `/user/loginStatic` | `username`, `password` | **cookies from `Set-Cookie`**, `sessionExpirationDate`, `cif`, `code` (national code), `name`, `mobile` | `InvalidCredentialsWSException`, `SuspectedCustomerWSException` |
+| `loginStatic` | `/user/loginStatic` | `username`, `password` | **`JSESSIONID` from `Set-Cookie`**, `sessionExpirationDate`, `cif` (identifies an **agency**), `code` (national code; for a customer it must equal the request's national code), `name`, `temporarySessionId`/`temporaryCause`, `passwordExpirationBean` | `InvalidCredentialsWSException`, `SuspectedCustomerWSException` |
 | `branches` | `/branches` | `offset`, `length` (paging) | `totalRecord`, `branches[] {branchCode, name, city, address, tel, fax, zipCode}` | — |
-| `customerDetailInfo` | `/customerDetailInfo` | **exactly one** of `cif` or `code`. We send `code`, the national code | the snapshot fields (§6.1), `personalityType`, `pervasiveId` | `InvalidCustomerWSException` |
+| `customerDetailInfo` | `/customerDetailInfo` | **exactly one** of `cif` or `code`. We send `code`, the national code | the snapshot fields (§6.1) and `personalityType`. **Only `ACTUAL` customers are accepted**; foreign nationals with a valid national code are allowed | `InvalidCustomerWSException` |
 | `deposit` | `/deposit` | `cif`, `depositStatus: OPEN`, `personality: [ACTUAL]`, `signatureStatus: [OWNER_OF_DEPOSIT_AND_SIGNATURE]`, `includeCurrency: [rial]`, `needWithdrawableBalance: true`, `includeCreditAccount: false`, `includeSupportAccount: false` | `depositNumber`, `group`, `depositType`, `availableBalance`, `owner`, `depositStatus`, `currency` | none. An invalid or unrelated deposit just gives an **empty list** |
 
 **Whose session is used:**
@@ -563,29 +563,51 @@ A result is only `NEGATIVE` when the service clearly says so. Anything unclear c
 |---|---|
 | `BranchSyncJob` (`branches`), nightly | **Asan Zeman technical account** |
 | `deposit` re-check at branch approval (D16) | **Asan Zeman technical account** |
-| `customerDetailInfo` at agency registration | **the agency user's own session**, from their login |
-| `deposit` during customer completion | **the customer's own session**, from their login |
+| `customerDetailInfo` at agency registration | **the agency user's own login session** |
+| `deposit` during customer completion | **the customer's own login session** |
+
+**Rule:** in the agency and customer panels, every Yaghut call uses that user's own login session. Only the branch side and the nightly job use the technical account.
 
 **`YaghutSessionManager`**
-- **Reading cookies:** after `loginStatic`, **every** `Set-Cookie` header is read. The `NAME=value` part of each one is kept, and the attributes after `;` are dropped. All of them are sent back as one `Cookie` header, so a load-balancer cookie (F5 `BIGipServer…`) travels with `JSESSIONID` if there is one.
+- **Reading the cookie:** after `loginStatic`, **all** `Set-Cookie` headers are searched for **`JSESSIONID`** (it may not be the first), and each part is trimmed. Every later call sends only `Cookie: JSESSIONID=…`. The body's `sessionId` and any other cookies are ignored.
   - A login that returns no `JSESSIONID` is an **error**. The old session is never reused instead.
-- **Reuse:** the session is reused until it's **null**, its `sessionExpirationDate` passes, or Yaghut answers with the session-expired fault (name still needed). There's no early refresh.
+- **Reuse:** the session is reused until it's **null**, its `sessionExpirationDate` passes, or Yaghut answers **`InvalidSessionWSException`**. There's no early refresh.
 - **The technical account** has one session per app instance, kept in memory.
   - A `ReentrantLock` (rather than `synchronized`, which suits virtual threads) means that when several callers need a login at the same moment, only one `loginStatic` is sent and the others reuse its result.
-  - On the session-expired fault it logs in again once and retries the call.
+  - On `InvalidSessionWSException` it drops the session, logs in again once and retries the call.
   - `InvalidCredentialsWSException` on this account is a **configuration error**: ops gets an alert, and the call **isn't retried**, so the account doesn't get locked.
-- **Agency and customer sessions** are kept server-side with their Asan Zeman session. Their password is never stored, so these sessions **can't be renewed by themselves**. When the Yaghut session ends, the user has to log in again.
-  - *Proposed:* cap the agency's Asan Zeman session at the earlier of 8 hours and Yaghut's `sessionExpirationDate`. ⏳ Needs confirmation.
+- **Agency and customer sessions:** the `JSESSIONID` and `sessionExpirationDate` are kept server-side with the user's Asan Zeman session, so the panels never see the cookie (D7). Their password is never stored, so these sessions **can't be renewed by themselves**. On `InvalidSessionWSException`, or once the expiry has passed, the Asan Zeman session ends with «نشست شما در یاقوت منقضی شده است. لطفاً دوباره وارد شوید.»
+  - **The agency's Asan Zeman session is capped at the earlier of 8 hours and Yaghut's `sessionExpirationDate`**, so it ends before a Yaghut call can fail.
 
-**Faults** come back as an error response whose **body contains the fault's name**. The `RestClient` error handler reads the body (null-safe) and matches it against a list of known names:
+**Login checks after `loginStatic`** (agency and customer):
+
+| Condition | Result |
+|---|---|
+| `temporarySessionId` is set (any `temporaryCause`: `TICKET_LOGIN`, `DIGITAL_SIGNATURE_LOGIN`, `OTHER`) | refused: «لطفاً از طریق اینترنت‌بانک وارد شوید.» |
+| the password has expired (`passwordExpirationBean`) | refused: «رمز عبور شما منقضی شده است. لطفاً ابتدا رمز خود را در اینترنت‌بانک تغییر دهید.» |
+| `SuspectedCustomerWSException` | refused: «امکان ارائه خدمت به شما از این مسیر وجود ندارد. لطفاً به شعبه مراجعه کنید.» |
+| **agency:** no `agency` row with this `cif` | refused (the agency isn't registered in Asan Zeman) |
+| **customer:** `code` isn't the request's national code | refused |
+
+**Faults** come back as JSON:
+
+```json
+{ "exception": "InvalidSessionWSException", "exception_params": "{}", "success": false, "exception_message": "…" }
+```
+
+- The error handler parses the body and uses the **`exception` field** as the fault name.
+- **Any response with `success: false`** is a fault, whatever its HTTP status.
+- A body that isn't this JSON (for example a proxy's HTML page) counts as technical.
+- `exception_message` is logged in full, but isn't used for decisions.
 
 | Fault or condition | Result |
 |---|---|
 | `InvalidCredentialsWSException` (agency or customer login) | login refused: «نام کاربری یا رمز عبور اشتباه است.» |
 | `InvalidCredentialsWSException` (technical account) | configuration error: ops alert and "try again later" |
-| `SuspectedCustomerWSException` | login refused. ⏳ Message text needed |
+| `SuspectedCustomerWSException` | login refused: «امکان ارائه خدمت به شما از این مسیر وجود ندارد. لطفاً به شعبه مراجعه کنید.» |
 | `InvalidCustomerWSException` | agency registration refused: «مشتری با این کد ملی در بانک یافت نشد.» |
-| the session-expired fault (⏳ name needed) | log in again (technical account) or ask the user to log in again |
+| **`InvalidSessionWSException`** | technical account: log in again once and retry. Agency or customer: end the Asan Zeman session and ask them to log in again |
+| **`ServiceAccessIsDeniedWSException`** ("Principal is not active for Service Id … Channel Id …") | **no retry**, and an ops alert that includes the service and channel IDs from `exception_message`. Technical account → "try again later". Agency or customer → «دسترسی شما به این سرویس یاقوت فعال نیست. لطفاً با راهبر سامانه تماس بگیرید.» |
 | `WebserviceException`, an unknown fault, or no body | technical: "try again later" (503) |
 | timeout, connection error, 5xx | technical: "try again later" (503). **Never** reported as a 400 |
 
@@ -598,17 +620,19 @@ azs.integration.yaghut.base-url=CHANGE_ME
 azs.integration.yaghut.technical-user.username=CHANGE_ME
 azs.integration.yaghut.technical-user.password=CHANGE_ME
 azs.integration.yaghut.deposit.include-currency=IRR
-azs.integration.yaghut.fault.session-expired=CHANGE_ME
 ```
 
-**⏳ Still open for Yaghut:**
-1. the **session-expired fault name**, and whether the F5 `BIGipServer…` cookie is required
-2. **temporary sessions** (`temporarySessionId`, `TICKET_LOGIN`, `DIGITAL_SIGNATURE_LOGIN`), **expired passwords** and **suspected customers** at login. Proposed: refuse each, with a message
-3. how an **agency** is identified after `loginStatic`: `cif` or `code`
-4. the **deposit details**: Win `depositType` codes, `SPECIAL_LONG_ACCOUNT`, the rial currency code and the `owner` values
-5. whether to refuse customers who aren't **`ACTUAL`**, or have a `pervasiveId` (foreign nationals), at registration
-6. whether Yaghut **`branchCode`** can have leading zeros. If so, it's compared with personnelInfo's numeric `abrnchcod` after removing them
-7. capping the agency session at Yaghut's expiry
+**Decided on 1405/08/22:**
+- the session-expired fault is `InvalidSessionWSException`
+- only `JSESSIONID` is used
+- temporary sessions, expired passwords and suspected customers are refused
+- agencies are identified by `cif`
+- only `ACTUAL` customers are accepted
+- `branchCode` is **always a string**. personnelInfo's numeric `abrnchcod` is converted with `String.valueOf` and compared exactly, with no zero-stripping. The branch integrity check logs any Yaghut code starting with `0`, so a mismatch would show up in UAT
+- the agency session is capped at Yaghut's expiry
+
+**⏳ Still open for Yaghut (deferred by the product owner):**
+- the **deposit details**: Win `depositType` codes, whether `SPECIAL_LONG_ACCOUNT` is expensive or not eligible, the rial currency code, and the `depositOwnerTypeWS` values
 
 ---
 
@@ -703,8 +727,8 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 
 ### Phase 1 — Auth module
 - Bank login (§6.2): ARcaptcha → AAAService → personnelInfo (`abrnchcod`) → JWT with role and `branch_code`.
-- Agency login: ARcaptcha → Yaghut `loginStatic` (the agency user's own credentials; the session is kept server-side, D35) → agency profile (⏳ by `cif` or `code`) → JWT.
-- `YaghutSessionManager`, with the technical account, cookie handling and fault mapping (§5.4).
+- Agency login: ARcaptcha → Yaghut `loginStatic` (the agency user's own credentials; the `JSESSIONID` is kept server-side) → login checks (§5.4) → agency found by **`cif`** → JWT, with the session capped at Yaghut's expiry.
+- `YaghutSessionManager`: the technical account, `JSESSIONID` handling, `InvalidSessionWSException` retries, and JSON fault mapping (§5.4).
 - Customer login (§6.3): ARcaptcha → `loginStatic` (the session is kept for `deposit`; `code` must equal the request's national code) → `SendOtp` → `OtpValidate` → JWT, with `otp_challenge`, the validity check, the per-customer lockout and one use per code.
 - Gateway token provider (§5.2), shared by personnelInfo and the inquiries.
 - Refresh with rotation and reuse detection, logout, and the JWT blacklist.
@@ -820,7 +844,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
    - **ARcaptcha**
    - **notification SMS** (`SendSimpleSms`?)
    - **AAAService**, including whether it returns a role
-   - **Yaghut follow-ups** (§5.4): the session-expired fault, login edge cases, how agencies are identified, the deposit details, customer type and the branch-code format
+   - **Yaghut deposit details** (§5.4): Win `depositType` codes, `SPECIAL_LONG_ACCOUNT`, the rial code and the `owner` values. Deferred by the product owner
    - each inquiry's token **scope**
 3. **Rotate** the gateway client secret and the Notifier credentials that were shared during the review. Ask the SMS centre for Asan Zeman's own `ClientName` (`AZS`), user and password.
 4. Record the decisions that change the architecture document as ADRs in `docs/architecture/`:
@@ -833,5 +857,5 @@ Each phase ends with a demoable result and its own exit criteria. External servi
    - **ADR-014:** the Notifier is called directly and `SendOtp` is synchronous (amends §7-4)
    - **ADR-015:** Yaghut sessions, with a technical account plus user sessions, and one `application.properties` for all configuration and secrets
 5. **UI:** waits for the product owner's explanation (D31).
-6. Decide how Phase 0 is built and checked. This workspace can't download packages, so either GitHub Actions does the building, or the work runs on a computer that can.
+6. ⏳ **Decide how Phase 0 is built and checked** (deferred by the product owner). This workspace can't download packages, so either GitHub Actions does the building, or the work runs on a computer that can.
 7. Start **Phase 0** (backend only) in this repository.
