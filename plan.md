@@ -21,7 +21,7 @@ A system for a bank to process **travel-return guarantees** (ضمانتنامه 
 | **Agency panel** | In the DMZ at `www.asanzeman.sb24.com/agencies`. Login: Yaghut `loginStatic` + ARcaptcha. *UI deferred (D31).* |
 | **Customer panel** | In the DMZ at `www.asanzeman.sb24.com`. Login: Yaghut `loginStatic` + ARcaptcha + SMS OTP (§6.3). *UI deferred (D31).* |
 | **Oracle 19c+** | The **only** data store. There is no Redis, Kafka or object storage. Schemas: `AZS_AUTH`, `AZS_BUSINESS`, `AZS_INQUIRY`, `AZS_AUDIT`, `AZS_OUTBOX`. |
-| **External** | **Called directly:** AAAService, Yaghut (4 services) and the **SMS Notifier** (internal IP, its own user and password; §6.3). **Through the Bank API Gateway**, with one OAuth2 client-credentials token (D28, §5.2): the 9 inquiries and **personnelInfo**. **ARcaptcha:** document pending. |
+| **External** | **Called directly:** AAAService (SOAP, §6.2), Yaghut (4 services), the **SMS Notifier** (`10.0.41.24:8012`, its own user and password; §6.3, §6.4) and **ARcaptcha** (`challenge.sb24.ir`, §6.5). **Through the Bank API Gateway**, with one OAuth2 client-credentials token (D28, §5.2): the 9 inquiries and **personnelInfo**. |
 | **Out of scope (manual)** | Farangin (guarantee issuance and revocation) and the Digital Signature system. There is **no API integration** with either one. The branch user does this work by hand while the request is in `UNDER_ACTION`. |
 
 ### Core flows (§2-4)
@@ -36,9 +36,9 @@ A system for a bank to process **travel-return guarantees** (ضمانتنامه 
 
 ## 2. Decision log
 
-The architecture document contradicts itself, or is silent, on the points below. They were reviewed with the product owner on 1405/08/17, 1405/08/19, 1405/08/20 and 1405/08/22. ✅ means decided, ⏳ means open or proposed. Where the product owner had no preference, the recommended default was adopted. Every value marked *configurable* lives in the single `application.properties` (D36) and can change without a release.
+The architecture document contradicts itself, or is silent, on the points below. They were reviewed with the product owner on 1405/08/17, 1405/08/19, 1405/08/20, 1405/08/22 and 1405/08/23. ✅ means decided, ⏳ means open or proposed. Where the product owner had no preference, the recommended default was adopted. Every value marked *configurable* lives in the single `application.properties` (D36) and can change without a release.
 
-**Still open:** D25 (structured concurrency; the product owner is checking it), the Yaghut deposit details (§5.4), and how Phase 0 is built (§10).
+**Still open:** the Yaghut deposit details (§5.4) and how Phase 0 is built (§10). Both are deferred by the product owner.
 
 | # | Topic | Decision | Details |
 |---|---|---|---|
@@ -54,7 +54,7 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D10 | ✅ Runtime | **Build a Docker image (executable jar) now.** Keep a Tomcat/WAR profile possible. Decide Kubernetes versus VMs with the ops team before Phase 10. | §7 Phase 10 |
 | D11 | ✅ Cancellation versus revocation | **Before «اقدام»:** the request goes to `CANCELLED` (لغو شده) immediately. **From «اقدام» onward**, including approved and issued requests: a revocation request goes to the branch and ends in `REVOKED` (ابطال شده). | §4.2 |
 | D12 | ✅ Tracking code (**revised** 1405/08/20) | The **full branch code** (as Yaghut returns it, never truncated) + agency (4) + date YYMMDD (6) + a 4-digit counter, so **17–19 digits** depending on the branch. Codes can't collide, because everything after the branch code is fixed-width. Stored as `VARCHAR2(20)`. The counter runs **per branch + agency + day**, in a `tracking_counter` table incremented under a row lock. | §4 |
-| D13 | ✅ Secrets (**revised** 1405/08/20) | **All secrets live in the single `application.properties`** (D36): the Yaghut technical account, gateway `client_id`/`client_secret`, Notifier `user`/`pass`, database password and JWT signing key. **The repo copy holds only placeholders (`CHANGE_ME`).** The real values exist only in the copy on each server, readable by ops only. The app refuses to start while any secret is still `CHANGE_ME`. | §6 |
+| D13 | ✅ Secrets (**revised** 1405/08/20) | **All secrets live in the single `application.properties`** (D36): the Yaghut technical account, gateway `client_id`/`client_secret`, Notifier `user`/`pass`, AAA technical account, ARcaptcha `site_key`/`secret_key` (per panel), database password and JWT signing key. **The repo copy holds only placeholders (`CHANGE_ME`).** The real values exist only in the copy on each server, readable by ops only. The app refuses to start while any secret is still `CHANGE_ME`. | §6 |
 | D14 | ✅ Pledge formula | **Follow the SRS worked example:** pledge = `(amount − cash) × factor`. For example, 1,000,000,000 rials with 20 % cash pledges 800,000,000 (840,000,000 on expensive deposits). The literal SRS formula, which gives 640,000,000, is treated as a typo. | §4.3 |
 | D15 | ✅ Mixed cheap and expensive pledge | **Cheap deposits are filled first** (×1.00), then expensive ones (×1.05, each capped at 95 % of its balance). Within each group, deposits are filled in the order the customer selected them. | §4.3 |
 | D16 | ✅ Balance changes before approval | **Balances are re-checked** through Yaghut `deposit`, using the **technical account's** session (D35), when the branch clicks approve. If the deposits no longer cover the collateral, approval is blocked and the shortfall is shown. | §4.3, Phase 4 |
@@ -66,7 +66,7 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D22 | ✅ No masking | **Nothing is masked anywhere**: screens, Excel exports, logs, the audit log, error messages and saved raw responses. The masking code stays behind `azs.privacy.masking-enabled: false`, so it can be switched on later without a code change. | §6 |
 | D23 | ✅ No rate limiting or bulkheads | **No rate limits** (neither the 100 requests/min per-IP filter from §6, nor the 10 requests/s limiter on outgoing calls) and **no semaphores or bulkheads** on external services. What remains: per-service timeouts and retries, circuit breakers, ARcaptcha, and the OTP lockout. | §5, §6 |
 | D24 | ✅ Virtual threads | `spring.threads.virtual.enabled=true`, so incoming HTTP requests, inquiry runs, `@Async` work and scheduled jobs all run on virtual threads. The **Hikari connection pool** is the only limit on database work, and inquiry runs never hold a DB connection while waiting on a service. | §5.1 |
-| D25 | ⏳ **Open:** structured concurrency | Java 25's `StructuredTaskScope` would suit each inquiry stage, but it is still a **preview** feature. The product owner will decide later. **Working default:** `CompletableFuture` on virtual threads. Only `StageRunner` would change if we switch. | §5.1 |
+| D25 | ✅ Structured concurrency (decided 1405/08/23) | Each inquiry stage runs in a **`StructuredTaskScope`** (Java 25, **preview**), with a custom `Joiner` that cancels the rest on the first `NEGATIVE`, and the stage deadline as the scope timeout. **This means `--enable-preview` at compile, test and run time** (`maven-compiler-plugin`, the Surefire and Failsafe `argLine`, and the `java` command in the Docker image). The preview API may change in later Java versions, so **a Java upgrade must re-check `StageRunner`**, the only class that uses it. | §5.1 |
 | D26 | ✅ Inquiry order: two stages | **Stage 1: Sabte Ahval alone.** It supplies the authoritative gender and birth date. **Stage 2: the other 8 in parallel.** Sepad runs only for men aged 18–50 *inclusive*, using Sabte Ahval's data. Implemented as **one chain of stages** (Chain of Responsibility), with **one Strategy class per inquiry**. The stage list is configurable. | §5.1 |
 | D27 | ✅ Time budget (agreed 1405/08/20) | §7-3's timeouts × attempts can't fit the 25 s budget (Sabte Ahval alone is 15 s × 3 = 45 s). **Proposal: deadline-aware retries.** Each stage gets a deadline (stage 1: **10 s**, stage 2: **15 s**, both configurable). A retry starts **only if the time left in the stage is at least that service's timeout**; otherwise the inquiry is `FAILED`, and the customer can retry (D3). | §5.1 |
 | D28 | ✅ Gateway token | OAuth2 **client credentials** from `apigw.int.sb2.com/ApiContainer.sso.RCL1/connect/token`. One token per app instance, kept in memory and refreshed before its 2-hour expiry. It is used by **the 9 inquiries and personnelInfo**. The Notifier has its own user and password (D34), and ARcaptcha is still pending. `invalid_client` (HTTP 400) is a configuration error and is not retried. | §5.2 |
@@ -78,6 +78,10 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D34 | ✅ OTP via the Notifier | The **Notifier generates and checks** a 4-digit code (`SendOtp` and `OtpValidate`); Asan Zeman never stores it. `SendOtp` is called **synchronously**, not through the outbox, because the `sId` is needed at once. Validity is `azs.otp.validity` (120 s). **3 wrong attempts per customer** (not per code) → 15-minute lockout. Each code is used only once. The number is sent as `09xxxxxxxxx`, with `ClientName` `AZS` and its own credentials. | §6.3 |
 | D35 | ✅ Yaghut sessions and faults | Yaghut is **session-based**: `loginStatic` returns a **`JSESSIONID` cookie**, which is the **only** thing sent on later calls. The body's `sessionId` and any other cookies are ignored. **Whose session:** the **Asan Zeman technical account** (credentials in `application.properties`) for branch-side calls and `BranchSyncJob`. **In the agency and customer panels, every Yaghut call uses that user's own login session.** **A session is reused until** it's null, its `sessionExpirationDate` passes, or Yaghut answers `InvalidSessionWSException`. Only the technical account can log in again by itself; agency and customer users must log in again. **Faults** come as JSON `{exception, exception_params, success:false, exception_message}` and are matched on `exception`. **Login refusals:** temporary sessions, expired passwords, suspected customers and non-`ACTUAL` customers. **Agencies are identified by `cif`.** The `context` (arg0) fields are ignored. Clients use Spring `RestClient`, not Feign. | §5.4 |
 | D36 | ✅ One config file | The whole project uses **one `application.properties`**, with no profile files (`application-dev.properties` and so on). Each server has its own copy with real values. Tests override the few values they need with `@DynamicPropertySource`. All examples in this plan use the `.properties` format. | §5.4, §6 |
+| D37 | ✅ ARcaptcha | The backend verifies the panel's `arcaptchaToken` with `POST https://challenge.sb24.ir/api/arcaptcha/api/verify` **before** calling AAA or Yaghut. `site_key` and `secret_key` are **per panel** in config. **If ARcaptcha is down, login is refused** (fail closed). | §6.5 |
+| D38 | ✅ Certificates | `azs.integration.<service>.tls.skip-verify` (default `false`) can switch off certificate checks **per service**, never JVM-wide. When it's `true`, a WARN is logged at every startup and a metric is exposed. An optional configurable truststore (`azs.tls.truststore.*`) is also supported, so the bank can switch to proper trust later. | §6 |
+| D39 | ✅ AAAService | SOAP `GetRoleWindows` (SOAP 1.1), using **Spring Web Services** with Jakarta JAXB classes generated from the full WSDL (`xsd0`–`xsd28`), not Axis2. Security header: WS-Security **`UsernameToken`** (`PasswordText`, `mustUnderstand="0"`, **no timestamp**) with the AAA technical account. `ApplicationName` and `StoreName` come from config. `DetailError` → refused. Roles: AAA **`Branch` → BRANCH, `Admin` → ADMIN**. Any other role is refused. | §6.2 |
+| D40 | ✅ Notification SMS | **`SendSimpleSms`** (`/api/v1/sms/SendSimpleSms` on the Notifier host) through the outbox. Numbers are sent as **`0989xxxxxxxxx`** (converted from the stored `09xxxxxxxxx`; `SendOtp` keeps `09…`). There are **8 SMS events**: 5 with SRS texts and 3 with agreed texts. | §6.4 |
 
 The original issue descriptions are in this file's git history (commit `d2c7498`).
 
@@ -101,7 +105,8 @@ asanzeman/
 │       ├── notification/
 │       ├── report/
 │       ├── scheduler/
-│       └── integration/         ← AAAClient, YaghutClient, GatewayTokenProvider, one client per inquiry (+ fakes)
+│       └── integration/         ← AaaClient (Spring WS), YaghutClient, GatewayTokenProvider, NotifierClient, ArcaptchaClient, one client per inquiry (+ fakes)
+│   └── src/main/resources/wsdl/aaa/   ← AuthorizationSrv WSDL + xsd0–xsd28 (D39)
 │   └── src/main/resources/db/migration/   ← Flyway SQL migrations (D20)
 ├── frontend/                    ← Nx monorepo (ADR-007), DEFERRED (D31): not created yet
 │   ├── apps/bank-panel/
@@ -413,13 +418,13 @@ One class, `NationalCode`, is used by the `@IranianNationalCode` Bean Validation
 
 | Client | Target | Notes |
 |---|---|---|
-| `AAAClient` | AAAService (direct HTTPS) | Login for branch/admin users. Returns the user and their role (`ROLE_BRANCH` or `ROLE_ADMIN`) and the branch code. |
+| `AaaClient` | AAAService, SOAP over HTTPS, direct | `GetRoleWindows`: checks the branch user's password and returns their roles (§6.2, D39). The branch comes from personnelInfo |
 | `YaghutClient` + `YaghutSessionManager` | Yaghut (direct HTTPS, session cookies) | Four calls: `loginStatic`, `branches`, `customerDetailInfo` and `deposit` (§5.4). Deposit data is **never stored**. |
 | `GatewayTokenProvider` | `apigw.int.sb2.com` (token endpoint) | OAuth2 client credentials (D28). The token is added to **the 9 inquiry clients only** (§5.2). |
 | 9 inquiry clients | `apigw.int.sb24.com` / `apigw3p.int.sb24.com` | One client per inquiry, with its own host, path and request fields in config (§5.3). |
 | `PersonnelInfoClient` | `apigw.int.sb24.com` (gateway token) | Gives the logged-in bank user's branch (§6.2, D33). |
-| `NotifierOtpClient` | internal IP, for example `x.x.x.x:8012` (direct, `user` and `pass`) | `SendOtp` and `OtpValidate` (§6.3, D34). Notification SMS (`SendSimpleSms`?): document pending. |
-| `ArcaptchaClient` | — | **Document pending.** |
+| `NotifierClient` | `https://10.0.41.24:8012` (direct, `user` and `pass`) | `SendOtp` and `OtpValidate` (§6.3, D34); `SendSimpleSms` (§6.4, D40) |
+| `ArcaptchaClient` | `https://challenge.sb24.ir` (direct) | token verification (§6.5, D37) |
 
 - **Anti-corruption layer:** each external service gets its own adapter that maps its format to domain types.
 - **Resilience4j** (§7-6): circuit breaker opens at 50 % failures over a 20-call window and stays open 30 s. Timeouts and retries per service, from the §7-3 table (8–15 s, 1–2 retries with exponential backoff, on 5xx and timeouts only; D4), with retries limited by the stage deadline (D27). **No bulkheads or rate limiters** (D23). All values are configurable per client.
@@ -474,7 +479,19 @@ A result is only `NEGATIVE` when the service clearly says so. Anything unclear c
   - A stage's handlers run in parallel. A stage with a single handler behaves like a classic chain link.
   - The stage list lives in config (`azs.inquiry.stages`), so a stage can be added without code changes.
   - If Sabte Ahval is `FAILED`, stage 2 doesn't run.
-- **Threads:** virtual threads (D24), via `Executors.newVirtualThreadPerTaskExecutor()` and `CompletableFuture`. Whether to use `StructuredTaskScope` is still open (D25). The first `NEGATIVE` calls `cancel(true)` on the rest, and the HTTP client (`RestClient` on the JDK `HttpClient`) reacts to the interrupt. The correlation ID is carried into the virtual threads with Micrometer context propagation.
+- **Threads:** each stage is one **`StructuredTaskScope`** (D25), and every fork runs on its own **virtual thread** (D24):
+  ```java
+  try (var scope = StructuredTaskScope.open(new StopOnFirstNegative(),
+                                            cfg -> cfg.withTimeout(stageDeadline))) {
+      handlers.stream().filter(h -> h.appliesTo(ctx))
+              .forEach(h -> scope.fork(() -> h.execute(ctx)));
+      return scope.join();   // the first NEGATIVE cancels the rest; the deadline cancels any stragglers
+  }                          // leaving the block guarantees no inquiry is still running
+  ```
+  - `StopOnFirstNegative` is a custom `Joiner`. Its `onComplete` returns `true` (stop) as soon as a result is `NEGATIVE`. Inquiries still running when the deadline passes are marked `FAILED` (`TIMEOUT`).
+  - Cancellation interrupts the forked threads, and the HTTP clients (`RestClient` on the JDK `HttpClient`) react to the interrupt.
+  - The correlation ID is carried into the forks with Micrometer context propagation; `ScopedValue` is an option for request context.
+  - Only `StageRunner` uses the preview API.
 - **Time:** stage 1 then stage 2, each with its own deadline (D27). Different customers' runs are independent and run side by side.
 - **Each service has its own timeout and retries** (§7-3 table, D4), applied by Resilience4j inside the client. An inquiry is marked `FAILED` only after its retries are used up. When a circuit breaker is open, the inquiry fails at once, without waiting for the timeout.
 - **One run per request at a time.** The row lock (§4.1) is held for milliseconds, only to record "a run has started". If the customer double-clicks or opens a second tab, the call **attaches to the run already in progress** and returns its `runId`, so the customer never sees an error. A run older than `azs.inquiry.run-stale-after` (default **60 s**) is treated as dead (for example, after a server restart), and a new one may start.
@@ -653,7 +670,8 @@ azs.integration.yaghut.deposit.include-currency=IRR
 - **OTP:** generated and checked by the Notifier (§6.3, D34). After OTP succeeds, the national code returned by Yaghut must match the request's customer.
 - **Data protection:** encryption at rest via TDE, provided by the DBA, and TLS 1.2+ with HSTS. Customer data is stored in plain text (D21), and **nothing is masked** (D22).
 - **Audit:** an append-only `audit_log` table in `AZS_AUDIT`, partitioned monthly and kept 7 years. The app's DB user has `INSERT`-only grants on it. It is written for every state change and every admin edit, with old/new JSON, IP and user agent.
-- **Abuse protection:** **no rate limiting** (D23). Login pages use ARcaptcha, OTPs lock out after 3 wrong attempts, CSP headers are set, and Angular's auto-escaping is relied on.
+- **Abuse protection:** **no rate limiting** (D23). Every login is checked with ARcaptcha **first**, failing closed (§6.5). OTPs lock out after 3 wrong attempts. CSP headers are set, and Angular's auto-escaping is relied on.
+- **TLS (D38):** certificates are verified by default. `azs.integration.<service>.tls.skip-verify=true` switches checks off for **that client only**, with a startup WARN. An optional truststore is configurable. TLS 1.2/1.3 only. The JVM-wide defaults are never changed.
 - **Idempotency:** every POST/PUT requires an `Idempotency-Key`. Keys and their stored responses are kept in `idempotency_keys` for 24 h.
 
 ### 6.1 Customer data and the mobile number (D2 revised, D21, D22)
@@ -676,10 +694,26 @@ azs.integration.yaghut.deposit.include-currency=IRR
 ### 6.2 Bank user login (D33)
 
 ```
-ARcaptcha → AAAService (identity + role) → personnelInfo (branch) → JWT { sub, role, branch_code }
+ARcaptcha → AAA GetRoleWindows (password + roles) → personnelInfo (branch) → JWT { sub, role, branch_code }
 ```
 
-- **personnelInfo request:** `POST https://apigw.int.sb24.com/ApiContainer.GetOverallPersonelInfo/api/GetOverallPersonelInfo/GetOverallPersonelInfo`, with the gateway token.
+**AAAService: `GetRoleWindows` (D39)**
+- **Endpoint:** `azs.integration.aaa.url`, default `https://biservice:8101/SB.SecrityService.DomainVer2/AuthorizationSrv.svc`. SOAP 1.1, document/literal, `SOAPAction: http://www.sb24.com/Services/Security/AuthorizationSrv/GetRoleWindows/Request`.
+- **Client:** Spring Web Services (`WebServiceTemplate`), with Jakarta JAXB classes generated at build time from the full WSDL in `src/main/resources/wsdl/aaa/`. The old Axis2 stub isn't reused.
+- **Security header:** `Wss4jSecurityInterceptor` adds `wsse:Security` (`mustUnderstand="0"`) with a `UsernameToken` (`PasswordText`) for the **AAA technical account**. No timestamp, matching the existing working client; `azs.integration.aaa.wss.timestamp` can add one if AAA starts requiring it.
+- **Request:** `storageparam { ApplicationName, StoreName }` from config, plus `param { UserName, Password }`, which are what the branch user typed.
+- **Response:** `GetRoleWindowsResult { DetailError[] {ErrorCode, ErrorDesc, InnerException}, UserRoles[] }`.
+
+| AAA result | Login |
+|---|---|
+| `DetailError` has entries | refused (401): «نام کاربری یا رمز عبور اشتباه است.». The code and description are logged in full |
+| no `UserRoles` value maps (`Branch` → BRANCH, `Admin` → ADMIN, both configurable; any other role is ignored) | refused: «شما مجوز دسترسی به سامانه آسان ضمان را ندارید.» |
+| SOAP fault, timeout, connection error | technical: "try again later" (503) |
+
+- **Response headers:** the old `CustomHandler` cleared `mustUnderstand` on response headers for Axis2. The Spring WS client doesn't reject unprocessed response headers, so it shouldn't be needed. If UAT shows otherwise, an equivalent client interceptor will be added.
+
+**personnelInfo**
+- **Request:** `POST https://apigw.int.sb24.com/ApiContainer.GetOverallPersonelInfo/api/GetOverallPersonelInfo/GetOverallPersonelInfo`, with the gateway token.
   - The body is `{ "cfcifNO": 0, "accountName": "<username>", "personelCode": 0 }`.
   - `accountName` is the username typed at login, with any `@sb24.ir` suffix removed (the suffix is configurable).
 - **The user's branch is `userInfo.abrnchcod`.** `abrnchcodmain` and `prAcvBranch` are ignored and not saved.
@@ -693,7 +727,7 @@ ARcaptcha → AAAService (identity + role) → personnelInfo (branch) → JWT { 
 
 ### 6.3 Customer OTP through the Notifier (D34)
 
-The Notifier is called **directly** at an internal address (for example `https://x.x.x.x:8012`), with no gateway token. Host, port and paths are configured per environment.
+The Notifier is called **directly** at an internal address (`https://10.0.41.24:8012` by default), with no gateway token. Host, port and paths are configured per environment.
 
 | Call | Body | Success | Errors |
 |---|---|---|---|
@@ -709,6 +743,59 @@ The Notifier is called **directly** at an internal address (for example `https:/
 - **Credentials:** `ClientName`, `user` and `pass` are issued by the SMS centre for Asan Zeman and come only from the secret store (D13).
 - **Mock personas:** `SendOtp` returns a fixed `sId`; the code `1234` is valid and anything else gets 410; specific mobile numbers trigger 403, 500 and a slow answer.
 
+### 6.4 Notification SMS through `SendSimpleSms` (D40)
+
+**The call:** `POST {notifier}/api/v1/sms/SendSimpleSms`. Note the lowercase `sms`, which is kept exactly.
+
+```json
+{ "user": "…", "pass": "…", "ClientName": "…", "numbers": ["0989xxxxxxxxx"], "message": "…full text…" }
+```
+
+- **Number:** the mobile saved at registration (D21), converted from `09xxxxxxxxx` to **`0989xxxxxxxxx`**, which means dropping the leading `0` and adding `098`.
+- **Response:** `retval[] { number, smsId, sId: null }`. The `smsId` is saved on the outbox row, for tracing with the SMS centre.
+- **One recipient per outbox row.** The row is written in the **same transaction** as the status change; the worker sends it with retries.
+
+| Error | Handling |
+|---|---|
+| **400** «'Request.numbers' is not in the correct format.» | **no retry**. The row goes to the dead-letter list, with an alert |
+| **403** «please contact the SamanBank Sms Center support» | **ops alert**. The row stays pending with a long backoff, so it's sent once the credentials are fixed |
+| **500**, timeout, connection error | retry with backoff |
+
+**The 8 SMS events.** All texts are templates in the message config, filled with `{customerName}`, `{agencyName}`, `{branchName}` and `{sentDate}` (Jalali `yyyy/mm/dd`). They all go to the customer.
+
+| # | Event | Source | Text |
+|---|---|---|---|
+| 1 | Agency registers a request | SRS | «مشتری گرامی! به‌منظور تکمیل فرم درخواست صدور ضمانت‌نامه بازگشت از سفر برای آژانس هواپیمایی {agencyName} به لینک زیر مراجعه کنید. www.asanzeman.sb24.com» |
+| 2 | Guarantee issued | SRS | «بانک سامان / مشتری گرامی / {salutation} {customerName} / ضمانت‌نامه «بازگشت از سفر» به ذی‌نفعی آژانس هواپیمایی {agencyName} در شعبه {branchName} بانک صادر شده است. / {sentDate}» |
+| 3 | Issuance rejected by the branch | SRS | «… درخواست صدور ضمانت‌نامه «بازگشت از سفر» به ذی‌نفعی آژانس هواپیمایی {agencyName} در شعبه {branchName} بانک مورد تایید قرار نگرفت. / {sentDate}» |
+| 4 | Guarantee revoked | SRS | «… ضمانت‌نامه «بازگشت از سفر» به ذی‌نفعی آژانس هواپیمایی {agencyName} در شعبه {branchName} بانک ابطال شده است. / {sentDate}» |
+| 5 | Revocation rejected | SRS | «… درخواست ابطال ضمانت‌نامه «بازگشت از سفر» به ذی‌نفعی آژانس هواپیمایی {agencyName} در شعبه {branchName} بانک مورد تایید قرار نگرفت. / {sentDate}» |
+| 6 | Cancelled by the agency (`CANCELLED`) | agreed 1405/08/23 | «… درخواست صدور ضمانت‌نامه «بازگشت از سفر» به ذی‌نفعی آژانس هواپیمایی {agencyName} به درخواست آژانس لغو شد. / {sentDate}» |
+| 7 | Auto-rejected after 7 days | agreed 1405/08/23 | «… درخواست صدور ضمانت‌نامه «بازگشت از سفر» به ذی‌نفعی آژانس هواپیمایی {agencyName} به دلیل عدم تکمیل در مهلت ۷ روزه رد شد. / {sentDate}» |
+| 8 | Rejected by an inquiry | agreed 1405/08/23 | «… درخواست صدور ضمانت‌نامه «بازگشت از سفر» به ذی‌نفعی آژانس هواپیمایی {agencyName} به دلیل عدم احراز شرایط، امکان‌پذیر نیست. / {sentDate}» |
+
+- **`{salutation}`** is «آقا» or «خانم», from the **Sabte Ahval gender** (D26). When the gender isn't known (events 1, 6, 7, and 8 if Sabte Ahval didn't pass), the salutation and name line are left out, and the SMS starts with «مشتری گرامی».
+- **The login code** is sent with `SendOtp`, not `SendSimpleSms` (§6.3).
+
+### 6.5 ARcaptcha (D37)
+
+- **Panels:** the widget runs in the panel (deferred, D31). The panel sends the one-time token as `arcaptchaToken` in the JSON login body, with no cookies (D7).
+- **Order:** the backend verifies the token **first**, before AAA or Yaghut, so bots can't use the login to guess passwords or lock accounts.
+- **Call:** `POST https://challenge.sb24.ir/api/arcaptcha/api/verify`, with `Content-Type: application/json` and the body `{ "challenge_id": <token>, "site_key": …, "secret_key": … }`.
+  - The response is `{ "success": true|false, "error-codes": [...] }`.
+  - `site_key` and `secret_key` are **per panel** (`azs.integration.arcaptcha.bank.*`, `.agency.*`, `.customer.*`). If the bank issues one shared key, the same values are simply entered three times.
+
+| Result | Login |
+|---|---|
+| `success: true` | continue |
+| `timeout-or-duplicate`, `invalid-input-response`, `missing-input-response`, or `success: false` with no known code | 400: «لطفاً کپچا را دوباره حل کنید.» |
+| `missing-input-sitekey`, `missing-input-secret`, `invalid-input-sitekey`, `invalid-input-secret`, `bad-request` | configuration error: ops alert, and "try again later" to the user |
+| timeout, network error, 5xx | **login refused** (fail closed): "try again later" |
+
+- **One use per token:** never cached or reused.
+- **Timeouts:** 2 s to connect, 5 s to read.
+- **TLS:** `challenge.sb24.ir` may use a self-signed certificate. See D38.
+
 ---
 
 ## 7. Delivery phases
@@ -716,7 +803,7 @@ The Notifier is called **directly** at an internal address (for example `https:/
 Each phase ends with a demoable result and its own exit criteria. External services are mocked until the bank grants access.
 
 ### Phase 0 — Foundation
-- Repo skeleton (layout in §3): **Maven backend only** (Java 25, Spring Boot 4.1.x, Spring Modulith 2.1.x, `spring.threads.virtual.enabled=true`). All versions pinned (D9, D24). There's **no frontend workspace** (D31).
+- Repo skeleton (layout in §3): **Maven backend only** (Java 25, Spring Boot 4.1.x, Spring Modulith 2.1.x, `spring.threads.virtual.enabled=true`, **`--enable-preview`** in the compiler, the tests and the runtime for D25). All versions pinned (D9, D24). There's **no frontend workspace** (D31).
 - `docker-compose` with Oracle XE (gvenzl/oracle-xe) and mock external services.
 - Flyway baseline (D20): `spring-boot-starter-flyway` plus `flyway-database-oracle`. Migrations in `db/migration`, named `V001__create_schemas.sql`, `V002__…` and so on. Flyway manages all 5 schemas, with its history table in `AZS_BUSINESS`. The first migrations create `BaseEntity` columns and the reference tables (`branch`, `agency`, `rejection_reason`). Schema users and grants that need DBA rights go in a separate `db/dba/` script that the DBA runs, not Flyway.
 - Cross-cutting pieces: error model (RFC 7807), correlation ID filter, structured JSON logging, Actuator/Micrometer, OpenTelemetry, idempotency filter, audit writer, Spring Modulith/ArchUnit boundary test.
@@ -726,7 +813,9 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 **Exit:** `docker compose up` gives a running core plus Oracle, CI is green, and the health endpoint responds.
 
 ### Phase 1 — Auth module
-- Bank login (§6.2): ARcaptcha → AAAService → personnelInfo (`abrnchcod`) → JWT with role and `branch_code`.
+- ARcaptcha verification for every login (§6.5).
+- Bank login (§6.2): ARcaptcha → AAA `GetRoleWindows` (Spring WS + WS-Security `UsernameToken`, JAXB from the WSDL) → role mapping → personnelInfo (`abrnchcod`) → JWT with role and `branch_code`.
+- The per-service TLS settings and optional truststore (D38).
 - Agency login: ARcaptcha → Yaghut `loginStatic` (the agency user's own credentials; the `JSESSIONID` is kept server-side) → login checks (§5.4) → agency found by **`cif`** → JWT, with the session capped at Yaghut's expiry.
 - `YaghutSessionManager`: the technical account, `JSESSIONID` handling, `InvalidSessionWSException` retries, and JSON fault mapping (§5.4).
 - Customer login (§6.3): ARcaptcha → `loginStatic` (the session is kept for `deposit`; `code` must equal the request's national code) → `SendOtp` → `OtpValidate` → JWT, with `otp_challenge`, the validity check, the per-customer lockout and one use per code.
@@ -773,8 +862,9 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 **Exit:** every test listed in §4.2 passes, and every step is recorded in the audit log.
 
 ### Phase 6 — Notification module (complete)
-- Outbox worker with priorities (OTP first), retries with backoff and dead-lettering. Templates for issued, rejected, cancelled, revoked and auto-rejected messages, using the SRS wording.
-- The recipient's number is the one saved at registration (§6.1, D21).
+- Outbox worker calling **`SendSimpleSms`** (§6.4), with retries and backoff, dead-lettering on 400, and a long backoff plus an alert on 403. `smsId` is stored.
+- The 8 SMS templates (§6.4), with the salutation from Sabte Ahval's gender.
+- The recipient's number is the one saved at registration (§6.1, D21), sent as `0989xxxxxxxxx`.
 
 **Exit:** with the SMS mock down for 5 minutes, no messages are lost and all of them are delivered after it recovers.
 
@@ -839,23 +929,25 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 ---
 
 ## 10. Immediate next steps
-1. **Decide D25** (structured concurrency) before the inquiry stage runner is written in Phase 3.
-2. **Documents still to come:**
-   - **ARcaptcha**
-   - **notification SMS** (`SendSimpleSms`?)
-   - **AAAService**, including whether it returns a role
-   - **Yaghut deposit details** (§5.4): Win `depositType` codes, `SPECIAL_LONG_ACCOUNT`, the rial code and the `owner` values. Deferred by the product owner
-   - each inquiry's token **scope**
-3. **Rotate** the gateway client secret and the Notifier credentials that were shared during the review. Ask the SMS centre for Asan Zeman's own `ClientName` (`AZS`), user and password.
+1. **Still open, and deferred by the product owner:**
+   - the **Yaghut deposit details** (§5.4): Win `depositType` codes, `SPECIAL_LONG_ACCOUNT`, the rial code and the `owner` values. Needed before Phase 3
+   - **how Phase 0 is built and checked.** This workspace can't download packages, so either GitHub Actions does the building, or the work runs on a computer that can
+2. **To get from the bank:**
+   - each inquiry's gateway token **scope**
+   - Asan Zeman's AAA `ApplicationName`/`StoreName` and technical account
+   - the ARcaptcha site and secret keys
+   - the Notifier `ClientName`, user and password
+   - the bank's internal CA certificate, if certificate checks are to stay on (D38)
+3. **Rotate** the gateway client secret and the Notifier credentials that were shared during the review.
 4. Record the decisions that change the architecture document as ADRs in `docs/architecture/`:
    - **ADR-008:** the ownership lock (amends ADR-003)
    - **ADR-009:** لغو versus ابطال, and no expiry status
    - **ADR-010:** the version upgrade (Java 25, Boot 4.1) and virtual threads
    - **ADR-011:** plain-text customer data, no masking, no rate limiting (amends §6-3-1 and §6)
-   - **ADR-012:** the two-stage inquiry chain
+   - **ADR-012:** the two-stage inquiry chain, with `StructuredTaskScope` (preview)
    - **ADR-013:** branches from Yaghut, with `parent_branch` replacement
    - **ADR-014:** the Notifier is called directly and `SendOtp` is synchronous (amends §7-4)
    - **ADR-015:** Yaghut sessions, with a technical account plus user sessions, and one `application.properties` for all configuration and secrets
+   - **ADR-016:** AAA through Spring Web Services instead of Axis2, and per-service TLS verification switches
 5. **UI:** waits for the product owner's explanation (D31).
-6. ⏳ **Decide how Phase 0 is built and checked** (deferred by the product owner). This workspace can't download packages, so either GitHub Actions does the building, or the work runs on a computer that can.
-7. Start **Phase 0** (backend only) in this repository.
+6. Start **Phase 0** (backend only) in this repository.
