@@ -1,0 +1,47 @@
+flowchart TB
+  CU["👤 Customer"]:::box
+  AG["👤 Agency User"]:::box
+  BR["👤 Branch + Admin User"]:::box
+  subgraph DMZ["🌐 Internet Zone (DMZ)"]
+    WAF["WAF / Reverse Proxy (F5 / Nginx)"]:::box
+    WEB["Static web server<br/>Agency + Customer SPAs"]:::box
+  end
+  subgraph BANK["🏦 Bank Net (Intranet)"]
+    BWEB["Bank panel SPA<br/>intranet web server"]:::box
+    subgraph APP["⚙️ Application tier"]
+      CORE["Asan Zeman Core<br/>Docker image (executable jar), Java 25 --enable-preview<br/>2+ instances behind a load balancer<br/>(Kubernetes or VMs — agreed with ops)"]:::core
+      CFG["application.properties<br/>(server copy with real secrets, chmod 600)"]:::manual
+    end
+    DB[("Oracle 19c+<br/>RAC or Data Guard<br/>TDE")]:::box
+    MON["Prometheus + Grafana<br/>central logging"]:::box
+    AAA["AAAService (SOAP)"]:::box
+    YA["Yaghut"]:::box
+    NOT["SMS Notifier<br/>10.0.41.24:8012"]:::box
+    ARC["ARcaptcha<br/>challenge.sb24.ir"]:::box
+    GW["Bank API Gateway<br/>(token: apigw.int.sb2.com)"]:::gw
+  end
+  INQ["9 inquiries + personnelInfo"]:::box
+  subgraph MAN["✋ Manual (outside Asan Zeman)"]
+    FA["Farangin + Digital Signature"]:::manual
+  end
+  CU & AG -- "HTTPS 443" --> WAF
+  WAF --> WEB
+  WAF -- "reverse proxy to bank net" --> CORE
+  BR -- "HTTPS intranet" --> BWEB --> CORE
+  CFG -.-> CORE
+  CORE --> DB
+  CORE --> MON
+  CORE -- "SOAP" --> AAA
+  CORE -- "JSESSIONID" --> YA
+  CORE -- "user/pass" --> NOT
+  CORE -- "verify" --> ARC
+  CORE -- "Bearer" --> GW -.-> INQ
+  BR -. "manual, separate session" .-> FA
+  style DMZ fill:#EFF6FF,stroke:#3B82F6
+  style BANK fill:#FFF7ED,stroke:#F59E0B
+  style APP fill:#F0FDF4,stroke:#10B981
+  style MAN fill:#F8FAFC,stroke:#64748B,stroke-dasharray: 5 5
+classDef box fill:#EFF6FF,stroke:#93B4E8,color:#1E3A8A;
+classDef core fill:#1E3A8A,stroke:#1E3A8A,color:#FFFFFF;
+classDef gw fill:#10B981,stroke:#059669,color:#FFFFFF;
+classDef manual fill:#F1F5F9,stroke:#64748B,color:#1E3A8A,stroke-dasharray: 5 5;

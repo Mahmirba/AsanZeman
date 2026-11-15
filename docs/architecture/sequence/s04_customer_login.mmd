@@ -1,0 +1,38 @@
+sequenceDiagram
+    autonumber
+    actor U as Customer
+    participant P as Customer panel
+    participant A as Core: Auth module
+    participant C as ARcaptcha
+    participant Y as Yaghut
+    participant N as SMS Notifier
+    participant DB as Oracle
+    U->>P: internet-bank username, password, captcha
+    P->>A: POST /api/auth/customer/login
+    A->>C: verify token (customer keys)
+    C-->>A: success true
+    A->>Y: POST /user/loginStatic
+    Y-->>A: JSESSIONID, code (national code), checks as for agencies
+    A->>DB: request exists for this national code? customer locked_until passed?
+    alt code differs, or customer locked out
+        A-->>P: refused
+    end
+    A->>N: POST /api/v1/Sms/SendOtp {number 09..., ClientName AZS, args} (synchronous)
+    N-->>A: retval sId, smsId
+    A->>DB: insert otp_challenge SENT {otp_id = sId}, keep Yaghut session server side
+    A-->>P: challengeId, valid 120 s
+    U->>P: 4-digit code
+    P->>A: POST /api/auth/customer/otp/verify {challengeId, code}
+    alt more than 120 s since sent
+        A-->>P: code expired, request a new one (Notifier not called)
+    end
+    A->>N: POST /api/v1/Sms/OtpValidate {OtpCode, OtpId = sId}
+    alt 410 or isValid false
+        N-->>A: invalid
+        A->>DB: wrong attempts + 1 (per customer), lock 15 min at 3
+        A-->>P: wrong code
+    else isValid true
+        N-->>A: valid
+        A->>DB: challenge VERIFIED (single use), reset counter
+        A-->>P: one 30-minute session token, no refresh token
+    end

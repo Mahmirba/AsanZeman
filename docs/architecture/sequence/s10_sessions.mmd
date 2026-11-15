@@ -1,0 +1,37 @@
+sequenceDiagram
+    autonumber
+    participant C as Caller (branch side or BranchSyncJob)
+    participant SM as Yaghut session manager
+    participant Y as Yaghut
+    participant TP as Gateway token provider
+    participant GS as Gateway token server
+    participant Q as Inquiry or personnelInfo
+    C->>SM: call Yaghut service
+    alt no session, or sessionExpirationDate passed
+        SM->>SM: ReentrantLock, one login for all waiting callers
+        SM->>Y: POST /user/loginStatic (technical account from application.properties)
+        Y-->>SM: JSESSIONID, sessionExpirationDate
+    end
+    SM->>Y: request with Cookie JSESSIONID only
+    alt Invalid Session fault
+        Y-->>SM: success false
+        SM->>Y: login again once, then retry the call
+    else Invalid Credentials fault (technical account)
+        Y-->>SM: success false
+        SM-->>C: configuration error, ops alert, no retry
+    end
+    Y-->>SM: response
+    SM-->>C: result
+    Note over C,Q: Gateway token, shared by the 9 inquiries and personnelInfo
+    C->>TP: need token
+    alt cached token missing or within 5 min of expiry
+        TP->>GS: POST connect/token client_credentials (single flight)
+        GS-->>TP: access_token, expires_in 7200
+    end
+    TP-->>C: Bearer token
+    C->>Q: call with Authorization Bearer
+    alt 401
+        Q-->>C: 401
+        C->>TP: evict token, fetch new one once, retry
+    end
+    Q-->>C: response

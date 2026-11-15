@@ -1,0 +1,33 @@
+flowchart TB
+  subgraph DMZ["🌐 DMZ"]
+    AGP["Agency panel (SPA)<br/>/agencies"]:::box
+    CUP["Customer panel (SPA)"]:::box
+    WAF["WAF / Reverse Proxy"]:::box
+  end
+  subgraph INTRA["🏦 Bank Net (Intranet)"]
+    BKP["Bank panel (SPA)<br/>branch + admin"]:::box
+    subgraph CORE["⚙️ Asan Zeman Core — Spring Boot 4.1 · Java 25 · virtual threads"]
+      AUTH["Auth module<br/>ARcaptcha · AAA · Yaghut · OTP · JWT"]:::box
+      REQ["Request module<br/>state machine · ownership lock<br/>collateral · cancel / revoke"]:::box
+      INQM["Inquiry module<br/>2-stage chain · StructuredTaskScope"]:::box
+      NTF["Notification module<br/>outbox → SendSimpleSms"]:::box
+      REP["Report module<br/>SXSSF Excel"]:::box
+      SCH["Scheduler module<br/>auto-reject · lock release · BranchSyncJob"]:::box
+      INT["Integration layer (ACL)<br/>AaaClient · YaghutClient · Gateway clients<br/>NotifierClient · ArcaptchaClient"]:::box
+    end
+    ORA[("Oracle 19c+ · Flyway<br/>AZS_AUTH · AZS_BUSINESS · AZS_INQUIRY<br/>AZS_AUDIT · AZS_OUTBOX")]:::box
+    EXT["External services<br/>AAA · Yaghut · Bank API Gateway<br/>Notifier · ARcaptcha"]:::gw
+  end
+  AGP & CUP --> WAF
+  WAF -- "HTTPS, Bearer JWT" --> CORE
+  BKP -- "HTTPS, Bearer JWT" --> CORE
+  REQ -- "domain events" --> NTF
+  INT --> EXT
+  CORE --> ORA
+  style DMZ fill:#EFF6FF,stroke:#3B82F6
+  style INTRA fill:#FFF7ED,stroke:#F59E0B
+  style CORE fill:#F0FDF4,stroke:#10B981
+classDef box fill:#EFF6FF,stroke:#93B4E8,color:#1E3A8A;
+classDef core fill:#1E3A8A,stroke:#1E3A8A,color:#FFFFFF;
+classDef gw fill:#10B981,stroke:#059669,color:#FFFFFF;
+classDef manual fill:#F1F5F9,stroke:#64748B,color:#1E3A8A,stroke-dasharray: 5 5;

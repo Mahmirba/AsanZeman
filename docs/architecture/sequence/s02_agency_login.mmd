@@ -1,0 +1,25 @@
+sequenceDiagram
+    autonumber
+    actor U as Agency user
+    participant P as Agency panel
+    participant A as Core: Auth module
+    participant C as ARcaptcha
+    participant Y as Yaghut
+    participant DB as Oracle
+    U->>P: internet-bank username, password, captcha
+    P->>A: POST /api/auth/agency/login
+    A->>C: verify token (agency keys)
+    C-->>A: success true
+    A->>Y: POST /user/loginStatic {username, password}
+    alt credentials wrong, suspected customer, or service access denied
+        Y-->>A: success false, exception
+        A-->>P: refused with the matching Persian message
+    end
+    Y-->>A: Set-Cookie JSESSIONID, sessionExpirationDate, cif, temporarySessionId, passwordExpirationBean
+    Note over A: Refuse if no JSESSIONID, temporary session, or expired password
+    A->>DB: find agency by cif
+    alt no agency with this cif
+        A-->>P: refused, agency not registered in Asan Zeman
+    end
+    A->>DB: store JSESSIONID + expiry with the Asan Zeman session (server side)
+    A-->>P: access token 15 min + refresh token, capped at the earlier of 8 h and Yaghut expiry

@@ -1,0 +1,37 @@
+flowchart TB
+  subgraph NET["🌐 Internet Zone"]
+    AG["👤 Travel Agency User<br/>(Beneficiary)"]:::box
+    CU["👤 Customer<br/>(Guarantee Applicant)"]:::box
+  end
+  subgraph BANK["🏦 Bank Net (Intranet)"]
+    BR["👤 Branch + Admin User<br/>(one panel, role-based)"]:::box
+    AZ["Asan Zeman Core<br/>Travel Return Guarantee Platform"]:::core
+    AAA["AAAService (SOAP)<br/>GetRoleWindows"]:::box
+    YA["Yaghut (JSESSIONID)<br/>loginStatic · branches<br/>customerDetailInfo · deposit"]:::box
+    ARC["ARcaptcha<br/>challenge.sb24.ir"]:::box
+    NOT["SMS Notifier<br/>SendOtp · OtpValidate<br/>SendSimpleSms"]:::box
+    GW["Bank API Gateway<br/>token: apigw.int.sb2.com<br/>OAuth2 client credentials"]:::gw
+    INQ["Stage 1: SabtAhval<br/>Stage 2: Shahkar · Sepad · Blacklist<br/>SamaCheque · Samat · BoardRelation<br/>ImportCommitment · ExportCommitment<br/>+ personnelInfo (bank user branch)"]:::box
+  end
+  subgraph MAN["✋ Manual Operations (outside Asan Zeman)"]
+    FA["Farangin<br/>(issue / revoke)"]:::manual
+    DS["Digital Signature System"]:::manual
+  end
+  AG -- HTTPS --> AZ
+  CU -- HTTPS --> AZ
+  BR -- "HTTPS (intranet)" --> AZ
+  AZ -- "SOAP + WS-Security" --> AAA
+  AZ -- "REST + JSESSIONID" --> YA
+  AZ -- "verify token" --> ARC
+  AZ -- "user / pass" --> NOT
+  AZ -- "Bearer token" --> GW
+  GW --> INQ
+  BR -. "manual" .-> FA
+  BR -. "manual" .-> DS
+  style NET fill:#EFF6FF,stroke:#3B82F6
+  style BANK fill:#FFF7ED,stroke:#F59E0B
+  style MAN fill:#F8FAFC,stroke:#64748B,stroke-dasharray: 5 5
+classDef box fill:#EFF6FF,stroke:#93B4E8,color:#1E3A8A;
+classDef core fill:#1E3A8A,stroke:#1E3A8A,color:#FFFFFF;
+classDef gw fill:#10B981,stroke:#059669,color:#FFFFFF;
+classDef manual fill:#F1F5F9,stroke:#64748B,color:#1E3A8A,stroke-dasharray: 5 5;

@@ -1,0 +1,35 @@
+sequenceDiagram
+    autonumber
+    actor AG as Agency user
+    participant P as Agency panel
+    participant R as Core: Request module
+    participant DB as Oracle
+    actor B as Branch user (original or replacement)
+    participant F as Farangin (manual)
+    AG->>P: submit revocation request
+    P->>R: POST .../{id}/revocation
+    R->>DB: SELECT FOR UPDATE NOWAIT, check agency ownership
+    alt before Eqdam (registered or pending branch review)
+        R->>DB: CANCELLED, outbox SMS 6, audit
+        R-->>P: outcome CANCELLED
+    else from Eqdam on (under review, under action or issued)
+        alt parent locked by a branch user
+            R->>DB: create REVOCATION, UNDER_REVIEW, locked_by = holder
+        else not locked
+            R->>DB: create REVOCATION, pending branch review
+        end
+        R-->>P: outcome: revocation requested
+    else already closed, or a revocation is already open
+        R-->>P: 409
+    end
+    B->>R: lock and review the revocation request
+    alt reject
+        B->>R: reject with revocation rejection reason
+        R->>DB: REVOCATION REJECTED, parent unchanged, outbox SMS 5
+    else approve
+        B->>R: approve
+        R->>DB: REVOCATION UNDER_ACTION
+        B->>F: revoke the guarantee (if it was issued)
+        B->>R: POST .../complete-revocation
+        R->>DB: REVOCATION COMPLETED, parent REVOKED, outbox SMS 4, audit
+    end

@@ -1,0 +1,35 @@
+sequenceDiagram
+    autonumber
+    actor U as Branch / Admin user
+    participant P as Bank panel
+    participant A as Core: Auth module
+    participant C as ARcaptcha
+    participant AAA as AAAService (SOAP)
+    participant G as Gateway token server
+    participant PI as personnelInfo (via Gateway)
+    participant DB as Oracle
+    U->>P: username, password, solve captcha
+    P->>A: POST /api/auth/bank/login (username, password, captcha token)
+    A->>C: POST /api/arcaptcha/api/verify (bank site_key, secret_key)
+    alt success false, or ARcaptcha down
+        C-->>A: error-codes / timeout
+        A-->>P: 400 solve captcha again, or 503 (fail closed)
+    end
+    C-->>A: success true
+    A->>AAA: GetRoleWindows (WS-Security UsernameToken of technical account, user name + password)
+    alt DetailError present
+        AAA-->>A: DetailError[]
+        A-->>P: 401 wrong username or password
+    end
+    AAA-->>A: UserRoles[]
+    Note over A: Branch to BRANCH, Admin to ADMIN, other roles ignored. None mapped gives 403.
+    A->>G: client_credentials (only if cached token is missing or near expiry)
+    G-->>A: access_token (7200 s)
+    A->>PI: POST GetOverallPersonelInfo {accountName without @sb24.ir}
+    alt 404 not found, or 5xx / timeout
+        PI-->>A: error
+        A-->>P: login refused (no user enters without a branch)
+    end
+    PI-->>A: userInfo.abrnchcod, prsnCode, position, job
+    A->>DB: upsert app_user, audit LOGIN
+    A-->>P: access token 15 min + refresh token 8 h {role, branch_code}

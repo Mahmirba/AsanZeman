@@ -1,0 +1,25 @@
+# Architecture document
+
+`AsanZeman_Architecture_Document_v2.0.docx` is the Persian architecture document (سند معماری سامانه آسان ضمان), version 2.0 (1405/08/23). It corrects and completes v1.0 and applies decisions D1–D40 from `plan.md`.
+
+| Folder | Contents |
+|---|---|
+| `diagrams/` | C4 views: `context.mmd`, `container.mmd`, `deployment.mmd` (Mermaid) and `component.dot` (Graphviz), with rendered PNGs |
+| `sequence/` | The 10 sequence diagrams of section 4-7 (`s01`–`s10`, Mermaid), their PNGs and the shared `mermaid-config.json` |
+| `build/` | The script that generates the `.docx` (docx-js) |
+
+## Regenerating
+
+```bash
+# diagrams
+cd docs/architecture/diagrams
+for f in context container deployment; do mmdc -i $f.mmd -o $f.png -w 1400 -s 2 -b white; done
+dot -Tpng -Gdpi=200 component.dot -o component.png
+cd ../sequence
+for f in s*.mmd; do mmdc -i $f -o ${f%.mmd}.png -c mermaid-config.json -w 1300 -s 2 -b white; done
+
+# document (needs the npm package "docx")
+node ../build/main.js
+```
+
+The text lives in `build/c1.js` (front matter, chapters 1–4), `build/c2.js` (chapters 5–7) and `build/c3.js` (chapters 8–11, appendix). Table cells use start alignment: justified alignment in narrow right-to-left cells makes LibreOffice loop when rendering.

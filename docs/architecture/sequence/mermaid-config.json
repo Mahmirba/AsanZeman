@@ -1,0 +1,36 @@
+{
+ "theme": "base",
+ "themeVariables": {
+  "fontFamily": "Arial, Helvetica, sans-serif",
+  "fontSize": "19px",
+  "actorBkg": "#EFF6FF",
+  "actorBorder": "#3B82F6",
+  "actorTextColor": "#1E3A8A",
+  "actorLineColor": "#94A3B8",
+  "signalColor": "#334155",
+  "signalTextColor": "#1F2937",
+  "labelBoxBkgColor": "#FFF7ED",
+  "labelBoxBorderColor": "#F59E0B",
+  "labelTextColor": "#7C2D12",
+  "loopTextColor": "#7C2D12",
+  "noteBkgColor": "#F0FDF4",
+  "noteBorderColor": "#10B981",
+  "noteTextColor": "#065F46",
+  "activationBkgColor": "#DBEAFE",
+  "activationBorderColor": "#3B82F6",
+  "sequenceNumberColor": "#FFFFFF"
+ },
+ "sequence": {
+  "mirrorActors": false,
+  "showSequenceNumbers": true,
+  "actorMargin": 24,
+  "messageMargin": 28,
+  "boxMargin": 8,
+  "noteMargin": 8,
+  "wrap": true,
+  "width": 150,
+  "messageFontSize": 19,
+  "noteFontSize": 18,
+  "actorFontSize": 18
+ }
+}

@@ -1,0 +1,26 @@
+sequenceDiagram
+    autonumber
+    participant T as Business transaction
+    participant DB as Oracle (AZS_OUTBOX)
+    participant W as Outbox worker (leader instance)
+    participant N as SMS Notifier
+    participant O as Ops alerting
+    T->>DB: insert outbox row in the same transaction as the status change
+    loop every few seconds
+        W->>DB: select due PENDING rows, SKIP LOCKED
+        W->>N: POST /api/v1/sms/SendSimpleSms {user, pass, ClientName, numbers 0989..., message}
+        alt 200
+            N-->>W: retval smsId
+            W->>DB: SENT, store smsId
+        else 400 numbers not in correct format
+            N-->>W: 400
+            W->>DB: DEAD_LETTER (no retry)
+            W->>O: alert
+        else 403 contact SMS center
+            N-->>W: 403
+            W->>DB: stay PENDING, long backoff
+            W->>O: alert, credentials problem
+        else 500, timeout, connection error
+            W->>DB: attempts + 1, exponential backoff
+        end
+    end

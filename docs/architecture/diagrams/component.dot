@@ -1,0 +1,24 @@
+digraph G {
+  graph [rankdir=LR, fontname="Helvetica", fontsize=12, nodesep=0.18, ranksep=0.9, bgcolor="white", newrank=true, compound=true];
+  node [shape=box, style="rounded,filled", fillcolor="#EFF6FF", color="#93B4E8", fontcolor="#1E3A8A", fontname="Helvetica", fontsize=11, margin="0.15,0.08"];
+  edge [color="#475569", arrowsize=0.7];
+  subgraph cluster_ctrl { label="Controllers (REST, contract-first OpenAPI)"; style="filled,rounded"; fillcolor="#EFF6FF"; color="#3B82F6";
+    C1 [label="AuthController\n/api/auth/**"]; C2 [label="CustomerRequestController\n/api/customer/**"]; C3 [label="AgencyRequestController\n/api/agency/**"];
+    C4 [label="BranchController\n/api/branch/**"]; C5 [label="ReportsController"]; C6 [label="AdminController\n/api/admin/**"]; }
+  subgraph cluster_svc { label="Service layer (domain logic)"; style="filled,rounded"; fillcolor="#FFF7ED"; color="#F59E0B";
+    S1 [label="AuthService\nAAA · Yaghut · OTP · JWT"]; S2 [label="RequestService\nstate machine · cancel / revoke"]; S3 [label="LockService\nownership lock + NOWAIT"];
+    S4 [label="CollateralService\ncash / pledge strategies"]; S5 [label="InquiryService\nStageRunner (StructuredTaskScope)"]; S6 [label="BranchService\nsync · handling branch"];
+    S7 [label="NotificationService\noutbox"]; S8 [label="ReportService\nSXSSF"]; }
+  subgraph cluster_cl { label="External clients (ACL)"; style="filled,rounded"; fillcolor="#F5F3FF"; color="#8B5CF6";
+    E1 [label="AaaClient\n(Spring WS)"]; E2 [label="YaghutClient +\nYaghutSessionManager"]; E3 [label="GatewayTokenProvider\n9 inquiry clients\nPersonnelInfoClient"]; E4 [label="NotifierClient"]; E5 [label="ArcaptchaClient"]; }
+  subgraph cluster_repo { label="Repositories (Spring Data JPA)"; style="filled,rounded"; fillcolor="#F0FDF4"; color="#10B981";
+    R1 [label="Request · Customer · Agency · Branch\nCompanion · Collateral · Inquiry"]; R2 [label="AppUser · OtpChallenge · RefreshToken\nOutbox · AuditLog · SchedulerLock"]; }
+  subgraph cluster_dom { label="Domain"; style="filled,rounded"; fillcolor="#FEF9C3"; color="#CA8A04";
+    D1 [label="Request aggregate\ndomain events"]; }
+  {rank=same; C1; C2; C3; C4; C5; C6;}
+  {rank=same; S1; S2; S3; S4; S5; S6; S7; S8;}
+  {rank=same; E1; E2; E3; E4; E5; R1; R2; D1;}
+  C1->S1; C2->S2; C2->S4; C2->S5; C3->S2; C4->S2; C4->S3; C5->S8; C6->S6; C6->S3;
+  S1->E1; S1->E2; S1->E3; S1->E4; S1->E5; S4->E2; S5->E3; S6->E2; S7->E4;
+  S2->D1; S2->R1 [lhead=cluster_repo]; S8->R1;
+}

@@ -1,0 +1,44 @@
+sequenceDiagram
+    autonumber
+    actor U as Customer
+    participant P as Customer panel
+    participant I as InquiryService
+    participant DB as Oracle
+    participant S as StageRunner
+    participant SA as Sabte Ahval
+    participant E as 8 other inquiries
+    U->>P: start inquiries
+    P->>I: POST .../requests/{id}/inquiries
+    I->>DB: SELECT FOR UPDATE NOWAIT, record run (or attach to the running one)
+    I-->>P: 202 runId
+    I-)S: run asynchronously on a virtual thread
+    Note over S: StructuredTaskScope stage 1, deadline 10 s
+    S->>SA: GetEstelamSabt (Bearer gateway token)
+    SA-->>S: statusField, isaliveCode, gender, birth date
+    S->>DB: save inquiry row (attempt, result, raw response)
+    alt Sabte Ahval NEGATIVE
+        S->>DB: request REJECTED, outbox SMS 8
+    else Sabte Ahval FAILED
+        S->>DB: run BLOCKED (stage 2 not started)
+    else PASSED
+        Note over S: Stage 2, deadline 15 s, gender + birth date in context
+        par forks on virtual threads
+            S->>E: Shahkar, Sepad (men 18 to 50 only), Blacklist, SamaCheque
+        and
+            S->>E: Samat, BoardRelation, ImportCommitment, ExportCommitment
+        end
+        E-->>S: results (first NEGATIVE cancels the others)
+        S->>DB: save one row per inquiry
+        alt any NEGATIVE
+            S->>DB: request REJECTED with SRS message, outbox SMS 8
+        else any FAILED
+            S->>DB: run BLOCKED, retry allowed after 60 s
+        else all PASSED or SKIPPED
+            S->>DB: run PASSED, go to collateral
+        end
+    end
+    loop every few seconds
+        P->>I: GET .../inquiries/{runId}
+        I->>DB: read run + inquiry rows
+        I-->>P: status of each of the 9 inquiries
+    end

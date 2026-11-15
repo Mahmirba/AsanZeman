@@ -1,0 +1,32 @@
+sequenceDiagram
+    autonumber
+    actor U as Agency user
+    participant P as Agency panel
+    participant R as Core: Request module
+    participant Y as Yaghut
+    participant DB as Oracle
+    participant W as Outbox worker
+    participant N as SMS Notifier
+    U->>P: national code, branch, amount, expiry date, companions
+    P->>R: POST /api/agency/requests (Idempotency-Key)
+    Note over R: @IranianNationalCode check, branch must be open
+    R->>Y: POST /customerDetailInfo {code} with the agency user's JSESSIONID
+    alt customer not found, or not an ACTUAL person
+        Y-->>R: fault
+        R-->>P: 400 customer not found in the bank
+    else Yaghut session invalid
+        Y-->>R: fault
+        R-->>P: 401 Yaghut session expired, log in again
+    end
+    Y-->>R: customer details incl. mobile
+    rect rgb(240, 253, 244)
+        Note over R,DB: one transaction
+        R->>DB: lock tracking_counter row (branch + agency + day), next value
+        R->>DB: insert customer snapshot (plain text), request REGISTERED_AT_AGENCY, companions
+        R->>DB: insert outbox row SMS 1 (completion link), audit row
+    end
+    R-->>P: 201 tracking code (17 to 19 digits)
+    W->>DB: pick pending outbox rows
+    W->>N: POST /api/v1/sms/SendSimpleSms {numbers 0989..., message}
+    N-->>W: retval smsId
+    W->>DB: mark SENT, store smsId

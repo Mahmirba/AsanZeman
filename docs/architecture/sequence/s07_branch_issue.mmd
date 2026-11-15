@@ -1,0 +1,36 @@
+sequenceDiagram
+    autonumber
+    actor B as Branch user
+    participant P as Bank panel
+    participant R as Core: Request + LockService
+    participant DB as Oracle
+    participant Y as Yaghut (technical account)
+    participant M as Digital Signature + Farangin (manual)
+    B->>P: open inbox
+    P->>R: GET /api/branch/requests
+    R->>DB: requests where user branch = branch_code or = handling branch
+    R-->>P: actionable list + locked requests read-only with holder name
+    B->>P: click Eqdam (take action)
+    P->>R: POST .../{id}/lock
+    R->>DB: SELECT FOR UPDATE NOWAIT
+    alt ORA-00054 or locked_by is another user
+        R-->>P: 409 another user is acting on this request
+    end
+    R->>DB: can_act check, UNDER_REVIEW, locked_by = me, audit LOCK
+    R-->>P: details, inquiry results, collateral
+    B->>P: approve
+    P->>R: POST .../approve
+    R->>Y: POST /deposit (re-check balances)
+    alt balance no longer covers collateral
+        R-->>P: 409 shortfall shown, approval blocked
+    end
+    R->>DB: NOWAIT, UNDER_ACTION, lock kept, audit
+    R-->>P: 200
+    B->>M: start signing session, customer signs in Mobilet, branch signs
+    B->>M: issue guarantee in Farangin using the tracking code
+    M-->>B: guarantee number
+    B->>P: enter guarantee number
+    P->>R: POST .../issue {guaranteeNumber}
+    R->>DB: NOWAIT, format check, ISSUED, clear lock, outbox SMS 2, audit
+    R-->>P: 200 issued
+    Note over B,R: Abandon returns the request to pending branch review. Admin force-release is audited. An idle review lock is released after 60 min.

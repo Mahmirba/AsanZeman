@@ -1,0 +1,27 @@
+sequenceDiagram
+    autonumber
+    actor U as Customer
+    participant P as Customer panel
+    participant R as Core: Request module
+    participant CS as CollateralService
+    participant Y as Yaghut
+    participant DB as Oracle
+    P->>R: GET /api/customer/requests/{id}/deposits
+    R->>Y: POST /deposit {cif, OPEN, ACTUAL, owner and signatory, rial} with the customer JSESSIONID
+    Y-->>R: deposits with group, depositType, availableBalance
+    Note over R: filter again: individual, open, not blocked, rial. Classify cheap or expensive. Balances never stored.
+    R-->>P: eligible deposits
+    U->>P: cash share, pledge share, selected deposits
+    P->>R: POST .../collateral
+    R->>CS: calculate(amount, shares, deposits)
+    Note over CS: cash = c x A, pledge on cheap first x 1.00, then expensive x 1.05 capped at 95 percent of balance, round up
+    alt shares invalid or balance insufficient
+        CS-->>R: violation
+        R-->>P: 400 insufficient balance message (SRS)
+    end
+    CS-->>R: allocations per deposit
+    R-->>P: summary with green ticks
+    P->>R: POST .../submit
+    R->>DB: SELECT FOR UPDATE NOWAIT, save collateral rows
+    R->>DB: status PENDING_BRANCH_REVIEW, audit
+    R-->>P: 200 submitted
