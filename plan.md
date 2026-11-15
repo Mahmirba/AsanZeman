@@ -88,6 +88,7 @@ The architecture document contradicts itself, or is silent, on the points below.
 | D44 | ✅ «لغو اقدام» in `UNDER_ACTION` (1405/08/24) | The branch user can **cancel an action in progress** with the «لغو اقدام» (cancel action) button while the request is `UNDER_ACTION`. It is the same `abandon` command as in `UNDER_REVIEW`: the request returns to `PENDING_BRANCH_REVIEW` and the lock is cleared. | §4.1 |
 | D45 | ✅ No branch cache (1405/08/24) | **Branch data is not cached.** `BranchService` reads the `branch` table whenever it needs it, so a DBA script's change is visible immediately. | §4.4 |
 | D46 | ✅ No `Idempotency-Key` (1405/08/24) | The `Idempotency-Key` header, the idempotency filter and the `idempotency_keys` table are **dropped**, on the panels' calls and on outbound calls alike. Duplicate submits are prevented by the state machine and the `NOWAIT` row lock instead: a repeated command finds the request already in the target state and gets 409. | §6 |
+| D47 | ✅ Duplicate registration guard (1405/08/24) | Without an `Idempotency-Key`, a double submit of «ثبت درخواست» has no existing row to collide with. So the backend **rejects a second registration for the same agency and national code within a short window** (`azs.request.duplicate-window`, default 10 s) with **409** and the message «درخواست مشابهی چند لحظه پیش ثبت شده است. لطفاً فهرست درخواست‌ها را بررسی کنید.» Implementation: inside the registration transaction, the `agency` row is locked with `SELECT … FOR UPDATE` before the check and the insert, so two simultaneous submits are serialised and the second one sees the first. The window is deliberately short: the same agency may legitimately register a new request for the same customer later (for example after a cancellation). | Phase 2 |
 
 The original issue descriptions are in this file's git history (commit `d2c7498`).
 
@@ -832,6 +833,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 
 ### Phase 2 — Request registration (agency side)
 - Agency registers an issuance request: customer lookup with `customerDetailInfo` (the agency's session), whose **snapshot is saved for the life of the request** (D21); branch selection from the synced `branch` table (open branches only, §4.4); amount; expiry date (informational only, D19); and companions (≤ 5).
+- Duplicate-registration guard (D47): lock the `agency` row, reject a second request for the same agency and national code within `azs.request.duplicate-window` (default 10 s) with 409.
 - Tracking-code generator (D12) and the `Request` aggregate with the state machine and domain events.
 - SMS notifying the customer, through the outbox (pulled forward from Phase 6 in its minimal form).
 

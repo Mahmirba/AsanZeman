@@ -8,8 +8,12 @@ sequenceDiagram
     participant W as Outbox worker
     participant N as SMS Notifier
     U->>P: national code, branch, amount, expiry date, companions
-    P->>R: POST /api/agency/requests (Idempotency-Key)
+    P->>R: POST /api/agency/requests
     Note over R: @IranianNationalCode check, branch must be open
+    R->>DB: lock agency row (FOR UPDATE)
+    alt same agency + national code registered within 10 s
+        R-->>P: 409 a similar request was registered moments ago
+    end
     R->>Y: POST /customerDetailInfo {code} with the agency user's JSESSIONID
     alt customer not found, or not an ACTUAL person
         Y-->>R: fault
