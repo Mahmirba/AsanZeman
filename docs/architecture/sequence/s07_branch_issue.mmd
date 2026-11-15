@@ -4,7 +4,6 @@ sequenceDiagram
     participant P as Bank panel
     participant R as Core: Request + LockService
     participant DB as Oracle
-    participant Y as Yaghut (technical account)
     participant M as Digital Signature + Farangin (manual)
     B->>P: open inbox
     P->>R: GET /api/branch/requests
@@ -20,10 +19,6 @@ sequenceDiagram
     R-->>P: details, inquiry results, collateral
     B->>P: approve
     P->>R: POST .../approve
-    R->>Y: POST /deposit (re-check balances)
-    alt balance no longer covers collateral
-        R-->>P: 409 shortfall shown, approval blocked
-    end
     R->>DB: NOWAIT, UNDER_ACTION, lock kept, audit
     R-->>P: 200
     B->>M: start signing session, customer signs in Mobilet, branch signs
@@ -33,4 +28,4 @@ sequenceDiagram
     P->>R: POST .../issue {guaranteeNumber}
     R->>DB: NOWAIT, format check, ISSUED, clear lock, outbox SMS 2, audit
     R-->>P: 200 issued
-    Note over B,R: Abandon returns the request to pending branch review. Admin force-release is audited. An idle review lock is released after 60 min.
+    Note over B,R: Cancel action (لغو اقدام) returns the request to pending branch review and clears the lock. Admin force-release is audited. An idle review lock is released after 60 min.

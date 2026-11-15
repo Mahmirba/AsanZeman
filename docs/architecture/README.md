@@ -1,6 +1,6 @@
 # Architecture document
 
-`AsanZeman_Architecture_Document_v2.0.docx` is the Persian architecture document (سند معماری سامانه آسان ضمان), version 2.0 (1405/08/23). It corrects and completes v1.0 and applies decisions D1–D40 from `plan.md`.
+`AsanZeman_Architecture_Document_v2.1.docx` is the Persian architecture document (سند معماری سامانه آسان ضمان), version 2.1 (1405/08/24). It corrects and completes v1.0 and applies decisions D1–D46 from `plan.md`.
 
 | Folder | Contents |
 |---|---|
