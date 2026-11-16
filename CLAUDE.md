@@ -22,7 +22,7 @@ Never change a decision silently. If a task needs a different answer than a Dx d
 - Spring Boot **4.1.1**, Spring Modulith **2.1.x**, Spring Data JPA / Hibernate 7, Spring Security (first-party RS256 JWT), Spring Web Services + WSS4J (AAA SOAP), Resilience4j, Flyway (`flyway-database-oracle`), ShedLock (JDBC provider on `scheduler_lock`), Lombok, springdoc-openapi, Micrometer + OpenTelemetry, log4j2 with JSON/ECS layout.
 - Oracle 19c+ is the **only** store. No Redis, Kafka, object storage, or second datasource (D41).
 - `spring.threads.virtual.enabled=true`. `StructuredTaskScope` is used **only in `StageRunner`** (inquiry module). No bulkhead, semaphore, or rate limiter (D23).
-- Build: Maven, `settings.xml` mirror `https://nexus.rahkar.team/repository/maven-rahkar/`. Maven Central is not reachable from the Claude cloud workspace, so code written there is compiled on the developer machine or CI.
+- Build: Maven. Do not add a `settings.xml` mirror; the SettleIt mirror (`nexus.rahkar.team`) does not apply to this project. Dependencies come from Maven Central or whatever mirror the bank provides later. Maven Central is not reachable from the Claude cloud workspace, so code written there is compiled on the developer machine or CI.
 
 ## Layout
 
@@ -67,7 +67,7 @@ Do **not** apply: `idempotency-patterns`, `spring-data-redis`, `spring-cloud-gat
 
 ## Reference project
 
-`settleit` (same team, Spring Boot 4 + Java 25 + PostgreSQL + Redis) is the style reference for layering, Lombok usage, entity state methods, `UrlMappings`/`Pagination`/`ValidationPatterns`, `JalaliDateConverter`, logging filters, test layout, Dockerfile, Helm chart and GitLab CI. Do not copy its PostgreSQL types, Redis/ShedLock-Redis, profile YAML files, OkHttp, or `ErrorResponse` envelope.
+`settleit` (same team, Spring Boot 4 + Java 25 + PostgreSQL + Redis) is the style reference for layering, Lombok usage, entity state methods, `UrlMappings`/`Pagination`/`ValidationPatterns`, `JalaliDateConverter`, logging filters, test layout, Dockerfile, Helm chart and GitLab CI. Do not copy its PostgreSQL types, Redis/ShedLock-Redis, profile YAML files, OkHttp, `ErrorResponse` envelope, or its `settings.xml` mirror.
 
 ## Build and run
 
