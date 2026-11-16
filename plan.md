@@ -1,7 +1,7 @@
 # AsanZeman (آسان ضمان) — Implementation Plan
 
 > Sources:
-> - *AsanZeman Architecture Document v1.0* (سند معماری سامانه آسان ضمان, 1405/08/07). Section references like **§3-3-4** point to this document.
+> - *AsanZeman Architecture Document v1.0* (سند معماری سامانه آسان ضمان, 1405/08/25, `docs/architecture/`). Section references like **§3-3-4** point to this document. An earlier draft of the architecture document (1405/08/07) was the starting point of this plan and has been superseded; the issues found in it are listed below.
 > - *SRS-AZS v1.0* (1405/07/27). References look like **SRS: customer completion, step 13**.
 >
 > **Precedence:** where the two documents conflict, the **architecture document wins**. The SRS is used for business rules the architecture document doesn't spell out, such as the collateral formulas, eligible deposit types and screen behaviour.
