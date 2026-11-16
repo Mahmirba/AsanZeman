@@ -1,14 +1,24 @@
-const { P, H1, H2, H3, BUL, NUM, CODE, T } = require('./lib');
+const { P, H1, H2, H3, BUL, NUM, CODE, T, IMG, LANDSCAPE } = require('./lib');
+const path = require('path');
+const DG = path.join(__dirname, '../diagrams/');
 
 module.exports = () => [
   // ───────────── Chapter 5 ─────────────
   H1('فصل پنجم — مدل داده (ERD)'),
-  H2('۵-۱ موجودیت‌های اصلی'),
+  H2('۵-۱ نمودار موجودیت-رابطه (ERD)'),
+  P('مدل داده در دو نمودار نشان داده شده است. شکل ۵-۱ موجودیت‌های تجاری را با همه ستون‌های کلیدی و روابط آن‌ها نشان می‌دهد و شکل ۵-۲ جداول پشتیبان (احراز هویت، OTP، Outbox، Audit و شمارنده‌ها) را. نشانه‌گذاری Crow\'s Foot است: خط عمودی یعنی «یک»، پنجه یعنی «چند» و دایره یعنی «اختیاری». هر دو نمودار در صفحه افقی آمده‌اند تا خوانا باشند. نوع ستون‌ها نوع Oracle است و `RAW(16)` همان شناسه `SYS_GUID()` است. نام فیزیکی جداول با حروف کوچک است (`request`، `app_user` و مانند آن).'),
+  LANDSCAPE([
+    ...IMG(DG + 'erd_business.png', 'شکل ۵-۱: ERD موجودیت‌های تجاری (اسکیماهای AZS_BUSINESS، AZS_INQUIRY و جدول app_user از AZS_AUTH)', 9.8, 5.8),
+  ]),
+  LANDSCAPE([
+    ...IMG(DG + 'erd_support.png', 'شکل ۵-۲: ERD جداول پشتیبان (AZS_AUTH، AZS_OUTBOX، AZS_AUDIT و شمارنده‌ها)', 9.8, 5.8),
+  ]),
+  H2('۵-۲ موجودیت‌های اصلی'),
   P('همه موجودیت‌ها از `BaseEntity` با فیلدهای `id` (`RAW(16)` با `SYS_GUID()`)، `created_at`، `updated_at`، `created_by` و `updated_by` ارث می‌برند.'),
   T(['موجودیت', 'توضیح', 'روابط'], [
-    ['Customer', 'تصویر اطلاعات مشتری از `customerDetailInfo` یاقوت در زمان ثبت درخواست (۵-۳)', '1:N با Request'],
+    ['Customer', 'تصویر اطلاعات مشتری از `customerDetailInfo` یاقوت در زمان ثبت درخواست (۵-۴)', '1:N با Request'],
     ['Agency', 'آژانس هواپیمایی مجاز؛ ستون یکتای `cif` برای شناسایی پس از ورود یاقوت', '1:N با Request'],
-    ['Branch', 'شعبه بانک، همگام‌شده از یاقوت، با `parent_branch` (۵-۴)', '1:N با Request؛ خودارجاع با `parent_branch`'],
+    ['Branch', 'شعبه بانک، همگام‌شده از یاقوت، با `parent_branch` (۵-۵)', '1:N با Request؛ خودارجاع با `parent_branch`'],
     ['Request', 'درخواست صدور یا ابطال ضمانتنامه', 'N:1 با Customer، Agency و Branch؛ 1:N با Companion، Collateral و Inquiry؛ خودارجاع با `parent_request_id`'],
     ['Companion', 'همراهان مشتری (حداکثر ۵ نفر)', 'N:1 با Request'],
     ['Collateral', 'یک ردیف برای هر تخصیص سپرده (نقد یا توثیق)', 'N:1 با Request'],
@@ -26,10 +36,10 @@ module.exports = () => [
     ['`scheduler_lock`', 'AZS_BUSINESS', 'انتخاب رهبر برای کارهای زمان‌بندی‌شده'],
     ['`outbox_messages`', 'AZS_OUTBOX', 'پیامک‌های در انتظار ارسال، تعداد تلاش، `sms_id`، وضعیت Dead-letter'],
   ], [2, 1.6, 5.4]),
-  H2('۵-۲ موجودیت Request — فیلدهای کلیدی'),
+  H2('۵-۳ موجودیت Request — فیلدهای کلیدی'),
   T(['فیلد', 'نوع Oracle', 'توضیح'], [
     ['id', 'RAW(16) DEFAULT SYS_GUID()', 'شناسه یکتا'],
-    ['tracking_code', 'VARCHAR2(20)', 'کد رهگیری ۱۷ تا ۱۹ رقمی (۵-۵)'],
+    ['tracking_code', 'VARCHAR2(20)', 'کد رهگیری ۱۷ تا ۱۹ رقمی (۵-۶)'],
     ['request_type', 'VARCHAR2(16)', '`ISSUANCE` یا `REVOCATION`'],
     ['parent_request_id', 'RAW(16)', 'برای درخواست ابطال: درخواست صدور مرتبط'],
     ['customer_id، agency_id', 'RAW(16) NOT NULL', 'ارجاع به مشتری و آژانس'],
@@ -45,9 +55,9 @@ module.exports = () => [
     ['registered_at، completed_at، approved_at، issued_at', 'TIMESTAMP(6)', 'زمان ثبت، تکمیل مشتری، تأیید و صدور'],
     ['cancelled_at، revoked_at', 'TIMESTAMP(6)', 'زمان لغو و زمان ابطال (جداگانه)'],
   ], [2.8, 2.4, 3.8]),
-  H2('۵-۳ تصویر اطلاعات مشتری'),
+  H2('۵-۴ تصویر اطلاعات مشتری'),
   P('هنگام ثبت درخواست توسط آژانس، سرویس `customerDetailInfo` یاقوت یک‌بار با نشست خود کاربر آژانس فراخوانی و این فیلدها **به‌صورت متن ساده** ذخیره می‌شوند: `cif`، کد ملی، نام، نام خانوادگی، نام کامل، نام پدر، تاریخ تولد، موبایل، `ssn`، سری و سریال شناسنامه، `personalityType` و جنسیت. این تصویر در **تمام عمر درخواست** (OTP، شاهکار، پیامک‌ها، نمایش و Excel) استفاده می‌شود و هرگز از یاقوت یا `loginStatic` به‌روز نمی‌شود (D21). **استثنا:** جنسیت و تاریخ تولد مورد نیاز استعلام‌ها و عنوان پیامک‌ها از نتیجه ثبت احوال گرفته می‌شود، چون جنسیت یاقوت قابل اعتماد نیست (D26).'),
-  H2('۵-۴ جدول شعب'),
+  H2('۵-۵ جدول شعب'),
   T(['ستون', 'منبع'], [
     ['`branch_code` (کلید اصلی، VARCHAR2)', 'فیلد `branchCode` سرویس `branches` یاقوت، همیشه به‌صورت رشته و کامل'],
     ['`name`، `city`، `address`، `tel`، `fax`، `zip_code`', 'سرویس `branches` یاقوت'],
@@ -55,7 +65,7 @@ module.exports = () => [
     ['`active`', '`false` وقتی یاقوت دیگر شعبه را برنمی‌گرداند (هرگز حذف نمی‌شود)'],
     ['`last_synced_at`', 'آخرین زمانی که همگام‌سازی شعبه را دید'],
   ], [3.4, 5.6]),
-  H2('۵-۵ شماره‌گذاری و ایندکس‌گذاری'),
+  H2('۵-۶ شماره‌گذاری و ایندکس‌گذاری'),
   P('**کد رهگیری (D12):** کد کامل شعبه (همان‌طور که یاقوت برمی‌گرداند، بدون کوتاه‌سازی) + کد آژانس (۴ رقم) + تاریخ شمسی YYMMDD (۶ رقم) + شمارنده (۴ رقم) = **۱۷ تا ۱۹ رقم** بسته به شعبه. چون همه بخش‌های پس از کد شعبه طول ثابت دارند، تداخل ممکن نیست. شمارنده به ازای «شعبه + آژانس + روز» در `tracking_counter` زیر قفل ردیف افزایش می‌یابد.'),
   ...BUL([
     '`IX_REQUEST_TRACKING`: UNIQUE (`tracking_code`).',
@@ -67,7 +77,7 @@ module.exports = () => [
     '`UX_AGENCY_CIF`: UNIQUE (`cif`).',
   ]),
   P('هیچ جدولی Partition نمی‌شود؛ `audit_log` و `inquiry` جداول ساده هستند (D43).'),
-  H2('۵-۶ استراتژی Migration'),
+  H2('۵-۷ استراتژی Migration'),
   P('**Flyway جایگزین Liquibase شده است (D20).** دلیل: SQL خالص برای DBA قابل بازبینی‌تر است و قابلیت‌های مورد نیاز (نسخه‌گذاری، اعتبارسنجی، اجرا در شروع) را دارد.'),
   ...BUL([
     'وابستگی‌ها: `spring-boot-starter-flyway` و `flyway-database-oracle`. فایل‌ها در `src/main/resources/db/migration` با نام `V001__create_schemas.sql`، `V002__…`.',
@@ -202,7 +212,7 @@ azs.inquiry.stage-deadlines=10s,15s`),
   T(['سرویس', 'مسیر', 'ورودی', 'خروجی مورد استفاده'], [
     ['`loginStatic`', '`/user/loginStatic`', '`username`، `password`', '`JSESSIONID` از `Set-Cookie`، `sessionExpirationDate`، `cif` (شناسه آژانس)، `code` (کد ملی)، `name`، `temporarySessionId`، `passwordExpirationBean`'],
     ['`branches`', '`/branches`', '`offset`، `length`', '`totalRecord` و `branches[]` با `branchCode`، نام، شهر، نشانی، تلفن، فکس، کدپستی'],
-    ['`customerDetailInfo`', '`/customerDetailInfo`', 'دقیقاً یکی از `cif` یا `code`؛ ما `code` (کد ملی) را می‌فرستیم', 'فیلدهای تصویر مشتری (۵-۳) و `personalityType`؛ فقط مشتری `ACTUAL` پذیرفته می‌شود'],
+    ['`customerDetailInfo`', '`/customerDetailInfo`', 'دقیقاً یکی از `cif` یا `code`؛ ما `code` (کد ملی) را می‌فرستیم', 'فیلدهای تصویر مشتری (۵-۴) و `personalityType`؛ فقط مشتری `ACTUAL` پذیرفته می‌شود'],
     ['`deposit`', '`/deposit`', '`cif`، وضعیت OPEN، شخصیت ACTUAL، امضای OWNER_OF_DEPOSIT_AND_SIGNATURE، ارز ریال، موجودی قابل برداشت', '`depositNumber`، `group`، `depositType`، `availableBalance`، `owner`، وضعیت و ارز'],
   ], [1.6, 1.6, 2.6, 3.2]),
   H3('۷-۲-۲ نشست کدام کاربر'),

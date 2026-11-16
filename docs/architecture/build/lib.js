@@ -130,6 +130,18 @@ function build(blocks, meta, outFile) {
   const levels = [0, 1].map((lvl) => ({ level: lvl, format: LevelFormat.BULLET, text: lvl === 0 ? '●' : '○', alignment: AlignmentType.LEFT,
     style: { paragraph: { indent: { left: 540 + lvl * 360, hanging: 300 } }, run: { font: FONT, size: 14, color: C.accent } } }));
   const numCfg = (ref) => ({ reference: ref, levels: [{ level: 0, format: LevelFormat.DECIMAL, text: '%1.', alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 540, hanging: 360 } }, run: { font: FONT } } }] });
+  const hdr = () => ({ default: new Header({ children: [new Paragraph({ bidirectional: true, alignment: AlignmentType.CENTER, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'E5E7EB', space: 4 } }, children: [new TextRun({ text: 'سند معماری سامانه آسان ضمان — ' + meta.versionShort, rightToLeft: true, font: FONT, size: 16, color: '90989F' })] })] }) });
+  const ftr = () => ({ default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 18, color: C.grey })] })] }) });
+  const portrait = { size: { width: PAGE_W, height: 16838 }, margin: { top: 1300, bottom: 1200, left: MARGIN, right: MARGIN, header: 600, footer: 600 } };
+  const landscape = { size: { width: PAGE_W, height: 16838, orientation: d.PageOrientation.LANDSCAPE }, margin: { top: 1300, bottom: 1200, left: MARGIN, right: MARGIN, header: 600, footer: 600 } };
+  // blocks may contain { landscape: true, children: [...] } markers; each becomes its own landscape section
+  const sections = []; let cur = [];
+  const flush = () => { if (cur.length) sections.push({ properties: { page: portrait, type: d.SectionType.NEXT_PAGE }, headers: hdr(), footers: ftr(), children: cur }); cur = []; };
+  for (const b of blocks.flat(Infinity)) {
+    if (b && b.landscape) { flush(); sections.push({ properties: { page: landscape, type: d.SectionType.NEXT_PAGE }, headers: hdr(), footers: ftr(), children: b.children.flat(Infinity) }); }
+    else cur.push(b);
+  }
+  flush();
   const doc = new Document({
     creator: 'Asan Zeman technical team', title: 'سند معماری سامانه آسان ضمان', description: meta.version,
     features: { updateFields: true },
@@ -145,10 +157,7 @@ function build(blocks, meta, outFile) {
     sections: [
       { properties: { page: { size: { width: PAGE_W, height: 16838 }, margin: { top: 1200, bottom: 1000, left: MARGIN, right: MARGIN } } },
         children: [cover(meta)] },
-      { properties: { page: { size: { width: PAGE_W, height: 16838 }, margin: { top: 1300, bottom: 1200, left: MARGIN, right: MARGIN, header: 600, footer: 600 } } },
-        headers: { default: new Header({ children: [new Paragraph({ bidirectional: true, alignment: AlignmentType.CENTER, border: { bottom: { style: BorderStyle.SINGLE, size: 4, color: 'E5E7EB', space: 4 } }, children: [new TextRun({ text: 'سند معماری سامانه آسان ضمان — ' + meta.versionShort, rightToLeft: true, font: FONT, size: 16, color: '90989F' })] })] }) },
-        footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ children: [PageNumber.CURRENT], font: FONT, size: 18, color: C.grey })] })] }) },
-        children: blocks.flat(Infinity) },
+      ...sections,
     ],
   });
   return Packer.toBuffer(doc).then((buf) => fs.writeFileSync(outFile, buf));
@@ -157,4 +166,5 @@ function build(blocks, meta, outFile) {
 const TOC = () => [new Paragraph({ bidirectional: true, alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [new TextRun({ text: 'فهرست مطالب', bold: true, rightToLeft: true, font: FONT, size: 28, color: C.navy })] }),
   new TableOfContents('فهرست مطالب', { hyperlink: true, headingStyleRange: '1-2' })];
 
-module.exports = { runs, P, H1, H2, H3, BUL, NUM, CODE, T, IMG, TOC, build, PageBreak, Paragraph };
+const LANDSCAPE = (children) => ({ landscape: true, children });
+module.exports = { LANDSCAPE, runs, P, H1, H2, H3, BUL, NUM, CODE, T, IMG, TOC, build, PageBreak, Paragraph };
