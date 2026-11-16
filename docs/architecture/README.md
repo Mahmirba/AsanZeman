@@ -23,4 +23,4 @@ for f in s*.mmd; do mmdc -i $f -o ${f%.mmd}.png -c mermaid-config.json -w 1300 -
 node ../build/main.js
 ```
 
-The text lives in `build/c1.js` (front matter, chapters 1–4), `build/c2.js` (chapters 5–7) and `build/c3.js` (chapters 8–11, appendix). Table cells use start alignment: justified alignment in narrow right-to-left cells makes LibreOffice loop when rendering.
+The text lives in `build/c1.js` (front matter, chapters 1–4), `build/c2.js` (chapters 5–7), `build/c3.js` (chapters 8–11, appendix A) and `build/c4.js` (appendix B, which embeds the diagram sources from this folder at build time). Table cells use start alignment: justified alignment in narrow right-to-left cells makes LibreOffice loop when rendering.
