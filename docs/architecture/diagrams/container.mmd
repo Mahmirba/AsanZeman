@@ -6,7 +6,7 @@ flowchart TB
   end
   subgraph INTRA["🏦 Bank Net (Intranet)"]
     BKP["Bank panel (SPA)<br/>branch + admin"]:::box
-    subgraph CORE["⚙️ Asan Zeman Core — Spring Boot 4.1 · Java 25 · virtual threads"]
+    subgraph CORE["⚙️ Asan Zeman Core — Spring Boot 4.1.1 · Java 26 · virtual threads"]
       AUTH["Auth module<br/>ARcaptcha · AAA · Yaghut · OTP · JWT"]:::box
       REQ["Request module<br/>state machine · ownership lock<br/>collateral · cancel / revoke"]:::box
       INQM["Inquiry module<br/>2-stage chain · StructuredTaskScope"]:::box

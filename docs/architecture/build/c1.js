@@ -31,7 +31,7 @@ module.exports = () => [
     ['قفل درخواست', 'SELECT FOR UPDATE NOWAIT که با پایان تراکنش آزاد می‌شود و نمی‌تواند طول عملیات دستی را پوشش دهد', 'قفل مالکیت (ستون `locked_by`) که بین درخواست‌های HTTP باقی می‌ماند، به‌همراه NOWAIT برای اتمی بودن هر تغییر', 'D1، ADR-008'],
     ['لغو و ابطال', 'هر دو با وضعیت CANCELLED و نوع CANCELLATION', 'پیش از «اقدام»: لغو فوری (`CANCELLED`). از «اقدام» به بعد: درخواست ابطال برای شعبه و در پایان `REVOKED`', 'D11، ADR-009'],
     ['انقضای ضمانتنامه', 'وضعیت EXPIRED', 'حذف شد؛ `expiry_date` فقط اطلاعاتی است', 'D19'],
-    ['نسخه‌ها', 'Java 17، Spring Boot 3.2، Angular 17', 'Java 25، Spring Boot 4.1، Spring Modulith 2.1، Angular 22 (پس از شروع UI)', 'D9، ADR-010'],
+    ['نسخه‌ها', 'Java 17، Spring Boot 3.2، Angular 17', 'Java 26، Spring Boot 4.1.1، Spring Modulith 2.1، Angular 22 (پس از شروع UI)', 'D9، ADR-010'],
     ['اجرای استعلام‌ها', '۹ استعلام موازی با CompletableFuture، Timeout ثابت ۳۰ ثانیه، هر شکست = رد', 'زنجیره دومرحله‌ای (ثبت احوال، سپس ۸ استعلام موازی) با StructuredTaskScope و Virtual Thread؛ تفکیک منفی (رد) از شکست فنی (تلاش مجدد)', 'D3، D4، D25 تا D27، ADR-012'],
     ['مسیر سرویس‌ها', 'همه از طریق Bank API Gateway', 'AAA، یاقوت، Notifier و ARcaptcha مستقیم؛ ۹ استعلام و personnelInfo با توکن OAuth2 از Gateway', 'D28، D34، D37'],
     ['OTP', '۶ رقمی، تولید و ذخیره در `otp_codes`', '۴ رقمی، تولید و بررسی توسط Notifier؛ آسان ضمان کد را نمی‌بیند', 'D34، ADR-014'],
@@ -81,11 +81,11 @@ module.exports = () => [
     '**یک فایل پیکربندی:** کل پروژه فقط یک `application.properties` دارد و هر مقدار قابل تنظیم بدون انتشار نسخه جدید تغییر می‌کند (D36).',
   ]),
   H2('۱-۵ ترازو تکنولوژی'),
-  P('انتخاب فناوری‌ها بر اساس بلوغ، پشتیبانی بلندمدت، مهارت موجود در بازار ایران و سازگاری با زیرساخت بانک انجام شده است. نسخه‌های نسخه ۱.۰ (Java 17، Spring Boot 3.2 و Angular 17) دیگر پشتیبانی رسمی ندارند و به‌روز شده‌اند (D9). همه نسخه‌ها در فایل Build ثابت (Pin) می‌شوند.'),
+  P('انتخاب فناوری‌ها بر اساس بلوغ، پشتیبانی بلندمدت، مهارت موجود در بازار ایران و سازگاری با زیرساخت بانک انجام شده است. نسخه‌های نسخه ۱.۰ (Java 17، Spring Boot 3.2 و Angular 17) دیگر پشتیبانی رسمی ندارند و به‌روز شده‌اند (D9). همه نسخه‌ها در فایل Build ثابت (Pin) می‌شوند. **توجه:** Java 26 نسخه LTS نیست و پشتیبانی آن حدود شهریور ۱۴۰۵ پایان می‌یابد؛ Spring Boot 4.1 رسماً Java 17 تا 27 را پشتیبانی می‌کند، بنابراین انتقال بعدی به Java 27 یا بازگشت به Java 25 LTS فقط Image پایه و ابزار Build را تغییر می‌دهد (D9).'),
   T(['لایه', 'تکنولوژی', 'نسخه', 'توجیه'], [
-    ['زبان', 'Java (با `--enable-preview`)', '25 LTS', 'Virtual Thread بدون مشکل Pinning در `synchronized` (از Java 24) و StructuredTaskScope'],
-    ['Framework', 'Spring Boot + Spring Modulith', '4.1.x / 2.1.x', 'اکوسیستم بالغ؛ کنترل مرز ماژول‌ها'],
-    ['همزمانی', 'Virtual Threads + StructuredTaskScope', 'Java 25', 'اجرای موازی استعلام‌ها بدون Thread Pool دستی (D24، D25)'],
+    ['زبان', 'Java (با `--enable-preview`)', '26', 'Virtual Thread بدون مشکل Pinning در `synchronized` (از Java 24) و StructuredTaskScope'],
+    ['Framework', 'Spring Boot + Spring Modulith', '4.1.1 / 2.1.x', 'اکوسیستم بالغ؛ کنترل مرز ماژول‌ها'],
+    ['همزمانی', 'Virtual Threads + StructuredTaskScope', 'Java 26', 'اجرای موازی استعلام‌ها بدون Thread Pool دستی (D24، D25)'],
     ['پایگاه داده', 'Oracle Database', '19c یا بالاتر', 'استاندارد بانک، RAC، Data Guard، TDE'],
     ['ORM', 'Spring Data JPA + Hibernate', '7.x', 'Type-safe، قفل Pessimistic با NOWAIT'],
     ['Migration', 'Flyway', 'نسخه همراه Boot 4.1', 'SQL نسخه‌دار، فقط forward-fix (D20)'],
@@ -223,7 +223,7 @@ module.exports = () => [
     'تنها محدودیت کار پایگاه داده، Connection Pool هیکاری است. اجرای استعلام هرگز هنگام انتظار برای سرویس خارجی اتصال پایگاه داده نگه نمی‌دارد.',
     'هیچ Semaphore، Bulkhead یا Rate Limiter روی سرویس‌های خارجی وجود ندارد (D23).',
     'برای قفل‌های درون حافظه (مثلاً ورود مجدد حساب فنی یاقوت) از `ReentrantLock` به‌جای `synchronized` استفاده می‌شود.',
-    '`StructuredTaskScope` (پیش‌نمایش Java 25) فقط در کلاس `StageRunner` استفاده می‌شود؛ بنابراین `--enable-preview` در کامپایل، تست و اجرا لازم است و هر ارتقای Java باید این کلاس را دوباره بررسی کند (D25).',
+    '`StructuredTaskScope` (پیش‌نمایش Java 26) فقط در کلاس `StageRunner` استفاده می‌شود؛ بنابراین `--enable-preview` در کامپایل، تست و اجرا لازم است و هر ارتقای Java باید این کلاس را دوباره بررسی کند (D25).',
   ]),
 
   // ───────────── Chapter 4 ─────────────

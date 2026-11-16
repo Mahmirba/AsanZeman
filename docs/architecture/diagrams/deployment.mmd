@@ -9,7 +9,7 @@ flowchart TB
   subgraph BANK["🏦 Bank Net (Intranet)"]
     BWEB["Bank panel SPA<br/>intranet web server"]:::box
     subgraph APP["⚙️ Application tier"]
-      CORE["Asan Zeman Core<br/>Docker image (executable jar), Java 25 --enable-preview<br/>2+ instances behind a load balancer<br/>(Kubernetes or VMs — agreed with ops)"]:::core
+      CORE["Asan Zeman Core<br/>Docker image (executable jar), Java 26 --enable-preview<br/>2+ instances behind a load balancer<br/>(Kubernetes or VMs — agreed with ops)"]:::core
       CFG["application.properties<br/>(server copy with real secrets, chmod 600)"]:::manual
     end
     DB[("Oracle 19c+<br/>RAC or Data Guard<br/>TDE")]:::box
