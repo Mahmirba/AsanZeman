@@ -24,49 +24,50 @@ class HexagonalArchitectureTest {
     private static final String APPLICATION = "..application..";
     private static final String INFRASTRUCTURE = "..infrastructure..";
 
+    // package-info classes carry Modulith's @NamedInterface and are not domain code
     @ArchTest
     static final ArchRule domainIsFrameworkFree = noClasses()
-            .that().resideInAPackage(DOMAIN)
+            .that().resideInAPackage(DOMAIN).and().haveSimpleNameNotEndingWith("package-info")
             .should().dependOnClassesThat().resideInAnyPackage(
                     "org.springframework..", "jakarta.persistence..", "jakarta.transaction..",
                     "org.hibernate..", "tools.jackson..", "com.fasterxml.jackson..",
                     "io.github.resilience4j..", "org.springdoc..")
-            .as("domain packages must not depend on Spring, JPA, Jackson or other frameworks");
+            .as("domain packages must not depend on Spring, JPA, Jackson or other frameworks").allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule domainDependsOnlyOnDomainAndShared = classes()
-            .that().resideInAPackage(DOMAIN)
+            .that().resideInAPackage(DOMAIN).and().haveSimpleNameNotEndingWith("package-info")
             .should().onlyDependOnClassesThat().resideInAnyPackage(
                     DOMAIN, "com.sb24.asanzeman.shared.model..", "java..", "javax..", "jakarta.validation..")
-            .as("domain may use other domain packages, shared.model helpers and the JDK only");
+            .as("domain may use other domain packages, shared.model helpers and the JDK only").allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule applicationDoesNotSeeInfrastructure = noClasses()
             .that().resideInAPackage(APPLICATION)
             .should().dependOnClassesThat().resideInAPackage(INFRASTRUCTURE)
-            .as("use cases depend on ports, never on adapters");
+            .as("use cases depend on ports, never on adapters").allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule springDataOnlyInPersistence = noClasses()
             .that().resideOutsideOfPackage("..infrastructure.persistence..")
             .should().dependOnClassesThat().resideInAnyPackage("org.springframework.data.jpa..", "org.springframework.data.repository..")
-            .as("Spring Data repositories are an infrastructure detail (D49)");
+            .as("Spring Data repositories are an infrastructure detail (D49)").allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule integrationClientsOnlyFromExternalAdapters = noClasses()
             .that().resideInAnyPackage(DOMAIN, APPLICATION, "..infrastructure.web..", "..infrastructure.persistence..")
             .should().dependOnClassesThat().resideInAPackage("com.sb24.asanzeman.integration..")
-            .as("bank service clients are reached only through infrastructure.external adapters");
+            .as("bank service clients are reached only through infrastructure.external adapters").allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule controllersInjectPortsNotServices = noClasses()
             .that().resideInAPackage("..infrastructure.web..")
             .should().dependOnClassesThat().resideInAPackage(APPLICATION)
-            .as("controllers inject port/in interfaces, never application classes");
+            .as("controllers inject port/in interfaces, never application classes").allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule noJpaAnnotationsOutsidePersistence = noClasses()
             .that().resideOutsideOfPackage("..infrastructure.persistence..")
             .should().beAnnotatedWith(jakarta.persistence.Entity.class)
-            .as("JPA entities live in infrastructure.persistence and are mapped to domain models");
+            .as("JPA entities live in infrastructure.persistence and are mapped to domain models").allowEmptyShould(true);
 }

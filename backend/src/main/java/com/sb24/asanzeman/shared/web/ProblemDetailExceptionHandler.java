@@ -84,15 +84,17 @@ public class ProblemDetailExceptionHandler extends ResponseEntityExceptionHandle
     }
 
     @Override
-    protected ProblemDetail createProblemDetail(Exception ex, HttpStatusCode status, String defaultDetail,
-            String detailMessageCode, Object[] detailMessageArguments, WebRequest request) {
-        // framework errors (bad JSON, wrong method, 404 route…): same shape, generic Persian detail
-        ProblemDetail body = super.createProblemDetail(ex, status, defaultDetail, detailMessageCode, detailMessageArguments, request);
+    protected ResponseEntity<Object> handleExceptionInternal(Exception ex, Object body, HttpHeaders headers,
+            HttpStatusCode status, WebRequest request) {
+        // framework errors (bad JSON, wrong method, 404 route, unsupported media type...) arrive here with a
+        // ProblemDetail body of their own: give it the same shape and a generic Persian detail (D48)
         String code = "http." + status.value();
-        body.setType(URI.create(TYPE_PREFIX + code));
-        body.setProperty("code", code);
-        body.setDetail(message(code));
-        return body;
+        ProblemDetail detail = body instanceof ProblemDetail pd ? pd : ProblemDetail.forStatus(status);
+        detail.setType(URI.create(TYPE_PREFIX + code));
+        detail.setDetail(message(code));
+        detail.setProperty("code", code);
+        log.info("framework error {} on request: {}", code, ex.getMessage());
+        return ResponseEntity.status(status).headers(headers).body(detail);
     }
 
     private ProblemDetail problem(HttpStatus status, String code, String detail, HttpServletRequest request) {

@@ -52,6 +52,18 @@ class ProblemDetailSecurityHandlersTest {
     }
 
     @Test
+    void frameworkErrorWithoutBodyStillGetsTheProblemShape() {
+        var handler = new ProblemDetailExceptionHandler(messages());
+        var response = handler.handleExceptionInternal(new IllegalStateException("x"), null,
+                new org.springframework.http.HttpHeaders(), HttpStatus.NOT_ACCEPTABLE,
+                new org.springframework.web.context.request.ServletWebRequest(new MockHttpServletRequest()));
+        var body = (org.springframework.http.ProblemDetail) response.getBody();
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_ACCEPTABLE);
+        assertThat(body.getProperties()).containsEntry("code", "http.406");
+        assertThat(body.getDetail()).isEqualTo("قالب درخواستی پشتیبانی نمی‌شود.");
+    }
+
+    @Test
     void statusMappingCoversEveryKind() {
         assertThat(ProblemDetailExceptionHandler.statusOf(com.sb24.asanzeman.shared.model.DomainException.Kind.TEMPORARILY_UNAVAILABLE))
                 .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
