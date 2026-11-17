@@ -29,7 +29,7 @@ class NationalCodeTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"1000000012", "123456789", "12345678901", "12345678a1", "0000000000", "1111111111", "9999999999"})
+    @ValueSource(strings = {"1000000012", "1000000029", "10000000-1", "123456789", "12345678901", "12345678a1", "0000000000", "1111111111", "9999999999"})
     void rejectsWrongCheckDigitLengthCharactersAndRepeatedDigits(String code) {
         assertThat(NationalCode.isValid(code)).isFalse();
         assertThat(NationalCode.parse(code)).isEmpty();

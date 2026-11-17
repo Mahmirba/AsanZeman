@@ -120,13 +120,9 @@ public class ProblemDetailExceptionHandler extends ResponseEntityExceptionHandle
         return messages.getMessage(code, args, code, FA);
     }
 
-    /** Bean Validation messages arrive either as {@code {key}} templates or already-resolved text. */
-    private String resolve(String defaultMessage) {
-        String msg = Objects.requireNonNullElse(defaultMessage, "validation.invalid");
-        if (msg.startsWith("{") && msg.endsWith("}")) {
-            return message(msg.substring(1, msg.length() - 1));
-        }
-        return msg;
+    /** Bean Validation messages are already resolved through the MessageSource by Boot's validator. */
+    private static String resolve(String defaultMessage) {
+        return Objects.requireNonNullElse(defaultMessage, "validation.invalid");
     }
 
     /** Exposed for tests and for adapters that build problem bodies outside MVC (security entry points). */
