@@ -69,8 +69,8 @@ public record JalaliDate(int year, int month, int day) implements Comparable<Jal
         }
         int gd = (int) days + 1;
         int[] monthLengths = {0, 31, isGregorianLeap(gy) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-        int gm = 0;
-        while (gm < 13 && gd > monthLengths[gm]) {
+        int gm = 1;
+        while (gd > monthLengths[gm]) {
             gd -= monthLengths[gm];
             gm++;
         }
