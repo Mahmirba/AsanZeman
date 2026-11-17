@@ -1,0 +1,65 @@
+openapi: 3.1.0
+info:
+  title: Asan Zeman API
+  version: v1
+  description: |
+    Travel-return guarantee issuance (آسان ضمان). Contract-first (1-4): paths are stubs in Phase 0 and are
+    filled in phase by phase. All errors are RFC 7807 Problem Details with a stable `code` extension (D48).
+    Authentication: `Authorization: Bearer <JWT>`; no cookies (D7).
+servers:
+  - url: /api
+tags:
+  - { name: auth, description: Bank (AAA), agency (Yaghut) and customer (Yaghut + OTP) login }
+  - { name: agency, description: Agency panel - registration, cancel/revoke, tracking, CSV }
+  - { name: customer, description: Customer panel - inquiries, collateral, submit }
+  - { name: branch, description: Bank panel - inbox, lock, approve, reject, issue, revocation }
+  - { name: admin, description: Admin - agencies, rejection reasons, force-release }
+  - { name: reports, description: Bank reports - CSV }
+paths:
+  /auth/bank/login: { post: { tags: [auth], summary: "ARcaptcha -> AAA GetRoleWindows -> personnelInfo -> JWT", responses: { "200": { description: tokens }, "401": { $ref: "#/components/responses/Problem" } } } }
+  /auth/agency/login: { post: { tags: [auth], summary: "ARcaptcha -> Yaghut loginStatic -> agency by cif -> JWT", responses: { "200": { description: tokens } } } }
+  /auth/customer/login: { post: { tags: [auth], summary: "ARcaptcha -> Yaghut loginStatic -> SendOtp", responses: { "200": { description: challengeId } } } }
+  /auth/customer/otp/verify: { post: { tags: [auth], summary: "OtpValidate -> 30-minute session", responses: { "200": { description: token } } } }
+  /auth/refresh: { post: { tags: [auth], summary: "Rotate the refresh token (bank, agency)", responses: { "200": { description: tokens } } } }
+  /auth/logout: { post: { tags: [auth], responses: { "204": { description: logged out } } } }
+  /agency/requests: { post: { tags: [agency], summary: "Register an issuance request (D47 duplicate guard)", responses: { "201": { description: tracking code } } }, get: { tags: [agency], summary: "Track requests; ?format=csv streams CSV (D42)", responses: { "200": { description: page or CSV } } } }
+  /agency/requests/{id}/revocation: { post: { tags: [agency], summary: "Cancel before Eqdam, otherwise create a revocation request (D11)", responses: { "200": { description: outcome } } } }
+  /customer/requests/{id}: { get: { tags: [customer], responses: { "200": { description: request for completion } } } }
+  /customer/requests/{id}/inquiries: { post: { tags: [customer], summary: "Start the two-stage inquiry run (202 + runId)", responses: { "202": { description: runId } } } }
+  /customer/requests/{id}/inquiries/{runId}: { get: { tags: [customer], responses: { "200": { description: per-inquiry status } } } }
+  /customer/requests/{id}/deposits: { get: { tags: [customer], summary: "Eligible deposits from Yaghut (customer session)", responses: { "200": { description: deposits } } } }
+  /customer/requests/{id}/collateral: { post: { tags: [customer], responses: { "200": { description: allocation summary } } } }
+  /customer/requests/{id}/submit: { post: { tags: [customer], responses: { "200": { description: submitted } } } }
+  /branch/requests: { get: { tags: [branch], summary: "Inbox: original branch or replacement (D32)", responses: { "200": { description: page } } } }
+  /branch/requests/{id}/lock: { post: { tags: [branch], summary: "«اقدام» - ownership lock (D1)", responses: { "200": { description: locked }, "409": { $ref: "#/components/responses/Problem" } } } }
+  /branch/requests/{id}/approve: { post: { tags: [branch], responses: { "200": { description: UNDER_ACTION } } } }
+  /branch/requests/{id}/reject: { post: { tags: [branch], responses: { "200": { description: REJECTED } } } }
+  /branch/requests/{id}/abandon: { post: { tags: [branch], summary: "«انصراف» / «لغو اقدام» (D44)", responses: { "200": { description: back to inbox } } } }
+  /branch/requests/{id}/issue: { post: { tags: [branch], summary: "Record the Farangin guarantee number", responses: { "200": { description: ISSUED } } } }
+  /branch/requests/{id}/complete-revocation: { post: { tags: [branch], responses: { "200": { description: COMPLETED / parent REVOKED } } } }
+  /branch/reports: { get: { tags: [reports], summary: "Filtered report; ?format=csv streams CSV (D42)", responses: { "200": { description: page or CSV } } } }
+  /admin/agencies: { get: { tags: [admin], responses: { "200": { description: list } } }, post: { tags: [admin], responses: { "201": { description: created } } } }
+  /admin/rejection-reasons: { get: { tags: [admin], responses: { "200": { description: list } } }, post: { tags: [admin], responses: { "201": { description: created } } } }
+  /admin/requests/{id}/force-release: { post: { tags: [admin], summary: "Admin force-release with reason (audited)", responses: { "200": { description: released } } } }
+components:
+  securitySchemes:
+    bearerJwt: { type: http, scheme: bearer, bearerFormat: JWT }
+  responses:
+    Problem:
+      description: RFC 7807 Problem Details
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+  schemas:
+    Problem:
+      type: object
+      properties:
+        type: { type: string, format: uri, example: "urn:asanzeman:error:request.locked-by-other" }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string, description: Persian text from messages_fa.properties }
+        instance: { type: string }
+        code: { type: string, description: stable machine-readable code }
+        violations: { type: object, additionalProperties: { type: string } }
+security:
+  - bearerJwt: []

@@ -89,11 +89,14 @@ Do **not** apply: `idempotency-patterns`, `spring-data-redis`, `spring-cloud-gat
 ## Build and run
 
 ```bash
-./mvnw clean verify                      # unit tests + Modulith/ArchUnit boundary tests
-./mvnw verify -Dintegration=true         # + Testcontainers Oracle integration tests (Docker required)
+cd backend
+./mvnw clean verify                      # unit tests + Modulith/ArchUnit boundary tests + JaCoCo gate
+./mvnw verify -Dintegration=true         # + *IT on Testcontainers Oracle Free (Docker required)
 ./mvnw spring-boot:run                   # needs application.properties with real values
-docker compose up                        # Oracle XE + WireMock stubs + the app
+cd ../deploy && docker compose up        # Oracle Free + WireMock stubs + the app (copy the example properties first)
 ```
+
+Layout on disk: `backend/` (Maven project), `backend/db/dba` and `backend/db/undo` (DBA scripts), `deploy/` (compose, WireMock stubs), `docs/` (architecture, OpenAPI), `.github/workflows/ci.yml`.
 
 ## Git
 
