@@ -10,7 +10,7 @@ AsanZeman (آسان ضمان) is a bank system for issuing *travel-return guaran
 
 ## Sources of truth, in order
 
-1. `plan.md` — the implementation plan and the **decision log D1–D47**. When anything below, a skill, or a sample project disagrees with it, `plan.md` wins.
+1. `plan.md` — the implementation plan and the **decision log D1–D50**. When anything below, a skill, or a sample project disagrees with it, `plan.md` wins.
 2. `docs/architecture/AsanZeman_Architecture_Document_v1.0.docx` — the architecture document (Persian). Section references like §4-3-4 point here. Diagram sources are in `docs/architecture/diagrams/` and `docs/architecture/sequence/`.
 3. SRS-AZS v1.0 — business rules the architecture doesn't spell out (collateral formulas, rejection messages).
 
@@ -32,7 +32,23 @@ Single Maven module. Package root `com.sb24.asanzeman`. Spring Modulith modules,
 auth/ request/ inquiry/ notification/ report/ scheduler/ integration/ shared/
 ```
 
-Inside a module, follow the SettleIt layering: `adapter/api` (controllers + DTOs), `application` (services, ports, jobs), `domain` (entities, value objects, domain exceptions), `repository`, `config`. Other modules may depend only on a module's `api` package (`@NamedInterface`), never on `internal`. The Modulith verification test and an ArchUnit test run in CI; a boundary violation fails the build.
+Inside a module, use **hexagonal architecture** (D49, ADR-017):
+
+```
+<module>/
+├── domain/            pure Java — no Spring, JPA or Jackson
+│   ├── model/         aggregates, entities, value objects, domain exceptions; behaviour lives here
+│   ├── port/in/       use-case interfaces + command/result records (the module's @NamedInterface)
+│   ├── port/out/      interfaces the module needs: repositories, external services, outbox, clock
+│   └── service/       domain services (CollateralCalculator, BranchAccessPolicy, ...)
+├── application/       use-case implementations: @Service, @Transactional, depend only on ports
+└── infrastructure/
+    ├── web/           @RestController + DTOs; inject port/in, never a service class
+    ├── persistence/   *JpaEntity, SpringData*Repository, mapper, adapter implementing port/out
+    └── external/      adapters over integration/ clients implementing port/out
+```
+
+Rules enforced by ArchUnit and the Modulith verification test (build fails otherwise): `domain` imports only `domain` and the JDK; `application` never imports `infrastructure`; another module is reached only through its `port/in`; `JpaRepository` is injected only inside `persistence`. JPA entities and domain models are separate classes with a mapper.
 
 Resources: one `src/main/resources/application.properties` (D36) — no profile files; secrets are `CHANGE_ME` in git. Migrations in `src/main/resources/db/migration/oracle/V001__…sql`; DBA-only scripts (schema users, grants, branch replacement) in `db/dba/`; manual undo scripts in `db/undo/`.
 
@@ -57,17 +73,18 @@ Resources: one `src/main/resources/application.properties` (D36) — no profile 
 - **Tables are not partitioned** (D43). `audit_log` is append-only; the app user has INSERT-only grants on it.
 - **TLS** (D38): verify by default; `azs.integration.<service>.tls.skip-verify` per client only; never touch JVM-wide trust.
 - **Errors** (decided 1405/08/25): RFC 7807 Problem Details via `ProblemDetail` / `@RestControllerAdvice`; Persian messages from `messages_fa.properties` (SRS texts, «شماه» corrected to «شماره»). Technical failures are 503 "بعداً تلاش کنید", never 400.
+- **Coverage gate** (D50): every class gets a test in the same commit. JaCoCo `check` in `verify`: 100 % line + branch for `domain` and `application`, >= 90 % line for `infrastructure`; only `*Application`, `config/`, generated JAXB and Lombok-generated code are excluded. By layer: domain -> plain JUnit; use cases -> Mockito on out-ports; web -> `@WebMvcTest` + `@MockitoBean` use cases; persistence -> `@DataJpaTest` on Testcontainers Oracle; external -> WireMock / `MockWebServiceServer`.
 - **Tests**: `@MockitoBean` only at our own boundaries, **never for external services**; external services are WireMock stubs + in-app fakes, with synthetic personas (`1000000011` all pass, `1000000028` deceased, `1000000036` Sabte Ahval mismatch, `1000000044` Shahkar mismatch, `1000000125` Sepad timeout then pass). Integration tests use Testcontainers Oracle and are gated by `-Dintegration=true`. No real bank data in the repo.
 
 ## Skills
 
-The `spring-boot-4-skills` plugin is installed. Use these: `spring-modulith`, `layered-architecture`, `domain-driven-design`, `flyway-migrations`, `spring-data-jpa`, `transactional-patterns`, `spring-security-jwt`, `security-audit-logging`, `http-interface-clients`, `resilience-retry`, `async-execution`, `scheduled-tasks`, `configuration-properties`, `problem-details-rfc9457`, `rest-api-conventions`, `openapi-first`, `testing-pyramid`, `production-observability`, `container-native-deployment`, and the `spring-reviewer` / `spring-security-reviewer` agents after each phase.
+The `spring-boot-4-skills` plugin is installed. Use these: `spring-modulith`, `hexagonal-architecture`, `layered-architecture` (only for what hexagonal leaves open), `domain-driven-design`, `flyway-migrations`, `spring-data-jpa`, `transactional-patterns`, `spring-security-jwt`, `security-audit-logging`, `http-interface-clients`, `resilience-retry`, `async-execution`, `scheduled-tasks`, `configuration-properties`, `problem-details-rfc9457`, `rest-api-conventions`, `openapi-first`, `testing-pyramid`, `production-observability`, `container-native-deployment`, and the `spring-reviewer` / `spring-security-reviewer` agents after each phase.
 
 Do **not** apply: `idempotency-patterns`, `spring-data-redis`, `spring-cloud-gateway`, `webflux-reactive-patterns`, `multi-tenancy`, `event-driven-messaging`, `spring-batch`, `hateoas`, `api-versioning`, Spring AI / MCP skills. They contradict decisions above.
 
 ## Reference project
 
-`settleit` (same team, Spring Boot 4 + Java 25 + PostgreSQL + Redis) is the style reference for layering, Lombok usage, entity state methods, `UrlMappings`/`Pagination`/`ValidationPatterns`, `JalaliDateConverter`, logging filters, test layout, Dockerfile, Helm chart and GitLab CI. Do not copy its PostgreSQL types, Redis/ShedLock-Redis, profile YAML files, OkHttp, `ErrorResponse` envelope, or its `settings.xml` mirror.
+`settleit` (same team, Spring Boot 4 + Java 25 + PostgreSQL + Redis) is the style reference for Lombok usage, entity state methods, `UrlMappings`/`Pagination`/`ValidationPatterns`, `JalaliDateConverter`, logging filters, test layout, Dockerfile, Helm chart and GitLab CI. Do not copy its package layering (we use hexagonal, D49), PostgreSQL types, Redis/ShedLock-Redis, profile YAML files, OkHttp, `ErrorResponse` envelope, or its `settings.xml` mirror.
 
 ## Build and run
 

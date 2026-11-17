@@ -1,6 +1,6 @@
 # Architecture document
 
-`AsanZeman_Architecture_Document_v1.0.docx` is the Persian architecture document (سند معماری سامانه آسان ضمان), version 1.0 (1405/08/25). It is built from the SRS, the bank's service documents and decisions D1–D47 from `plan.md`.
+`AsanZeman_Architecture_Document_v1.0.docx` is the Persian architecture document (سند معماری سامانه آسان ضمان), version 1.0 (1405/08/25). It is built from the SRS, the bank's service documents and decisions D1–D50 from `plan.md`.
 
 | Folder | Contents |
 |---|---|

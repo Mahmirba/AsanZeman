@@ -90,6 +90,8 @@ The points below were reviewed and decided with the product owner on 1405/08/17,
 | D46 | ✅ No `Idempotency-Key` (1405/08/24) | The `Idempotency-Key` header, the idempotency filter and the `idempotency_keys` table are **dropped**, on the panels' calls and on outbound calls alike. Duplicate submits are prevented by the state machine and the `NOWAIT` row lock instead: a repeated command finds the request already in the target state and gets 409. | §6 |
 | D47 | ✅ Duplicate registration guard (1405/08/24) | Without an `Idempotency-Key`, a double submit of «ثبت درخواست» has no existing row to collide with. So the backend **rejects a second registration for the same agency and national code within a short window** (`azs.request.duplicate-window`, default 10 s) with **409** and the message «درخواست مشابهی چند لحظه پیش ثبت شده است. لطفاً فهرست درخواست‌ها را بررسی کنید.» Implementation: inside the registration transaction, the `agency` row is locked with `SELECT … FOR UPDATE` before the check and the insert, so two simultaneous submits are serialised and the second one sees the first. The window is deliberately short: the same agency may legitimately register a new request for the same customer later (for example after a cancellation). | Phase 2 |
 | D48 | ✅ Error format (1405/08/25) | **RFC 7807 Problem Details** (`ProblemDetail`, `application/problem+json`) for every error response, with Persian `detail` from `messages_fa.properties`; not the SettleIt `ErrorResponse` envelope. | §4.2 |
+| D49 | ✅ Hexagonal architecture (1405/08/25) | Every Spring Modulith module is built as **ports and adapters**: `domain/` (pure Java: model, `port/in` use-case interfaces, `port/out` interfaces for persistence and external services, domain services — **no Spring, JPA or Jackson imports**), `application/` (use-case implementations, `@Service` + `@Transactional`, depend only on ports), `infrastructure/` (`web/` controllers and DTOs, `persistence/` JPA entities + Spring Data interfaces + mappers that implement the `port/out` repositories, `external/` HTTP/SOAP adapters). Controllers inject use-case ports, never services by class; use cases inject out-ports, never `JpaRepository`. The JPA entity and the domain model are **separate classes** with a mapper, so domain rules are tested without a database. Modulith `@NamedInterface` = the module's `port/in` + command/result records. ArchUnit enforces: domain depends on nothing outside `domain` and the JDK; application never imports `infrastructure`; infrastructure never calls another module's infrastructure. | §3, ADR-017 |
+| D50 | ✅ Test coverage (1405/08/25) | **Every generated class has a test.** JaCoCo check in `verify`: **100 % line and branch coverage for `domain` and `application`** packages; **≥ 90 % line coverage for `infrastructure`**; build fails below. Excluded from the rule only: the `*Application` main class, `config/` `@Configuration` classes, JAXB classes generated from the AAA WSDL, and Lombok-generated code (`lombok.config` with `lombok.addLombokGeneratedAnnotation=true`). Test kinds by layer: domain → plain JUnit; use cases → JUnit + Mockito on out-ports; web adapters → `@WebMvcTest` with `@MockitoBean` use cases; persistence adapters → `@DataJpaTest` on Testcontainers Oracle; external adapters → WireMock (REST) / MockWebServiceServer (SOAP). A pull request that lowers coverage is not merged. | §9, Phase 0 |
 
 
 ---
@@ -105,14 +107,20 @@ asanzeman/
 ├── backend/                     ← Spring Boot modular monolith (Maven)
 │   └── src/main/java/com/sb24/asanzeman/
 │       ├── AsanZemanApplication.java
-│       ├── shared/              ← BaseEntity, errors, audit, security utils
-│       ├── auth/                ← api/ (public interfaces) + internal/
-│       ├── request/             ← domain/, api/, internal/ (RequestService, CollateralService, LockService)
-│       ├── inquiry/
-│       ├── notification/
-│       ├── report/
-│       ├── scheduler/
-│       └── integration/         ← AaaClient (Spring WS), YaghutClient, GatewayTokenProvider, NotifierClient, ArcaptchaClient, one client per inquiry (+ fakes)
+│       ├── shared/              ← pure helpers: NationalCode, JalaliDate, Money rounding, error codes
+│       ├── request/             ← one hexagon per Modulith module (D49):
+│       │   ├── domain/
+│       │   │   ├── model/       ← Request, Customer, Collateral… (pure Java, state methods)
+│       │   │   ├── port/in/     ← RegisterRequestUseCase, LockRequestUseCase, … (+ command records)
+│       │   │   ├── port/out/    ← RequestRepository, CustomerDirectoryPort (Yaghut), SmsOutboxPort, …
+│       │   │   └── service/     ← CollateralCalculator, TrackingCodeGenerator, BranchAccessPolicy
+│       │   ├── application/     ← use-case implementations (@Service, @Transactional)
+│       │   └── infrastructure/
+│       │       ├── web/         ← controllers + request/response DTOs
+│       │       ├── persistence/ ← *JpaEntity, SpringData*Repository, mappers, port adapters
+│       │       └── external/    ← adapters over integration/ clients
+│       ├── auth/ inquiry/ notification/ report/ scheduler/   ← same shape
+│       └── integration/         ← AaaClient (Spring WS), YaghutClient, GatewayTokenProvider, NotifierClient, ArcaptchaClient, one client per inquiry (+ fakes); exposed to modules only through their port/out interfaces
 │   └── src/main/resources/wsdl/aaa/   ← AuthorizationSrv WSDL + xsd0–xsd28 (D39)
 │   └── src/main/resources/db/migration/   ← Flyway SQL migrations (D20)
 ├── frontend/                    ← Nx monorepo (ADR-007), DEFERRED (D31): not created yet
@@ -124,7 +132,7 @@ asanzeman/
 └── .github/workflows/           ← CI (see D8)
 ```
 
-**Module boundaries:** use **Spring Modulith**, plus an ArchUnit test, so that cross-module calls can only go through each module's `api` package (ADR-001). This check runs in CI and fails the build when broken.
+**Module boundaries:** use **Spring Modulith**, plus ArchUnit tests, so that cross-module calls can only go through each module's `port/in` (`@NamedInterface`) and the hexagonal layering inside a module holds (D49). These checks run in CI and fail the build when broken. **Coverage gate:** JaCoCo as in D50 runs in `verify`.
 
 ---
 
@@ -812,8 +820,9 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 - Repo skeleton (layout in §3): **Maven backend only** (Java 26, Spring Boot 4.1.1, Spring Modulith 2.1.x, `spring.threads.virtual.enabled=true`, **`--enable-preview`** in the compiler, the tests and the runtime for D25). All versions pinned (D9, D24). There's **no frontend workspace** (D31).
 - `docker-compose` with Oracle XE (gvenzl/oracle-xe) and mock external services.
 - Flyway baseline (D20): `spring-boot-starter-flyway` plus `flyway-database-oracle`. Migrations in `db/migration`, named `V001__create_schemas.sql`, `V002__…` and so on. Flyway manages all 5 schemas, with its history table in `AZS_BUSINESS`. The first migrations create `BaseEntity` columns and the reference tables (`branch`, `agency`, `rejection_reason`). Schema users and grants that need DBA rights go in a separate `db/dba/` script that the DBA runs, not Flyway.
-- Cross-cutting pieces: error model (RFC 7807), correlation ID filter, structured JSON logging, Actuator/Micrometer, OpenTelemetry, audit writer, Spring Modulith/ArchUnit boundary test.
-- CI on **GitHub Actions** (D8): build → unit tests (JaCoCo ≥ 80 %) → integration tests (Testcontainers Oracle) → SonarQube/OWASP Dependency-Check → Docker image build → Trivy image scan. The stages mirror §8-2 so they port to GitLab CI.
+- Cross-cutting pieces: error model (RFC 7807, D48), correlation ID filter, structured JSON logging, Actuator/Micrometer, OpenTelemetry, audit writer, Spring Modulith verification test and ArchUnit rules for the hexagonal layering (D49).
+- JaCoCo coverage gate as in D50 (100 % domain + application, ≥ 90 % infrastructure), `lombok.config` with `addLombokGeneratedAnnotation`, and a test for every class from the first commit.
+- CI on **GitHub Actions** (D8): build → unit tests (JaCoCo gate, D50) → integration tests (Testcontainers Oracle) → SonarQube/OWASP Dependency-Check → Docker image build → Trivy image scan. The stages mirror §8-2 so they port to GitLab CI.
 - First draft of `docs/api/openapi.yaml`.
 
 **Exit:** `docker compose up` gives a running core plus Oracle, CI is green, and the health endpoint responds.
@@ -926,7 +935,7 @@ Each phase ends with a demoable result and its own exit criteria. External servi
 
 ## 9. Definition of done (per feature)
 - The OpenAPI contract is updated first, then implemented.
-- Unit and integration tests are written, coverage is ≥ 80 % on changed code, and the module-boundary test passes.
+- Every new class has a test; the JaCoCo gate (D50) and the Modulith/ArchUnit boundary tests pass.
 - State changes are audited, and repeated commands are rejected by the state machine (D46).
 - Metrics and logs are added. Nothing is masked (D22).
 - Database changes are a new Flyway migration. Applied migrations are never edited (forward-fix only). Risky changes include a hand-written undo script in `db/undo/` for the DBA.
@@ -955,5 +964,6 @@ Each phase ends with a demoable result and its own exit criteria. External servi
    - **ADR-014:** the Notifier is called directly and `SendOtp` is synchronous (amends §7-4)
    - **ADR-015:** Yaghut sessions, with a technical account plus user sessions, and one `application.properties` for all configuration and secrets
    - **ADR-016:** AAA through Spring Web Services instead of Axis2, and per-service TLS verification switches
+   - **ADR-017:** hexagonal architecture inside each Modulith module, with full test coverage as a build gate (D49, D50)
 5. **UI:** waits for the product owner's explanation (D31).
 6. Start **Phase 0** (backend only) in this repository.

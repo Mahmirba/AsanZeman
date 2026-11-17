@@ -21,7 +21,7 @@ module.exports = () => [
   // ───────────── Front matter ─────────────
   titleP('تاریخچه نسخه‌ها'),
   T(['نسخه', 'تاریخ', 'شرح', 'تهیه‌کننده'], [
-    ['۱.۰', '۱۴۰۵/۰۸/۲۵', 'نسخه اول سند معماری؛ بر اساس SRS-AZS نسخه ۱.۰، مستندات سرویس‌های بانک و تصمیمات جلسات بازبینی با مالک محصول (D1 تا D47)', 'تیم فنی آسان ضمان'],
+    ['۱.۰', '۱۴۰۵/۰۸/۲۵', 'نسخه اول سند معماری؛ بر اساس SRS-AZS نسخه ۱.۰، مستندات سرویس‌های بانک و تصمیمات جلسات بازبینی با مالک محصول (D1 تا D50)', 'تیم فنی آسان ضمان'],
   ], [1, 1.4, 5, 1.6]),
   new Paragraph({ pageBreakBefore: true, children: [] }),
   ...TOC(),
@@ -30,7 +30,7 @@ module.exports = () => [
   H1('فصل اول — مقدمه و کلیات'),
   H2('۱-۱ هدف سند'),
   P('این سند معماری، ساختار فنی سامانه «آسان ضمان» را برای صدور ضمانتنامه بازگشت از سفر توسط بانک تشریح می‌کند. مخاطب اصلی، تیم فنی شامل معماران نرم‌افزار، توسعه‌دهندگان ارشد و مهندسان DevOps است. هدف، ارائه نمای جامع از تصمیمات معماری، الگوهای طراحی، مدل داده، ارتباط با سرویس‌های خارجی، زیرساخت استقرار و ملاحظات کارایی و امنیت است تا توسعه‌دهندگان جدید بتوانند به‌سرعت با معماری سامانه آشنا شوند.'),
-  P('این سند جزئیات قرارداد همه سرویس‌های خارجی را بر اساس مستندات ارائه‌شده توسط بانک در بر دارد. همه تصمیماتی که در جلسات بازبینی با مالک محصول گرفته شده، در پیوست الف با شماره D1 تا D47 فهرست شده‌اند و در متن با همان شماره ارجاع داده می‌شوند.'),
+  P('این سند جزئیات قرارداد همه سرویس‌های خارجی را بر اساس مستندات ارائه‌شده توسط بانک در بر دارد. همه تصمیماتی که در جلسات بازبینی با مالک محصول گرفته شده، در پیوست الف با شماره D1 تا D50 فهرست شده‌اند و در متن با همان شماره ارجاع داده می‌شوند.'),
   P('این سند جایگزین مستندات API یا راهنمای توسعه‌دهنده نیست، بلکه چارچوب کلی و اصول حاکم بر طراحی را تعریف می‌کند. قرارداد دقیق API در `docs/api/openapi.yaml` و برنامه پیاده‌سازی در `plan.md` مخزن پروژه نگهداری می‌شود.'),
   H2('۱-۲ دامنه سامانه'),
   P('سامانه آسان ضمان فرایند کامل صدور، بررسی، لغو، ابطال و گزارش‌گیری ضمانتنامه بازگشت از سفر را پوشش می‌دهد. این فرایند سه نقطه تماس کاربری دارد: پنل مشتری (ضمانتخواه، در اینترنت)، پنل آژانس هواپیمایی (ذینفع، در اینترنت) و پنل بانک (کاربر شعبه و ادمین، در شبکه داخلی بانک). پنل شعبه و پنل ادمین یک پنل واحد با دسترسی مبتنی بر نقش هستند.'),
@@ -48,6 +48,8 @@ module.exports = () => [
   ...BUL([
     '**جداسازی لایه‌ها:** تقسیم واضح میان Controller، Service، Repository و Domain با مرزهای صریح. هیچ منطق تجاری در Controller قرار نمی‌گیرد.',
     '**Modular Monolith:** یک هسته Spring Boot با شش ماژول داخلی (Auth، Request، Inquiry، Notification، Report و Scheduler). مرز ماژول‌ها با Spring Modulith و ArchUnit در CI کنترل می‌شود.',
+    '**معماری شش‌ضلعی (Hexagonal) در هر ماژول (D49):** لایه `domain` جاوای خالص و بدون وابستگی به Spring یا JPA است؛ `application` فقط پورت‌ها را می‌بیند؛ همه جزئیات وب، پایگاه داده و سرویس‌های خارجی در `infrastructure` به‌صورت Adapter پیاده می‌شوند. موجودیت JPA و مدل دامنه دو کلاس جدا با Mapper هستند.',
+    '**پوشش کامل تست (D50):** هر کلاس تولیدشده تست دارد. JaCoCo در Build: ۱۰۰٪ خط و شاخه برای `domain` و `application`، حداقل ۹۰٪ خط برای `infrastructure`؛ کمتر از آن Build شکست می‌خورد.',
     '**Domain-Driven Design:** موجودیت‌های غنی (Request، Customer، Agency، Branch، Collateral، Companion) که قوانین تجاری و انتقال وضعیت را در خود دارند.',
     '**API-First:** قرارداد OpenAPI پیش از پیاده‌سازی نوشته می‌شود.',
     '**قفل مالکیت:** درخواستی که کاربر شعبه روی آن «اقدام» کرده، تا پایان کار یا انصراف او در اختیارش می‌ماند. هر تغییر مالکیت با `SELECT … FOR UPDATE NOWAIT` به‌صورت اتمی انجام می‌شود (D1).',
@@ -75,7 +77,7 @@ module.exports = () => [
     ['خروجی گزارش', 'CSV جریانی (UTF-8 با BOM)', '—', 'همه خروجی‌ها CSV هستند؛ بدون Apache POI (D42)'],
     ['Frontend (به تعویق افتاده)', 'Angular + Nx', '22', 'سه SPA؛ پس از توضیحات مالک محصول (D31)'],
     ['Mock سرویس‌ها', 'WireMock + Fake درون برنامه', '—', 'تست کامل بدون دسترسی به سرویس‌های واقعی'],
-    ['تست', 'JUnit 5، Testcontainers (Oracle XE)، ArchUnit', '—', 'تست یکپارچگی واقعی روی Oracle'],
+    ['تست', 'JUnit 5، Mockito، Testcontainers (Oracle XE)، WireMock، ArchUnit، JaCoCo', '—', 'پوشش ۱۰۰٪ هسته و ≥ ۹۰٪ زیرساخت (D50)؛ تست یکپارچگی واقعی روی Oracle'],
     ['Container', 'Docker (Executable Jar)', '24+', 'استقرار استاندارد؛ امکان WAR روی Tomcat حفظ می‌شود (D10)'],
     ['Orchestration', 'Kubernetes یا Docker روی VM', 'پیش از فاز ۱۰ تعیین می‌شود', 'با تیم عملیات توافق می‌شود (D10)'],
     ['Monitoring', 'Actuator، Micrometer، Prometheus، Grafana، OpenTelemetry', '—', 'یکپارچه با مانیتورینگ بانک'],
@@ -211,15 +213,22 @@ module.exports = () => [
   ...IMG(DG + 'component.png', 'شکل ۴-۱: نمای Component از Asan Zeman Core'),
   P('ساختار بسته‌ها:'),
   CODE(`com.sb24.asanzeman
-├── shared/        BaseEntity, error model (RFC 7807), audit, security utils
-├── auth/          api/ + internal/   (AuthService, OtpService, TokenService)
-├── request/       domain/, api/, internal/   (RequestService, CollateralService, LockService, BranchService)
-├── inquiry/       InquiryService, StageRunner, one InquiryHandler per inquiry
-├── notification/  OutboxWorker, SmsTemplateRenderer
-├── report/        ReportService (streamed CSV)
-├── scheduler/     jobs + leader election
-└── integration/   AaaClient, YaghutClient, YaghutSessionManager, GatewayTokenProvider,
-                   NotifierClient, ArcaptchaClient, PersonnelInfoClient, 9 inquiry clients (+ fakes)`),
+├── shared/            NationalCode, JalaliDate, Money rounding, error codes (pure helpers)
+├── request/           one hexagon per Modulith module (D49):
+│   ├── domain/
+│   │   ├── model/     Request, Customer, Collateral, ... (pure Java, state methods)
+│   │   ├── port/in/   RegisterRequestUseCase, LockRequestUseCase, ... (+ command records)
+│   │   ├── port/out/  RequestRepository, CustomerDirectoryPort, SmsOutboxPort, ...
+│   │   └── service/   CollateralCalculator, TrackingCodeGenerator, BranchAccessPolicy
+│   ├── application/   use-case implementations (@Service, @Transactional)
+│   └── infrastructure/
+│       ├── web/       controllers + DTOs (inject port/in)
+│       ├── persistence/ *JpaEntity, SpringData*Repository, mappers, adapters of port/out
+│       └── external/  adapters over integration/ clients
+├── auth/ inquiry/ notification/ report/ scheduler/   same shape
+└── integration/       AaaClient (Spring WS), YaghutClient, YaghutSessionManager, GatewayTokenProvider,
+                       NotifierClient, ArcaptchaClient, PersonnelInfoClient, 9 inquiry clients (+ fakes)`),
+  P('قواعدی که ArchUnit و تست Modulith اعمال می‌کنند و نقض آن‌ها Build را می‌شکند: `domain` فقط به `domain` و JDK وابسته است؛ `application` هرگز `infrastructure` را import نمی‌کند؛ ماژول دیگر فقط از طریق `port/in` (که `@NamedInterface` ماژول است) فراخوانی می‌شود؛ `JpaRepository` فقط داخل `persistence` تزریق می‌شود. کنترلرها پورت ورودی را تزریق می‌کنند، نه کلاس سرویس را، و Use Caseها پورت خروجی را، نه مخزن JPA را.'),
   H2('۴-۲ لایه Controller'),
   P('کنترلرها فقط درخواست HTTP را دریافت، ورودی را با Bean Validation (از جمله `@IranianNationalCode`) بررسی، کاربر را از JWT استخراج و سرویس مربوط را فراخوانی می‌کنند. خطاها با قالب RFC 7807 برگردانده می‌شوند.'),
   T(['کنترلر', 'اندپوینت‌های اصلی', 'نقش'], [
