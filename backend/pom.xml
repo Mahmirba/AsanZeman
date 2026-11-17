@@ -27,6 +27,7 @@
         <springdoc.version>3.0.0</springdoc.version>
         <archunit.version>1.4.1</archunit.version>
         <jacoco.version>0.8.14</jacoco.version>
+        <testcontainers.version>1.21.3</testcontainers.version>
         <jacoco.skip>false</jacoco.skip>
 
         <!-- Integration tests (*IT, Testcontainers Oracle) run only with -Dintegration=true -->
@@ -35,6 +36,13 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>org.springframework.modulith</groupId>
                 <artifactId>spring-modulith-bom</artifactId>
