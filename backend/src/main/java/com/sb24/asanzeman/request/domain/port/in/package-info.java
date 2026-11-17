@@ -1,0 +1,3 @@
+/** Driving ports of the request module: the only package other modules may depend on. */
+@org.springframework.modulith.NamedInterface("port-in")
+package com.sb24.asanzeman.request.domain.port.in;
