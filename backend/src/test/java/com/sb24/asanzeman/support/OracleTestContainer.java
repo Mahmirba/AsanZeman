@@ -14,7 +14,6 @@ public final class OracleTestContainer {
     private static final DockerImageName IMAGE = DockerImageName.parse("gvenzl/oracle-free:23-slim-faststart");
 
     public static final OracleContainer ORACLE = new OracleContainer(IMAGE)
-            .withDatabaseName("FREEPDB1")
             .withUsername("azs_app")
             .withPassword("test")
             .withCopyFileToContainer(MountableFile.forClasspathResource("db/oracle-test-users.sql"),

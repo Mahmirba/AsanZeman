@@ -61,7 +61,16 @@ jobs:
           distribution: temurin
           java-version: '26'
           cache: maven
-      - run: ./mvnw -B -ntp -DskipTests org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7
+      # Needs a free NVD API key in the repository secret NVD_API_KEY; without it the step only warns.
+      - name: Dependency-Check
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          if [ -z "$NVD_API_KEY" ]; then
+            echo "::warning::NVD_API_KEY secret not set - skipping OWASP Dependency-Check (add it at https://nvd.nist.gov/developers/request-an-api-key)"
+            exit 0
+          fi
+          ./mvnw -B -ntp -DskipTests org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7 -DnvdApiKey="$NVD_API_KEY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
