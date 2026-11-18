@@ -1,0 +1,41 @@
+package com.sb24.asanzeman.integration.gateway.config;
+
+import com.sb24.asanzeman.integration.gateway.GatewayBearerInterceptor;
+import com.sb24.asanzeman.integration.gateway.GatewayTokenProvider;
+import com.sb24.asanzeman.integration.gateway.GatewayTokenRestClients;
+import com.sb24.asanzeman.integration.http.HttpClients;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import java.time.Clock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestClient;
+
+@Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(GatewayProperties.class)
+public class GatewayConfiguration {
+
+    private static final Logger log = LoggerFactory.getLogger(GatewayConfiguration.class);
+
+    @Bean
+    GatewayTokenProvider gatewayTokenProvider(GatewayProperties p, MeterRegistry meters) {
+        boolean skip = p.tls().skipVerify();
+        if (skip) {
+            log.warn("TLS certificate checking is OFF for the gateway (azs.integration.gateway.tls.skip-verify=true)");
+        }
+        Gauge.builder("azs.tls.skip.verify", () -> skip ? 1 : 0).tag("service", "gateway").register(meters);
+        RestClient tokenClient = GatewayTokenRestClients.configure(RestClient.builder()
+                .requestFactory(HttpClients.requestFactory(p.connectTimeout(), p.readTimeout(), skip))).build();
+        return GatewayTokenProvider.create(p.tokenUrl(), p.clientId(), p.clientSecret(), tokenClient,
+                p.refreshBeforeExpiry(), Clock.systemUTC(), p.tokenRetries(), p.retryBackoff(),
+                duration -> Thread.sleep(duration));
+    }
+
+    @Bean
+    GatewayBearerInterceptor gatewayBearerInterceptor(GatewayTokenProvider provider) {
+        return new GatewayBearerInterceptor(provider);
+    }
+}

@@ -22,13 +22,20 @@ public final class HttpClients {
     }
 
     public static RestClient restClient(Duration connectTimeout, Duration readTimeout, boolean skipTlsVerify) {
+        return RestClient.builder().requestFactory(requestFactory(connectTimeout, readTimeout, skipTlsVerify))
+                .build();
+    }
+
+    /** The request factory alone, for clients that need to add their own converters or error handling. */
+    public static JdkClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout,
+            boolean skipTlsVerify) {
         HttpClient.Builder http = HttpClient.newBuilder().connectTimeout(connectTimeout);
         if (skipTlsVerify) {
             http.sslContext(trustAllContext());
         }
         JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http.build());
         factory.setReadTimeout(readTimeout);
-        return RestClient.builder().requestFactory(factory).build();
+        return factory;
     }
 
     static SSLContext trustAllContext() {
