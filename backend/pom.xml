@@ -27,6 +27,7 @@
         <springdoc.version>3.0.0</springdoc.version>
         <archunit.version>1.4.1</archunit.version>
         <jacoco.version>0.8.14</jacoco.version>
+        <jaxb-maven-plugin.version>4.0.16</jaxb-maven-plugin.version>
         <testcontainers.version>1.21.3</testcontainers.version>
         <jacoco.skip>false</jacoco.skip>
 
@@ -72,6 +73,20 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+        <!-- AAAService is SOAP 1.1 + WS-Security UsernameToken (6.2, D39): Spring Web Services, JAXB classes from the WSDL -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webservices</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ws</groupId>
+            <artifactId>spring-ws-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jaxb</groupId>
+            <artifactId>jaxb-runtime</artifactId>
+        </dependency>
+
         <!-- OAuth2 client credentials for the bank API gateway (5.2, D28) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -161,6 +176,11 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.springframework.ws</groupId>
+            <artifactId>spring-ws-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.modulith</groupId>
             <artifactId>spring-modulith-starter-test</artifactId>
             <scope>test</scope>
@@ -211,6 +231,29 @@
                             <version>${project.parent.version}</version>
                         </path>
                     </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+            <!-- AAA WSDL types (D39): the full schema set xsd0-xsd28 under src/main/resources/wsdl/aaa -->
+            <plugin>
+                <groupId>org.jvnet.jaxb</groupId>
+                <artifactId>jaxb-maven-plugin</artifactId>
+                <version>${jaxb-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <schemaLanguage>XMLSCHEMA</schemaLanguage>
+                    <schemaDirectory>src/main/resources/wsdl/aaa</schemaDirectory>
+                    <schemaIncludes>
+                        <include>xsd*.xml</include>
+                    </schemaIncludes>
+                    <generateDirectory>${project.build.directory}/generated-sources/jaxb</generateDirectory>
+                    <extension>false</extension>
                 </configuration>
             </plugin>
 
@@ -268,7 +311,10 @@
                     <excludes>
                         <exclude>com/sb24/asanzeman/AsanZemanApplication.class</exclude>
                         <exclude>com/sb24/asanzeman/**/config/**</exclude>
-                        <exclude>com/sb24/asanzeman/integration/aaa/wsdl/**</exclude>
+                        <!-- JAXB classes generated from the AAA WSDL (D50); xjc names packages after the namespaces -->
+                        <exclude>com/sb24/services/**</exclude>
+                        <exclude>com/microsoft/**</exclude>
+                        <exclude>org/datacontract/**</exclude>
                     </excludes>
                 </configuration>
                 <executions>
