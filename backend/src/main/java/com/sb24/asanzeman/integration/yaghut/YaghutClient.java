@@ -77,8 +77,12 @@ public class YaghutClient {
                         text(b, "address"), text(b, "tel"), text(b, "fax"), text(b, "zipCode")));
             }
         }
-        long total = result.get("totalRecord") instanceof Number n ? n.longValue() : 0L;
-        return new YaghutBranchPage(total, branches);
+        if (!(result.get("totalRecord") instanceof Number total)) {
+            // never read a malformed answer as "no branches": BranchSyncJob would deactivate every branch (4.4)
+            log.warn("Yaghut branches answered without totalRecord: {}", result);
+            throw technical(new IllegalStateException("branches answer has no totalRecord"));
+        }
+        return new YaghutBranchPage(total.longValue(), branches);
     }
 
     // ---- transport ---------------------------------------------------------------------------------------------

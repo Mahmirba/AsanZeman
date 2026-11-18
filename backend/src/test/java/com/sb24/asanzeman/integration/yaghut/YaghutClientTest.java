@@ -252,13 +252,25 @@ class YaghutClientTest {
     }
 
     @Test
-    void branchesWithoutAListIsAnEmptyPage() {
-        server.expect(requestTo(BRANCHES_URL)).andRespond(json("{\"result\":{}}"));
+    void aGenuinelyEmptyPageIsAccepted() {
+        server.expect(requestTo(BRANCHES_URL)).andRespond(json("{\"result\":{\"totalRecord\":0}}"));
 
         YaghutBranchPage page = client.branches(new YaghutSession("S1", null), 0, 10);
 
         assertThat(page.totalRecord()).isZero();
         assertThat(page.branches()).isEmpty();
+    }
+
+    @Test
+    void branchesWithoutATotalIsATechnicalErrorNotAnEmptyList() {
+        // BranchSyncJob deactivates branches Yaghut no longer returns, so a malformed answer must never look empty
+        server.expect(requestTo(BRANCHES_URL)).andRespond(json("{\"result\":{}}"));
+        server.expect(requestTo(BRANCHES_URL)).andRespond(json("{\"result\":null}"));
+
+        assertThatThrownBy(() -> client.branches(new YaghutSession("S1", null), 0, 10))
+                .isInstanceOf(TemporarilyUnavailableException.class);
+        assertThatThrownBy(() -> client.branches(new YaghutSession("S1", null), 0, 10))
+                .isInstanceOf(TemporarilyUnavailableException.class);
     }
 
     // ---- cookie reading ----------------------------------------------------------------------------------------
