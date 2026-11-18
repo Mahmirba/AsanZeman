@@ -109,6 +109,7 @@ public class ProblemDetailExceptionHandler extends ResponseEntityExceptionHandle
     static HttpStatus statusOf(DomainException.Kind kind) {
         return switch (kind) {
             case BAD_REQUEST -> HttpStatus.BAD_REQUEST;
+            case UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case CONFLICT -> HttpStatus.CONFLICT;

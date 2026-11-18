@@ -13,6 +13,8 @@ public abstract class DomainException extends RuntimeException {
     public enum Kind {
         /** Input is malformed or violates a rule: 400. */
         BAD_REQUEST,
+        /** The caller could not be identified (wrong credentials, an unusable refresh token): 401. */
+        UNAUTHORIZED,
         /** The caller is not allowed to act on this object: 403. */
         FORBIDDEN,
         /** The object does not exist (or not for this caller): 404. */

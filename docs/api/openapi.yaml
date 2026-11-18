@@ -16,12 +16,69 @@ tags:
   - { name: admin, description: Admin - agencies, rejection reasons, force-release }
   - { name: reports, description: Bank reports - CSV }
 paths:
-  /auth/bank/login: { post: { tags: [auth], summary: "ARcaptcha -> AAA GetRoleWindows -> personnelInfo -> JWT", responses: { "200": { description: tokens }, "401": { $ref: "#/components/responses/Problem" } } } }
+  /auth/bank/login:
+    post:
+      tags: [auth]
+      summary: "Bank user login: ARcaptcha -> AAA GetRoleWindows -> personnelInfo -> tokens"
+      description: |
+        Public. The ARcaptcha token is verified first and the login is refused if ARcaptcha is down (fail closed).
+        Errors (RFC 7807, stable `code`): 400 `auth.captcha-invalid` / `validation.failed`, 401
+        `auth.bank.invalid-credentials`, 403 `auth.bank.no-access` (no mapped role) or `auth.bank.personnel-not-found`,
+        503 `service.temporarily-unavailable` (AAA, personnelInfo or ARcaptcha is down).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BankLoginRequest" }
+      responses:
+        "200":
+          description: Tokens. The access token is an RS256 JWT with `sub`, `uid`, `role` (BRANCH or ADMIN), `branch_code`, `jti`, `iat`, `exp`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
   /auth/agency/login: { post: { tags: [auth], summary: "ARcaptcha -> Yaghut loginStatic -> agency by cif -> JWT", responses: { "200": { description: tokens } } } }
   /auth/customer/login: { post: { tags: [auth], summary: "ARcaptcha -> Yaghut loginStatic -> SendOtp", responses: { "200": { description: challengeId } } } }
   /auth/customer/otp/verify: { post: { tags: [auth], summary: "OtpValidate -> 30-minute session", responses: { "200": { description: token } } } }
-  /auth/refresh: { post: { tags: [auth], summary: "Rotate the refresh token (bank, agency)", responses: { "200": { description: tokens } } } }
-  /auth/logout: { post: { tags: [auth], responses: { "204": { description: logged out } } } }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Rotate the refresh token (bank, agency)
+      description: |
+        Public. Every refresh returns a new pair and uses up the old refresh token; the session end set at login does
+        not move. Presenting a used token again revokes the whole session (reuse detection). Every failure is the same
+        401 `auth.session-invalid`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshRequest" }
+      responses:
+        "200":
+          description: A new token pair.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Log out
+      description: The access token is revoked until it would have expired, and the refresh token's whole session is revoked.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LogoutRequest" }
+      responses:
+        "204": { description: Logged out }
+        "401": { $ref: "#/components/responses/Problem" }
   /agency/requests: { post: { tags: [agency], summary: "Register an issuance request (D47 duplicate guard)", responses: { "201": { description: tracking code } } }, get: { tags: [agency], summary: "Track requests; ?format=csv streams CSV (D42)", responses: { "200": { description: page or CSV } } } }
   /agency/requests/{id}/revocation: { post: { tags: [agency], summary: "Cancel before Eqdam, otherwise create a revocation request (D11)", responses: { "200": { description: outcome } } } }
   /customer/requests/{id}: { get: { tags: [customer], responses: { "200": { description: request for completion } } } }
@@ -61,5 +118,30 @@ components:
         instance: { type: string }
         code: { type: string, description: stable machine-readable code }
         violations: { type: object, additionalProperties: { type: string } }
+    BankLoginRequest:
+      type: object
+      required: [username, password, arcaptchaToken]
+      properties:
+        username: { type: string, description: "As typed, with or without @sb24.ir" }
+        password: { type: string }
+        arcaptchaToken: { type: string, description: One-time ARcaptcha token (6.5) }
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+    LogoutRequest:
+      type: object
+      properties:
+        refreshToken: { type: string, description: Optional; revoked together with its session }
+    TokenResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, refreshToken, refreshExpiresIn]
+      properties:
+        accessToken: { type: string, description: RS256 JWT }
+        tokenType: { type: string, enum: [Bearer] }
+        expiresIn: { type: integer, format: int64, description: Seconds until the access token expires }
+        refreshToken: { type: string, description: Opaque, single use, rotated on every refresh }
+        refreshExpiresIn: { type: integer, format: int64, description: Seconds until the session ends }
 security:
   - bearerJwt: []

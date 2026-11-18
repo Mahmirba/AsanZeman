@@ -67,6 +67,8 @@ class ProblemDetailSecurityHandlersTest {
     void statusMappingCoversEveryKind() {
         assertThat(ProblemDetailExceptionHandler.statusOf(com.sb24.asanzeman.shared.model.DomainException.Kind.TEMPORARILY_UNAVAILABLE))
                 .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(ProblemDetailExceptionHandler.statusOf(com.sb24.asanzeman.shared.model.DomainException.Kind.UNAUTHORIZED))
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
         var problem = new ProblemDetailExceptionHandler(messages())
                 .build(HttpStatus.CONFLICT, "service.temporarily-unavailable", "/x", List.of("AAA"));
         assertThat(problem.getDetail()).contains("AAA");

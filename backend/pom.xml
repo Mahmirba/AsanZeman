@@ -87,6 +87,12 @@
             <artifactId>jaxb-runtime</artifactId>
         </dependency>
 
+        <!-- RS256 access tokens: Nimbus JWT encoder/decoder and bearer-token validation (6, D5, D7) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
+        </dependency>
+
         <!-- OAuth2 client credentials for the bank API gateway (5.2, D28) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -178,6 +184,12 @@
         <dependency>
             <groupId>org.springframework.ws</groupId>
             <artifactId>spring-ws-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- in-memory database for the JDBC adapter tests (no Docker, no Oracle needed) -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
