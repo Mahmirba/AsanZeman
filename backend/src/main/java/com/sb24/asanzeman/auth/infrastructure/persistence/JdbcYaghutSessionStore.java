@@ -1,10 +1,12 @@
 package com.sb24.asanzeman.auth.infrastructure.persistence;
 
+import com.sb24.asanzeman.auth.domain.model.YaghutUserSession;
 import com.sb24.asanzeman.auth.domain.port.out.YaghutSessionStorePort;
 import com.sb24.asanzeman.shared.persistence.DbTime;
 import com.sb24.asanzeman.shared.persistence.RawUuid;
 import java.sql.Types;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
@@ -29,7 +31,22 @@ public class JdbcYaghutSessionStore implements YaghutSessionStorePort {
         jdbc.sql(INSERT)
                 .param("familyId", RawUuid.toBytes(familyId), Types.VARBINARY)
                 .param("jsessionId", jsessionId, Types.VARCHAR)
-                .param("expiresAt", expiresAt == null ? null : DbTime.toDb(expiresAt), Types.TIMESTAMP)
+                .param("expiresAt", DbTime.toDb(expiresAt), Types.TIMESTAMP)
                 .update();
+    }
+
+    @Override
+    public Optional<YaghutUserSession> find(UUID familyId) {
+        return jdbc.sql("SELECT jsession_id, expires_at FROM azs_auth.yaghut_session WHERE family_id = :familyId")
+                .param("familyId", RawUuid.toBytes(familyId), Types.VARBINARY)
+                .query((rs, row) -> new YaghutUserSession(rs.getString("jsession_id"),
+                        DbTime.fromDb(rs.getObject("expires_at", java.time.LocalDateTime.class))))
+                .optional();
+    }
+
+    @Override
+    public void delete(UUID familyId) {
+        jdbc.sql("DELETE FROM azs_auth.yaghut_session WHERE family_id = :familyId")
+                .param("familyId", RawUuid.toBytes(familyId), Types.VARBINARY).update();
     }
 }

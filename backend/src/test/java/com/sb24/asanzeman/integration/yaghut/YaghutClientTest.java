@@ -273,6 +273,64 @@ class YaghutClientTest {
                 .isInstanceOf(TemporarilyUnavailableException.class);
     }
 
+    // ---- customerDetailInfo ------------------------------------------------------------------------------------
+
+    private static final String CUSTOMER_URL = BASE + "/customerDetailInfo";
+
+    @Test
+    void customerDetailInfoSendsTheNationalCodeWithTheCallersSessionAndReadsTheSnapshot() {
+        server.expect(requestTo(CUSTOMER_URL)).andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.COOKIE, "JSESSIONID=S1"))
+                .andExpect(content().json("{\"code\":\"0012345678\"}", true))
+                .andRespond(json("""
+                        {"result": {"cif": "555", "code": "0012345678", "firstName": "Ali", "lastName": "Rezaei",
+                         "fullName": "Ali Rezaei", "fatherName": "Reza", "birthDate": "1990-05-17T00:00:00IRST",
+                         "mobile": "09121234567", "ssn": "123", "certificateSerial": "S", "certificateSeries": "T",
+                         "personalityType": "ACTUAL", "gender": "MALE"}}"""));
+
+        YaghutCustomer customer = client.customerDetailInfo(new YaghutSession("S1", null), "0012345678");
+
+        assertThat(customer).isEqualTo(new YaghutCustomer("555", "0012345678", "Ali", "Rezaei", "Ali Rezaei", "Reza",
+                java.time.LocalDate.of(1990, 5, 17), "09121234567", "123", "S", "T", "ACTUAL", "MALE"));
+    }
+
+    @Test
+    void missingCustomerFieldsAreNull() {
+        server.expect(requestTo(CUSTOMER_URL)).andRespond(json("{\"result\": {\"code\": \"1\"}}"));
+
+        YaghutCustomer customer = client.customerDetailInfo(new YaghutSession("S1", null), "1");
+
+        assertThat(customer.birthDate()).isNull();
+        assertThat(customer.mobile()).isNull();
+    }
+
+    @Test
+    void anUnknownCustomerIsAFault() {
+        server.expect(requestTo(CUSTOMER_URL)).andRespond(fault(HttpStatus.OK, "InvalidCustomerWSException", "none"));
+
+        assertThatThrownBy(() -> client.customerDetailInfo(new YaghutSession("S1", null), "1"))
+                .isInstanceOfSatisfying(YaghutException.class,
+                        e -> assertThat(e.fault()).isEqualTo(YaghutException.Fault.INVALID_CUSTOMER));
+    }
+
+    @Test
+    void anEndedSessionIsAFault() {
+        server.expect(requestTo(CUSTOMER_URL)).andRespond(fault(HttpStatus.OK, "InvalidSessionWSException", "gone"));
+
+        assertThatThrownBy(() -> client.customerDetailInfo(new YaghutSession("S1", null), "1"))
+                .isInstanceOfSatisfying(YaghutException.class,
+                        e -> assertThat(e.fault()).isEqualTo(YaghutException.Fault.INVALID_SESSION));
+    }
+
+    @Test
+    void anUnreadableBirthDateIsTechnical() {
+        server.expect(requestTo(CUSTOMER_URL))
+                .andRespond(json("{\"result\": {\"birthDate\": \"soon\"}}"));
+
+        assertThatThrownBy(() -> client.customerDetailInfo(new YaghutSession("S1", null), "1"))
+                .isInstanceOf(TemporarilyUnavailableException.class);
+    }
+
     // ---- cookie reading ----------------------------------------------------------------------------------------
 
     @Test

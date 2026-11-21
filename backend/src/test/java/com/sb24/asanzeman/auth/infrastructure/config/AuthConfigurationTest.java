@@ -42,7 +42,7 @@ class AuthConfigurationTest {
                             .isEqualTo(new TokenSettings(Duration.ofMinutes(15), Duration.ofHours(8)));
                     assertThat(context.getBean(BankLoginSettings.class).accountSuffix()).isEqualTo("@sb24.ir");
                     String token = context.getBean(AccessTokenIssuerPort.class).issue(
-                            new Session(UUID.randomUUID(), "ali", Role.BRANCH, "0123"), "jti-1", Instant.now(),
+                            new Session(UUID.randomUUID(), "ali", Role.BRANCH, "0123"), UUID.randomUUID(), "jti-1", Instant.now(),
                             Instant.now().plusSeconds(60));
                     assertThat(context.getBean(JwtDecoder.class).decode(token).getSubject()).isEqualTo("ali");
                     assertThat(context.getBean(JwtProperties.class).customerSessionTtl())

@@ -31,5 +31,6 @@ class YaghutAccountTest {
         assertThat(new TemporarySessionException().code()).isEqualTo("auth.yaghut.temporary-session");
         assertThat(new PasswordExpiredException().code()).isEqualTo("auth.yaghut.password-expired");
         assertThat(new AgencyNotRegisteredException().code()).isEqualTo("auth.agency.not-registered");
+        assertThat(new YaghutSessionExpiredException().kind()).isEqualTo(DomainException.Kind.UNAUTHORIZED);
     }
 }

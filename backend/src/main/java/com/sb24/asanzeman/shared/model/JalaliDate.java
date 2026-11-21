@@ -99,6 +99,33 @@ public record JalaliDate(int year, int month, int day) implements Comparable<Jal
         return (gy % 4 == 0 && gy % 100 != 0) || gy % 400 == 0;
     }
 
+    /**
+     * Reads {@code yyyy/MM/dd} (the SRS date format), with Persian or Arabic digits too.
+     *
+     * @throws IllegalArgumentException when the text is not a real Jalali date
+     */
+    public static JalaliDate parse(String text) {
+        if (text == null) {
+            throw new IllegalArgumentException("a Jalali date is required");
+        }
+        StringBuilder ascii = new StringBuilder();
+        for (char c : text.trim().toCharArray()) {
+            if (c >= '۰' && c <= '۹') {
+                ascii.append((char) ('0' + (c - '۰')));
+            } else if (c >= '٠' && c <= '٩') {
+                ascii.append((char) ('0' + (c - '٠')));
+            } else {
+                ascii.append(c);
+            }
+        }
+        String[] parts = ascii.toString().split("/", -1);
+        if (parts.length != 3 || !parts[0].matches("\\d{4}") || !parts[1].matches("\\d{2}")
+                || !parts[2].matches("\\d{2}")) {
+            throw new IllegalArgumentException("a Jalali date looks like yyyy/MM/dd: " + text);
+        }
+        return of(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+    }
+
     /** {@code YYMMDD}, the tracking-code segment of D12. */
     public String toYyMmDd() {
         return String.format("%02d%02d%02d", year % 100, month, day);

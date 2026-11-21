@@ -2,7 +2,9 @@ package com.sb24.asanzeman.integration.yaghut;
 
 import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -37,6 +39,30 @@ final class YaghutDates {
         } catch (DateTimeException e) {
             throw new IllegalArgumentException("unreadable Yaghut date: " + text, e);
         }
+    }
+
+    /**
+     * A date without a time: {@code 2000-01-31}, {@code 20000131}, or either followed by a time part
+     * ({@code 2000-01-31T00:00:00IRST}), which is ignored.
+     *
+     * @return the date, or {@code null} for a missing value
+     */
+    static LocalDate parseDate(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        String value = text.trim();
+        try {
+            if (value.matches("^\\d{8}$")) {
+                return LocalDate.parse(value, DateTimeFormatter.BASIC_ISO_DATE);
+            }
+            if (value.matches("^\\d{4}-\\d{2}-\\d{2}([T ].*)?$")) {
+                return LocalDate.parse(value.substring(0, 10));
+            }
+        } catch (DateTimeException e) {
+            throw new IllegalArgumentException("unreadable Yaghut date: " + text, e);
+        }
+        throw new IllegalArgumentException("unreadable Yaghut date: " + text);
     }
 
     private static ZoneId zoneOf(String abbreviation) {

@@ -39,4 +39,42 @@ class JdbcYaghutSessionStoreTest {
         assertThat(jdbc.sql("SELECT COUNT(*) FROM azs_auth.yaghut_session WHERE expires_at IS NULL")
                 .query(Integer.class).single()).isEqualTo(1);
     }
+
+    @Test
+    void findsASavedSessionWithItsEndTime() {
+        UUID family = UUID.randomUUID();
+        Instant end = Instant.parse("2026-11-17T11:00:00Z");
+        store.save(family, "S3", end);
+
+        var found = store.find(family).orElseThrow();
+
+        assertThat(found.jsessionId()).isEqualTo("S3");
+        assertThat(found.expiresAt()).isEqualTo(end);
+    }
+
+    @Test
+    void aSessionWithoutAnEndTimeIsFoundWithANullEnd() {
+        UUID family = UUID.randomUUID();
+        store.save(family, "S4", null);
+
+        assertThat(store.find(family).orElseThrow().expiresAt()).isNull();
+    }
+
+    @Test
+    void anUnknownFamilyIsEmpty() {
+        assertThat(store.find(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
+    void deleteRemovesOnlyThatSession() {
+        UUID a = UUID.randomUUID();
+        UUID b = UUID.randomUUID();
+        store.save(a, "A", null);
+        store.save(b, "B", null);
+
+        store.delete(a);
+
+        assertThat(store.find(a)).isEmpty();
+        assertThat(store.find(b)).isPresent();
+    }
 }
