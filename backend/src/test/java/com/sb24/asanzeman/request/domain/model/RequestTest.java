@@ -126,4 +126,20 @@ class RequestTest {
         assertThat(new CustomerNotActualException().kind()).isEqualTo(DomainException.Kind.BAD_REQUEST);
         assertThat(new InvalidRequestDataException("x").args()).containsExactly("x");
     }
+
+    @Test
+    void aCustomerWithoutAMobileNumberIsRefusedBecauseTheSmsCannotBeSent() {
+        for (String mobile : new String[] {null, " "}) {
+            var noMobile = new CustomerSnapshot("555", "1000000011", "Ali", "Rezaei", "Ali Rezaei", "Reza",
+                    LocalDate.of(1990, 5, 17), mobile, null, null, null, "ACTUAL", null);
+
+            assertThatThrownBy(() -> register(noMobile, Rials.of(1), List.of()))
+                    .isInstanceOf(CustomerMobileMissingException.class);
+        }
+        assertThat(new CustomerMobileMissingException().kind()).isEqualTo(DomainException.Kind.BAD_REQUEST);
+        assertThat(new NotBankCustomerException().kind()).isEqualTo(DomainException.Kind.BAD_REQUEST);
+        assertThat(new BranchNotAvailableException().kind()).isEqualTo(DomainException.Kind.BAD_REQUEST);
+        assertThat(new DuplicateRegistrationException().kind()).isEqualTo(DomainException.Kind.CONFLICT);
+        assertThat(new AgencyNotActiveException().kind()).isEqualTo(DomainException.Kind.FORBIDDEN);
+    }
 }

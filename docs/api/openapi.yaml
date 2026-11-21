@@ -104,7 +104,36 @@ paths:
       responses:
         "204": { description: Logged out }
         "401": { $ref: "#/components/responses/Problem" }
-  /agency/requests: { post: { tags: [agency], summary: "Register an issuance request (D47 duplicate guard)", responses: { "201": { description: tracking code } } }, get: { tags: [agency], summary: "Track requests; ?format=csv streams CSV (D42)", responses: { "200": { description: page or CSV } } } }
+  /agency/requests:
+    post:
+      tags: [agency]
+      summary: "Register an issuance request (SRS UC-AZS-8, D47 duplicate guard, D52)"
+      description: |
+        AGENCY role only. The agency, its name and its Yaghut session come from the access token. Order: national
+        code, branch (must be open), the customer from Yaghut with the agency's own session, then in one transaction
+        the agency lock, the duplicate guard, the tracking code, the request and the customer's SMS. Dates are Jalali
+        `yyyy/MM/dd`. Errors (RFC 7807, stable `code`): 400 `validation.failed`, `request.invalid-data`,
+        `request.customer-not-found`, `request.customer-underage`, `request.customer-not-actual`,
+        `request.customer-mobile-missing`, `request.branch-not-available`; 401 `auth.yaghut.session-expired` (log in
+        again); 403 `request.agency-not-active` or `auth.yaghut.access-denied`; 409 `request.duplicate-registration`
+        or `request.tracking-codes-exhausted`; 503 `service.temporarily-unavailable`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequestBody" }
+      responses:
+        "201":
+          description: Registered. The customer is sent an SMS to complete the request.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RegisteredRequest" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+    get: { tags: [agency], summary: "Track requests; ?format=csv streams CSV (D42)", responses: { "200": { description: page or CSV } } }
   /agency/requests/{id}/revocation: { post: { tags: [agency], summary: "Cancel before Eqdam, otherwise create a revocation request (D11)", responses: { "200": { description: outcome } } } }
   /customer/requests/{id}: { get: { tags: [customer], responses: { "200": { description: request for completion } } } }
   /customer/requests/{id}/inquiries: { post: { tags: [customer], summary: "Start the two-stage inquiry run (202 + runId)", responses: { "202": { description: runId } } } }
@@ -159,6 +188,31 @@ components:
       type: object
       properties:
         refreshToken: { type: string, description: Optional; revoked together with its session }
+    RegisterRequestBody:
+      type: object
+      required: [nationalCode, branchCode, amount, dueDate]
+      properties:
+        nationalCode: { type: string, description: "The customer's national code (10 digits, checksum checked)" }
+        branchCode: { type: string, description: "An open branch, as Yaghut writes the code" }
+        amount: { type: integer, format: int64, minimum: 1, maximum: 9999999999999999, description: Rials }
+        dueDate: { type: string, description: "تاریخ سررسید, Jalali yyyy/MM/dd" }
+        companions:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            required: [fullName, nationalCode, birthDate, passportNumber]
+            properties:
+              fullName: { type: string, maxLength: 100 }
+              nationalCode: { type: string }
+              birthDate: { type: string, description: "Jalali yyyy/MM/dd" }
+              passportNumber: { type: string, maxLength: 30 }
+    RegisteredRequest:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        trackingCode: { type: string, description: "Branch code + agency code + Jalali YYMMDD + 4-digit counter (D12)" }
+        status: { type: string, enum: [REGISTERED_AT_AGENCY] }
     TokenResponse:
       type: object
       required: [accessToken, tokenType, expiresIn, refreshToken, refreshExpiresIn]

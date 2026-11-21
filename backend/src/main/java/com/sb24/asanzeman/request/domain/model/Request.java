@@ -46,6 +46,7 @@ public record Request(
      * @param today the registration day, for the 18-year check
      * @throws CustomerNotActualException      the customer is not a natural person
      * @throws CustomerUnderageException       the customer is under 18
+     * @throws CustomerMobileMissingException  the bank has no mobile number for the customer
      * @throws InvalidRequestDataException     a field breaks an SRS rule
      * @throws TemporarilyUnavailableException Yaghut gave no birth date, so the age cannot be checked
      */
@@ -66,6 +67,9 @@ public record Request(
         }
         if (!customer.isActual()) {
             throw new CustomerNotActualException();
+        }
+        if (customer.mobile() == null || customer.mobile().isBlank()) {
+            throw new CustomerMobileMissingException();
         }
         if (customer.birthDate() == null) {
             throw new TemporarilyUnavailableException("Yaghut",

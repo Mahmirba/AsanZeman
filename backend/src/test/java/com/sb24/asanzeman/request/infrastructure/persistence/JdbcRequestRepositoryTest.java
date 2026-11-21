@@ -97,4 +97,29 @@ class JdbcRequestRepositoryTest {
 
         assertThat(repository.findById(big.id()).orElseThrow().amount()).isEqualTo(Rials.of(Request.MAX_AMOUNT));
     }
+
+    @Test
+    void aRequestInsideTheWindowIsFoundForTheSameAgencyAndCustomer() {
+        repository.insert(request(4, List.of()));
+        Instant since = NOW.minusSeconds(10);
+
+        assertThat(repository.existsSince(agency, "1000000011", since)).isTrue();
+        assertThat(repository.existsSince(agency, "1000000011", NOW)).isTrue();
+    }
+
+    @Test
+    void aRequestBeforeTheWindowIsNotFound() {
+        repository.insert(request(5, List.of()));
+
+        assertThat(repository.existsSince(agency, "1000000011", NOW.plusSeconds(1))).isFalse();
+    }
+
+    @Test
+    void anotherCustomerOrAnotherAgencyDoesNotCount() {
+        repository.insert(request(6, List.of()));
+        Instant since = NOW.minusSeconds(10);
+
+        assertThat(repository.existsSince(agency, "1000000028", since)).isFalse();
+        assertThat(repository.existsSince(UUID.randomUUID(), "1000000011", since)).isFalse();
+    }
 }

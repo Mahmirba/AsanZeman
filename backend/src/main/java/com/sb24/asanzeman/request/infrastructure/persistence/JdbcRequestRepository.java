@@ -115,4 +115,15 @@ public class JdbcRequestRepository implements RequestRepositoryPort {
                         DbTime.fromDb(rs.getObject("registered_at", java.time.LocalDateTime.class))))
                 .optional();
     }
+
+    @Override
+    public boolean existsSince(UUID agencyId, String customerCode, java.time.Instant since) {
+        return jdbc.sql("""
+                SELECT COUNT(*) FROM azs_business.request
+                 WHERE agency_id = :agency AND customer_code = :code AND registered_at >= :since""")
+                .param("agency", RawUuid.toBytes(agencyId), Types.VARBINARY)
+                .param("code", customerCode, Types.VARCHAR)
+                .param("since", DbTime.toDb(since), Types.TIMESTAMP)
+                .query(Integer.class).single() > 0;
+    }
 }

@@ -16,4 +16,7 @@ public interface BranchRepositoryPort {
     BranchSyncResult apply(List<BranchData> fetched, Instant now);
 
     boolean any();
+
+    /** @return true when the branch exists, is active and is not closed (4.4): new requests may use it */
+    boolean isOpen(String branchCode);
 }

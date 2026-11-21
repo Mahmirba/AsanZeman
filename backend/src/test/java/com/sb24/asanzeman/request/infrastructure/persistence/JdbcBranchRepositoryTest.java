@@ -94,4 +94,34 @@ class JdbcBranchRepositoryTest {
 
         assertThat(text("branch_code", "0007")).isEqualTo("0007");
     }
+
+    @Test
+    void anActiveBranchThatIsItsOwnParentIsOpen() {
+        repository.apply(List.of(branch("0123", "Main")), T1);
+
+        assertThat(repository.isOpen("0123")).isTrue();
+    }
+
+    @Test
+    void anUnknownBranchIsNotOpen() {
+        assertThat(repository.isOpen("9999")).isFalse();
+    }
+
+    @Test
+    void aDeactivatedBranchIsNotOpen() {
+        repository.apply(List.of(branch("0123", "Main"), branch("0456", "Other")), T1);
+        repository.apply(List.of(branch("0123", "Main")), T2);
+
+        assertThat(repository.isOpen("0456")).isFalse();
+        assertThat(repository.isOpen("0123")).isTrue();
+    }
+
+    @Test
+    void aClosedBranchWithAReplacementIsNotOpen() {
+        repository.apply(List.of(branch("0123", "Main"), branch("0456", "Other")), T1);
+        jdbc.sql("UPDATE azs_business.branch SET parent_branch = '0456' WHERE branch_code = '0123'").update();
+
+        assertThat(repository.isOpen("0123")).isFalse();
+        assertThat(repository.isOpen("0456")).isTrue();
+    }
 }

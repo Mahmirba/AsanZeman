@@ -79,4 +79,24 @@ class JalaliDateTest {
                 .isGreaterThan(JalaliDate.of(1404, 12, 29))
                 .isEqualByComparingTo(JalaliDate.of(1405, 8, 25));
     }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"1405/08/30", " 1405/08/30 ", "۱۴۰۵/۰۸/۳۰", "١٤٠٥/٠٨/٣٠"})
+    void parsesTheSrsFormatWithAnyDigits(String text) {
+        assertThat(JalaliDate.parse(text)).isEqualTo(JalaliDate.of(1405, 8, 30));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"", "1405-08-30", "1405/8/30", "1405/08", "1405/13/01",
+            "1405/12/30", "abcd/ef/gh", "1405/08/30/1", "1405/08/3", "ٰ", "٪/01/01", "ۺ/01/01"})
+    void rejectsAnythingThatIsNotARealJalaliDate(String text) {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> JalaliDate.parse(text))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void aMissingDateIsRejected() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> JalaliDate.parse(null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
 }

@@ -79,4 +79,11 @@ public class JdbcBranchRepository implements BranchRepositoryPort {
     public boolean any() {
         return jdbc.sql("SELECT COUNT(*) FROM azs_business.branch").query(Integer.class).single() > 0;
     }
+
+    @Override
+    public boolean isOpen(String branchCode) {
+        return jdbc.sql("SELECT COUNT(*) FROM azs_business.branch WHERE branch_code = :c AND active = 1 "
+                + "AND parent_branch = branch_code").param("c", branchCode, Types.VARCHAR)
+                .query(Integer.class).single() > 0;
+    }
 }

@@ -11,4 +11,7 @@ public interface RequestRepositoryPort {
     void insert(Request request);
 
     Optional<Request> findById(UUID id);
+
+    /** @return true when this agency registered a request for this customer at or after {@code since} (D47) */
+    boolean existsSince(UUID agencyId, String customerCode, java.time.Instant since);
 }
