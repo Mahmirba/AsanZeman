@@ -86,3 +86,12 @@ CREATE TABLE azs_auth.jwt_blacklist (
     reason     VARCHAR(50),
     CONSTRAINT pk_jwt_blacklist PRIMARY KEY (jti)
 );
+
+-- stand-in for AZS_BUSINESS.tracking_counter (V002)
+CREATE TABLE azs_business.tracking_counter (
+    branch_code  VARCHAR(10) NOT NULL,
+    agency_code  VARCHAR(4)  NOT NULL,
+    day          VARCHAR(6)  NOT NULL,
+    last_value   NUMBER(4)   DEFAULT 0 NOT NULL,
+    CONSTRAINT pk_tracking_counter PRIMARY KEY (branch_code, agency_code, day)
+);

@@ -14,9 +14,14 @@ public final class H2Auth {
     }
 
     public static JdbcClient newDatabase() {
+        return JdbcClient.create(newDataSource());
+    }
+
+    /** The data source itself, for tests that need real transactions. */
+    public static DataSource newDataSource() {
         DataSource dataSource = new DriverManagerDataSource(
-                "jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=Oracle;DB_CLOSE_DELAY=-1", "sa", "");
+                "jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=Oracle;NON_KEYWORDS=DAY;DB_CLOSE_DELAY=-1", "sa", "");
         new ResourceDatabasePopulator(new ClassPathResource("db/h2-auth-schema.sql")).execute(dataSource);
-        return JdbcClient.create(dataSource);
+        return dataSource;
     }
 }
