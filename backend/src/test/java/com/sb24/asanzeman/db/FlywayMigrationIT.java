@@ -63,6 +63,8 @@ class FlywayMigrationIT {
                 + "('APP_USER','REFRESH_TOKENS','JWT_BLACKLIST','YAGHUT_SESSION')")).isEqualTo(4);
         assertThat(count(jdbc, "SELECT COUNT(*) FROM all_tables WHERE owner = 'AZS_BUSINESS' AND table_name IN "
                 + "('REQUEST','REQUEST_COMPANION')")).isEqualTo(2);
+        assertThat(count(jdbc, "SELECT COUNT(*) FROM all_tables WHERE owner = 'AZS_OUTBOX' AND table_name = 'OUTBOX_MESSAGE'"))
+                .isEqualTo(1);
         assertThat(count(jdbc, "SELECT COUNT(*) FROM all_constraints WHERE owner = 'AZS_AUTH' "
                 + "AND constraint_name IN ('UX_REFRESH_TOKENS_HASH','UX_APP_USER_ACCOUNT_NAME','CK_APP_USER_ROLE')"))
                 .isEqualTo(3);

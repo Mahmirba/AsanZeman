@@ -76,7 +76,7 @@ public class RequestRegistrar {
                 Rials.of(command.amount()), command.dueDate(), customer, companions, command.registeredBy(), now,
                 today);
         requests.insert(request);
-        notifier.customerRegistered(customer.mobile(), agency.name(), trackingCode.value());
+        notifier.customerRegistered(request.id(), customer.mobile(), agency.name());
         audit.record(new AuditEntry(agency.id(), command.registeredBy(), "AGENCY", ENTITY, request.id(), "REGISTER",
                 null, request.status().name(), null, command.clientIp(), command.userAgent(), null));
         return new RegisteredRequest(request.id(), trackingCode.value(), request.status());

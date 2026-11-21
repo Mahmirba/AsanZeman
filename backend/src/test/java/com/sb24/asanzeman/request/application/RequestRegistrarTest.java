@@ -104,7 +104,7 @@ class RequestRegistrarTest {
         order.verify(requests).existsSince(AGENCY_ID, "1000000011", NOW.minusSeconds(10));
         order.verify(trackingCodes).next("0123", "0042");
         order.verify(requests).insert(any(Request.class));
-        order.verify(notifier).customerRegistered("09121234567", "Sky Travel", CODE.value());
+        order.verify(notifier).customerRegistered(result.id(), "09121234567", "Sky Travel");
         order.verify(audit).record(any(AuditEntry.class));
     }
 

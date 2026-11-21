@@ -145,3 +145,22 @@ CREATE TABLE azs_business.tracking_counter (
     last_value   NUMBER(4)   DEFAULT 0 NOT NULL,
     CONSTRAINT pk_tracking_counter PRIMARY KEY (branch_code, agency_code, day)
 );
+
+-- stand-in for AZS_OUTBOX.outbox_message (V006): same columns, no CHECK constraints
+CREATE SCHEMA IF NOT EXISTS azs_outbox;
+CREATE TABLE azs_outbox.outbox_message (
+    id               VARBINARY(16)  NOT NULL,
+    mobile           VARCHAR(11)    NOT NULL,
+    template_code    VARCHAR(40)    NOT NULL,
+    message_text     VARCHAR(2000)  NOT NULL,
+    request_id       VARBINARY(16),
+    status           VARCHAR(10)    DEFAULT 'PENDING' NOT NULL,
+    attempts         NUMBER(5)      DEFAULT 0 NOT NULL,
+    next_attempt_at  TIMESTAMP(6)   NOT NULL,
+    sms_id           VARCHAR(100),
+    last_error       VARCHAR(500),
+    sent_at          TIMESTAMP(6),
+    created_at       TIMESTAMP(6)   DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at       TIMESTAMP(6)   DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT pk_outbox_message PRIMARY KEY (id)
+);
