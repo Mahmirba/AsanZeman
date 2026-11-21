@@ -1,6 +1,8 @@
 package com.sb24.asanzeman.auth.domain.port.out;
 
+import com.sb24.asanzeman.auth.domain.model.YaghutUserSession;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -11,4 +13,8 @@ public interface YaghutSessionStorePort {
 
     /** @param expiresAt when Yaghut ends the session; {@code null} when unknown */
     void save(UUID familyId, String jsessionId, Instant expiresAt);
+
+    Optional<YaghutUserSession> find(UUID familyId);
+
+    void delete(UUID familyId);
 }

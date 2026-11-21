@@ -47,4 +47,23 @@ class YaghutDatesTest {
         assertThatThrownBy(() -> YaghutDates.parse(text)).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("unreadable Yaghut date");
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"1990-05-17", "19900517", " 1990-05-17 ", "1990-05-17T00:00:00IRST", "1990-05-17 00:00:00"})
+    void parsesADateWithOrWithoutATimePart(String text) {
+        assertThat(YaghutDates.parseDate(text)).isEqualTo(java.time.LocalDate.of(1990, 5, 17));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {" "})
+    void aMissingDateIsNull(String text) {
+        assertThat(YaghutDates.parseDate(text)).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"soon", "1990/05/17", "1990-13-45", "19901345"})
+    void anUnreadableDateIsRejected(String text) {
+        assertThatThrownBy(() -> YaghutDates.parseDate(text)).isInstanceOf(IllegalArgumentException.class);
+    }
 }

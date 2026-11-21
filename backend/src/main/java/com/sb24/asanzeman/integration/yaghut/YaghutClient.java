@@ -85,6 +85,31 @@ public class YaghutClient {
         return new YaghutBranchPage(total.longValue(), branches);
     }
 
+    /**
+     * {@code POST /customerDetailInfo} with the national code ({@code code}); exactly one of {@code cif} or
+     * {@code code} may be sent, and we always send {@code code}. Uses the caller's own session (D35).
+     *
+     * @throws YaghutException {@code InvalidCustomerWSException} (not a bank customer) or
+     *         {@code InvalidSessionWSException} (the session has ended)
+     * @throws TemporarilyUnavailableException on a technical failure or an unreadable birth date
+     */
+    public YaghutCustomer customerDetailInfo(YaghutSession session, String nationalCode) {
+        Map<String, Object> r = result(post("/customerDetailInfo", Map.of("code", nationalCode), session));
+        return new YaghutCustomer(text(r, "cif"), text(r, "code"), text(r, "firstName"), text(r, "lastName"),
+                text(r, "fullName"), text(r, "fatherName"), birthDate(text(r, "birthDate")), text(r, "mobile"),
+                text(r, "ssn"), text(r, "certificateSerial"), text(r, "certificateSeries"),
+                text(r, "personalityType"), text(r, "gender"));
+    }
+
+    private static java.time.LocalDate birthDate(String value) {
+        try {
+            return YaghutDates.parseDate(value);
+        } catch (IllegalArgumentException e) {
+            log.warn("Yaghut birthDate is unreadable: {}", value);
+            throw technical(e);
+        }
+    }
+
     // ---- transport ---------------------------------------------------------------------------------------------
 
     private Reply post(String path, Object body, YaghutSession session) {
