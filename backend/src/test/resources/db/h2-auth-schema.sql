@@ -39,6 +39,26 @@ CREATE TABLE azs_auth.refresh_tokens (
 );
 CREATE INDEX ix_refresh_tokens_family ON azs_auth.refresh_tokens (family_id);
 
+CREATE TABLE azs_auth.yaghut_session (
+    family_id   VARBINARY(16) NOT NULL,
+    jsession_id VARCHAR(200)  NOT NULL,
+    expires_at  TIMESTAMP(6),
+    created_at  TIMESTAMP(6)  DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT pk_yaghut_session PRIMARY KEY (family_id)
+);
+
+-- stand-in for AZS_BUSINESS.agency (V002), only what the login reads
+CREATE SCHEMA IF NOT EXISTS azs_business;
+CREATE TABLE azs_business.agency (
+    id     VARBINARY(16) NOT NULL,
+    cif    VARCHAR(20)   NOT NULL,
+    code   VARCHAR(4)     NOT NULL,
+    name   VARCHAR(200)   NOT NULL,
+    active NUMBER(1)      DEFAULT 1 NOT NULL,
+    CONSTRAINT pk_agency PRIMARY KEY (id),
+    CONSTRAINT ux_agency_cif UNIQUE (cif)
+);
+
 CREATE TABLE azs_auth.jwt_blacklist (
     jti        VARCHAR(64)  NOT NULL,
     expires_at TIMESTAMP(6) NOT NULL,

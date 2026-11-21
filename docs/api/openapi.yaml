@@ -41,7 +41,32 @@ paths:
         "401": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
-  /auth/agency/login: { post: { tags: [auth], summary: "ARcaptcha -> Yaghut loginStatic -> agency by cif -> JWT", responses: { "200": { description: tokens } } } }
+  /auth/agency/login:
+    post:
+      tags: [auth]
+      summary: "Agency login: ARcaptcha -> Yaghut loginStatic -> agency by cif -> tokens"
+      description: |
+        Public. The session ends at the earlier of 8 hours and Yaghut's own session end; the agency's Yaghut session is
+        kept on the server. Errors (RFC 7807, stable `code`): 400 `auth.captcha-invalid` / `validation.failed`, 401
+        `auth.yaghut.invalid-credentials`, 403 `auth.yaghut.suspected-customer`, `auth.yaghut.access-denied`,
+        `auth.yaghut.temporary-session`, `auth.yaghut.password-expired` or `auth.agency.not-registered`, 503
+        `service.temporarily-unavailable`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BankLoginRequest" }
+      responses:
+        "200":
+          description: Tokens. The access token carries `role` AGENCY and no `branch_code`.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
   /auth/customer/login: { post: { tags: [auth], summary: "ARcaptcha -> Yaghut loginStatic -> SendOtp", responses: { "200": { description: challengeId } } } }
   /auth/customer/otp/verify: { post: { tags: [auth], summary: "OtpValidate -> 30-minute session", responses: { "200": { description: token } } } }
   /auth/refresh:

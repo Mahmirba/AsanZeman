@@ -13,8 +13,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.sb24.asanzeman.auth.domain.model.ClientInfo;
 import com.sb24.asanzeman.auth.domain.model.InvalidBankCredentialsException;
+import com.sb24.asanzeman.auth.domain.model.AgencyNotRegisteredException;
 import com.sb24.asanzeman.auth.domain.model.InvalidSessionException;
 import com.sb24.asanzeman.auth.domain.model.IssuedTokens;
+import com.sb24.asanzeman.auth.domain.port.in.AgencyLoginUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.BankLoginUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.LogoutUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.RefreshSessionUseCase;
@@ -42,6 +44,7 @@ class AuthControllerTest {
             NOW.plusSeconds(28800));
 
     private BankLoginUseCase bankLogin;
+    private AgencyLoginUseCase agencyLogin;
     private RefreshSessionUseCase refresh;
     private LogoutUseCase logout;
     private MockMvc mvc;
@@ -49,13 +52,14 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         bankLogin = mock(BankLoginUseCase.class);
+        agencyLogin = mock(AgencyLoginUseCase.class);
         refresh = mock(RefreshSessionUseCase.class);
         logout = mock(LogoutUseCase.class);
         var messages = new ResourceBundleMessageSource();
         messages.setBasename("messages");
         messages.setDefaultEncoding("UTF-8");
         mvc = MockMvcBuilders
-                .standaloneSetup(new AuthController(bankLogin, refresh, logout, new MutableClock(NOW)))
+                .standaloneSetup(new AuthController(bankLogin, agencyLogin, refresh, logout, new MutableClock(NOW)))
                 .setControllerAdvice(new ProblemDetailExceptionHandler(messages))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
     }
@@ -169,5 +173,33 @@ class AuthControllerTest {
 
         verify(logout).logout(eq("jti-9"), eq(NOW.plusSeconds(900)), eq("ali"), eq(null), any());
         assertThat(postFrom().getRemoteAddr()).isNotNull();
+    }
+
+    @Test
+    void agencyLoginReturnsTheTokens() throws Exception {
+        when(agencyLogin.login(eq("agency"), eq("pw"), eq("captcha"), any())).thenReturn(TOKENS);
+
+        mvc.perform(post("/api/auth/agency/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"agency\",\"password\":\"pw\",\"arcaptchaToken\":\"captcha\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("jwt"));
+    }
+
+    @Test
+    void anUnregisteredAgencyIs403WithAPersianProblem() throws Exception {
+        when(agencyLogin.login(any(), any(), any(), any())).thenThrow(new AgencyNotRegisteredException());
+
+        mvc.perform(post("/api/auth/agency/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"agency\",\"password\":\"pw\",\"arcaptchaToken\":\"c\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("auth.agency.not-registered"));
+    }
+
+    @Test
+    void anAgencyLoginWithMissingFieldsIs400() throws Exception {
+        mvc.perform(post("/api/auth/agency/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"agency\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.violations.password").exists());
     }
 }
