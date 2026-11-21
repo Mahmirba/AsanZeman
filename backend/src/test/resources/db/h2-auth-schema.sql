@@ -87,6 +87,56 @@ CREATE TABLE azs_auth.jwt_blacklist (
     CONSTRAINT pk_jwt_blacklist PRIMARY KEY (jti)
 );
 
+-- stand-in for AZS_BUSINESS.request and request_companion (V005): same columns, no CHECK constraints
+CREATE TABLE azs_business.request (
+    id                        VARBINARY(16)  NOT NULL,
+    tracking_code             VARCHAR(20)    NOT NULL,
+    request_type              VARCHAR(16)    NOT NULL,
+    status                    VARCHAR(32)    NOT NULL,
+    parent_request_id         VARBINARY(16),
+    agency_id                 VARBINARY(16)  NOT NULL,
+    branch_code               VARCHAR(10)    NOT NULL,
+    amount                    NUMBER(16)     NOT NULL,
+    due_date                  DATE           NOT NULL,
+    customer_cif              VARCHAR(20),
+    customer_code             VARCHAR(10)    NOT NULL,
+    customer_first_name       VARCHAR(100),
+    customer_last_name        VARCHAR(100),
+    customer_full_name        VARCHAR(200),
+    customer_father_name      VARCHAR(100),
+    customer_birth_date       DATE,
+    customer_mobile           VARCHAR(20),
+    customer_ssn              VARCHAR(30),
+    customer_cert_serial      VARCHAR(50),
+    customer_cert_series      VARCHAR(50),
+    customer_personality      VARCHAR(20),
+    customer_gender           VARCHAR(20),
+    registered_by             VARCHAR(100)   NOT NULL,
+    registered_at             TIMESTAMP(6)   NOT NULL,
+    version                   NUMBER(10)     DEFAULT 0 NOT NULL,
+    created_at                TIMESTAMP(6)   DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at                TIMESTAMP(6)   DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by                VARCHAR(100),
+    updated_by                VARCHAR(100),
+    CONSTRAINT pk_request PRIMARY KEY (id),
+    CONSTRAINT ux_request_tracking_code UNIQUE (tracking_code),
+    CONSTRAINT fk_request_agency FOREIGN KEY (agency_id) REFERENCES azs_business.agency (id),
+    CONSTRAINT fk_request_branch FOREIGN KEY (branch_code) REFERENCES azs_business.branch (branch_code)
+);
+CREATE TABLE azs_business.request_companion (
+    id               VARBINARY(16)  NOT NULL,
+    request_id       VARBINARY(16)  NOT NULL,
+    sort_order       NUMBER(2)      NOT NULL,
+    full_name        VARCHAR(100)   NOT NULL,
+    national_code    VARCHAR(10)    NOT NULL,
+    birth_date       DATE           NOT NULL,
+    passport_number  VARCHAR(30)    NOT NULL,
+    created_at       TIMESTAMP(6)   DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT pk_request_companion PRIMARY KEY (id),
+    CONSTRAINT fk_companion_request FOREIGN KEY (request_id) REFERENCES azs_business.request (id),
+    CONSTRAINT ux_companion_order UNIQUE (request_id, sort_order)
+);
+
 -- stand-in for AZS_BUSINESS.tracking_counter (V002)
 CREATE TABLE azs_business.tracking_counter (
     branch_code  VARCHAR(10) NOT NULL,
