@@ -126,4 +126,26 @@ public class JdbcRequestRepository implements RequestRepositoryPort {
                 .param("since", DbTime.toDb(since), Types.TIMESTAMP)
                 .query(Integer.class).single() > 0;
     }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public Optional<Request> findByIdForUpdate(UUID id) {
+        try {
+            jdbc.sql("SELECT id FROM azs_business.request WHERE id = :id FOR UPDATE NOWAIT")
+                    .param("id", RawUuid.toBytes(id), Types.VARBINARY).query((rs, row) -> 1).optional();
+        } catch (org.springframework.dao.PessimisticLockingFailureException e) {
+            // ORA-00054: another transaction holds the row (4.1)
+            throw new com.sb24.asanzeman.request.domain.model.RequestBusyException();
+        }
+        return findById(id);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void updateStatus(UUID id, RequestStatus status, java.time.Instant at) {
+        jdbc.sql("UPDATE azs_business.request SET status = :status, version = version + 1, updated_at = :at "
+                + "WHERE id = :id")
+                .param("status", status.name(), Types.VARCHAR).param("at", DbTime.toDb(at), Types.TIMESTAMP)
+                .param("id", RawUuid.toBytes(id), Types.VARBINARY).update();
+    }
 }

@@ -86,4 +86,20 @@ public class JdbcBranchRepository implements BranchRepositoryPort {
                 + "AND parent_branch = branch_code").param("c", branchCode, Types.VARCHAR)
                 .query(Integer.class).single() > 0;
     }
+
+    @Override
+    public java.util.List<com.sb24.asanzeman.request.domain.model.BranchSummary> searchOpen(String prefix, int limit) {
+        String like = escapeLike(prefix == null ? "" : prefix.trim()) + "%";
+        return jdbc.sql("SELECT branch_code, name, city FROM azs_business.branch WHERE active = 1 "
+                + "AND parent_branch = branch_code AND (name LIKE :p ESCAPE '!' OR branch_code LIKE :p ESCAPE '!') "
+                + "ORDER BY name, branch_code FETCH FIRST " + limit + " ROWS ONLY")
+                .param("p", like, Types.VARCHAR)
+                .query((rs, row) -> new com.sb24.asanzeman.request.domain.model.BranchSummary(
+                        rs.getString("branch_code"), rs.getString("name"), rs.getString("city")))
+                .list();
+    }
+
+    private static String escapeLike(String text) {
+        return text.replace("!", "!!").replace("%", "!%").replace("_", "!_");
+    }
 }

@@ -1,5 +1,6 @@
 package com.sb24.asanzeman.request.domain.model;
 
+import com.sb24.asanzeman.shared.model.TemporarilyUnavailableException;
 import java.time.LocalDate;
 
 /**
@@ -22,6 +23,27 @@ public record CustomerSnapshot(String cif, String code, String firstName, String
 
     public boolean isActual() {
         return "ACTUAL".equals(personality);
+    }
+
+    /**
+     * The rules every customer must pass before a request is registered for them (D21, SRS UC-AZS-8), shared by the
+     * customer lookup and the registration so the two always agree.
+     *
+     * @throws CustomerNotActualException  not a natural person
+     * @throws CustomerUnderageException   under 18
+     * @throws TemporarilyUnavailableException Yaghut gave no birth date, so the age cannot be checked
+     */
+    public void requireEligible(LocalDate today) {
+        if (!isActual()) {
+            throw new CustomerNotActualException();
+        }
+        if (birthDate == null) {
+            throw new TemporarilyUnavailableException("Yaghut",
+                    new IllegalStateException("customerDetailInfo gave no birth date"));
+        }
+        if (ageOn(today) < Request.MIN_CUSTOMER_AGE) {
+            throw new CustomerUnderageException();
+        }
     }
 
     /** @return whole years of age on {@code today}; {@code birthDate} must be known */

@@ -41,6 +41,28 @@ public record Request(
     }
 
     /**
+     * The agency's «ثبت درخواست ابطال» action (4.2, D11). Before «اقدام» the request is simply cancelled.
+     *
+     * @throws RevocationNotAvailableException the branch has already started: only a revocation request can undo it
+     * @throws RequestNotCancellableException  already rejected, cancelled, revoked or completed, or itself a revocation
+     */
+    public Request cancelByAgency() {
+        if (type != RequestType.ISSUANCE) {
+            throw new RequestNotCancellableException();
+        }
+        return switch (status) {
+            case REGISTERED_AT_AGENCY, PENDING_BRANCH_REVIEW -> withStatus(RequestStatus.CANCELLED);
+            case UNDER_REVIEW, UNDER_ACTION, ISSUED -> throw new RevocationNotAvailableException();
+            case REJECTED, CANCELLED, REVOKED, COMPLETED -> throw new RequestNotCancellableException();
+        };
+    }
+
+    private Request withStatus(RequestStatus newStatus) {
+        return new Request(id, trackingCode, type, newStatus, agencyId, branchCode, amount, dueDate, customer,
+                companions, registeredBy, registeredAt);
+    }
+
+    /**
      * Registers an issuance request (SRS UC-AZS-8).
      *
      * @param today the registration day, for the 18-year check
@@ -65,18 +87,9 @@ public record Request(
         if (companions.size() > MAX_COMPANIONS) {
             throw new InvalidRequestDataException("at most " + MAX_COMPANIONS + " companions");
         }
-        if (!customer.isActual()) {
-            throw new CustomerNotActualException();
-        }
+        customer.requireEligible(today);
         if (customer.mobile() == null || customer.mobile().isBlank()) {
             throw new CustomerMobileMissingException();
-        }
-        if (customer.birthDate() == null) {
-            throw new TemporarilyUnavailableException("Yaghut",
-                    new IllegalStateException("customerDetailInfo gave no birth date"));
-        }
-        if (customer.ageOn(today) < MIN_CUSTOMER_AGE) {
-            throw new CustomerUnderageException();
         }
         return new Request(id, trackingCode, RequestType.ISSUANCE, RequestStatus.REGISTERED_AT_AGENCY, agencyId,
                 branchCode, amount, dueDate, customer, companions, registeredBy, registeredAt);

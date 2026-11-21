@@ -30,6 +30,14 @@ class MessageSourceSmsTextTest {
     }
 
     @Test
+    void theCancellationTextNamesTheAgencyAndEndsWithTheDate() {
+        String text = texts.render(SmsTemplate.REQUEST_CANCELLED, List.of("Sky Travel", "1405/08/30"));
+
+        assertThat(text).startsWith("بانک سامان\nمشتری گرامی\n").contains("آژانس هواپیمایی Sky Travel")
+                .contains("لغو شد").endsWith("\n1405/08/30");
+    }
+
+    @Test
     void everyTemplateHasATextInTheMessageConfig() {
         for (SmsTemplate template : SmsTemplate.values()) {
             assertThat(texts.render(template, List.of("x", "y", "z"))).isNotBlank();

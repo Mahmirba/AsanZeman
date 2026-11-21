@@ -12,4 +12,7 @@ public interface AgencyRegistryPort {
      * registrations of one agency run one after the other (D47). Joins the caller's transaction.
      */
     Optional<AgencyInfo> lock(UUID agencyId);
+
+    /** Reads the agency without locking it. */
+    Optional<AgencyInfo> find(UUID agencyId);
 }

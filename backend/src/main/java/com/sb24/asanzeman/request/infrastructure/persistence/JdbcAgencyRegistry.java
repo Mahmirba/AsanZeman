@@ -34,4 +34,12 @@ public class JdbcAgencyRegistry implements AgencyRegistryPort {
                         rs.getString("name"), rs.getInt("active") == 1))
                 .optional();
     }
+
+    @Override
+    public Optional<AgencyInfo> find(UUID agencyId) {
+        return jdbc.sql(LOCK.replace(" FOR UPDATE", "")).param("id", RawUuid.toBytes(agencyId), Types.VARBINARY)
+                .query((rs, row) -> new AgencyInfo(RawUuid.fromBytes(rs.getBytes("id")), rs.getString("code"),
+                        rs.getString("name"), rs.getInt("active") == 1))
+                .optional();
+    }
 }

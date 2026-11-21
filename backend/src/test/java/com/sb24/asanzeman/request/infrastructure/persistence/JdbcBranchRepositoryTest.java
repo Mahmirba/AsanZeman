@@ -124,4 +124,28 @@ class JdbcBranchRepositoryTest {
         assertThat(repository.isOpen("0123")).isFalse();
         assertThat(repository.isOpen("0456")).isTrue();
     }
+
+    @Test
+    void theBranchSearchMatchesTheStartOfTheNameOrTheCodeAndHidesClosedBranches() {
+        repository.apply(List.of(branch("0123", "Valiasr"), branch("0456", "Vanak"), branch("0789", "Enghelab"),
+                branch("0999", "Closed")), T1);
+        jdbc.sql("UPDATE azs_business.branch SET parent_branch = '0123' WHERE branch_code = '0999'").update();
+
+        assertThat(repository.searchOpen("Va", 10)).extracting("code").containsExactly("0123", "0456");
+        assertThat(repository.searchOpen("07", 10)).extracting("code").containsExactly("0789");
+        assertThat(repository.searchOpen("", 10)).extracting("code").containsExactly("0789", "0123", "0456");
+        assertThat(repository.searchOpen(null, 10)).hasSize(3);
+        assertThat(repository.searchOpen(" Va ", 10)).hasSize(2);
+        assertThat(repository.searchOpen("Closed", 10)).isEmpty();
+        assertThat(repository.searchOpen("", 2)).hasSize(2);
+    }
+
+    @Test
+    void theBranchSearchTreatsWildcardsAsPlainText() {
+        repository.apply(List.of(branch("0123", "Valiasr"), branch("0456", "100% Bank")), T1);
+
+        assertThat(repository.searchOpen("%", 10)).isEmpty();
+        assertThat(repository.searchOpen("_", 10)).isEmpty();
+        assertThat(repository.searchOpen("100%", 10)).extracting("code").containsExactly("0456");
+    }
 }

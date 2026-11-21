@@ -13,21 +13,21 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
-class RequestTest {
+public class RequestTest {
 
-    static final LocalDate TODAY = LocalDate.of(2026, 11, 21);
-    static final Instant NOW = Instant.parse("2026-11-21T10:00:00Z");
-    static final UUID AGENCY = UUID.randomUUID();
-    static final TrackingCode CODE = TrackingCode.of("0123", "0042", JalaliDate.of(1405, 8, 30), 1);
+    public static final LocalDate TODAY = LocalDate.of(2026, 11, 21);
+    public static final Instant NOW = Instant.parse("2026-11-21T10:00:00Z");
+    public static final UUID AGENCY = UUID.randomUUID();
+    public static final TrackingCode CODE = TrackingCode.of("0123", "0042", JalaliDate.of(1405, 8, 30), 1);
     // a valid national code (checksum 0)
-    static final String NATIONAL_CODE = "0012345679";
+    public static final String NATIONAL_CODE = "0012345679";
 
-    static CustomerSnapshot customer(LocalDate birth, String personality) {
+    public static CustomerSnapshot customer(LocalDate birth, String personality) {
         return new CustomerSnapshot("555", "1000000011", "Ali", "Rezaei", "Ali Rezaei", "Reza", birth, "09121234567",
                 "123", "S", "T", personality, "MALE");
     }
 
-    static Companion companion() {
+    public static Companion companion() {
         return new Companion("Sara Rezaei", NATIONAL_CODE, LocalDate.of(2015, 1, 1), "P1234567");
     }
 

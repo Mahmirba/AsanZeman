@@ -23,7 +23,7 @@ import com.sb24.asanzeman.request.domain.model.TrackingCode;
 import com.sb24.asanzeman.request.domain.port.in.RegisterRequestCommand;
 import com.sb24.asanzeman.request.domain.port.in.RegisteredRequest;
 import com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort;
-import com.sb24.asanzeman.request.domain.port.out.RegistrationNotifierPort;
+import com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort;
 import com.sb24.asanzeman.request.domain.port.out.RequestRepositoryPort;
 import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
 import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
@@ -59,7 +59,7 @@ class RequestRegistrarTest {
     @Mock
     private TrackingCodeGenerator trackingCodes;
     @Mock
-    private RegistrationNotifierPort notifier;
+    private CustomerNotifierPort notifier;
     @Mock
     private RecordAuditUseCase audit;
 

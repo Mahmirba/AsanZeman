@@ -13,7 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class OutboxRegistrationNotifierTest {
+class OutboxCustomerNotifierTest {
 
     @Mock
     private EnqueueSmsUseCase sms;
@@ -22,9 +22,19 @@ class OutboxRegistrationNotifierTest {
     void queuesTheRegistrationTextForTheCustomerWithTheAgencyName() {
         UUID request = UUID.randomUUID();
 
-        new OutboxRegistrationNotifier(sms).customerRegistered(request, "09121234567", "Sky Travel");
+        new OutboxCustomerNotifier(sms).customerRegistered(request, "09121234567", "Sky Travel");
 
         verify(sms).enqueue(new EnqueueSmsCommand("09121234567", SmsTemplate.REQUEST_REGISTERED,
                 List.of("Sky Travel"), request));
+    }
+
+    @Test
+    void queuesTheCancellationTextWithTheAgencyNameAndTheJalaliDate() {
+        UUID request = UUID.randomUUID();
+
+        new OutboxCustomerNotifier(sms).requestCancelled(request, "09121234567", "Sky Travel", "1405/08/30");
+
+        verify(sms).enqueue(new EnqueueSmsCommand("09121234567", SmsTemplate.REQUEST_CANCELLED,
+                List.of("Sky Travel", "1405/08/30"), request));
     }
 }

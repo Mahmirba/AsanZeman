@@ -48,4 +48,14 @@ class JdbcAgencyRegistryTest {
     void theRowIsReadWithForUpdateSoRegistrationsOfOneAgencyAreSerialised() {
         assertThat(JdbcAgencyRegistry.LOCK).endsWith("FOR UPDATE");
     }
+
+    @Test
+    void findReadsWithoutLockingAndShowsInactiveAgenciesToo() {
+        UUID active = insert("9003", "0044", 1);
+        UUID inactive = insert("9004", "0045", 0);
+
+        assertThat(registry.find(active).orElseThrow().active()).isTrue();
+        assertThat(registry.find(inactive).orElseThrow().active()).isFalse();
+        assertThat(registry.find(UUID.randomUUID())).isEmpty();
+    }
 }

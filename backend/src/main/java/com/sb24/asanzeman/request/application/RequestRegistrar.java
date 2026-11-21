@@ -11,7 +11,7 @@ import com.sb24.asanzeman.request.domain.model.TrackingCode;
 import com.sb24.asanzeman.request.domain.port.in.RegisterRequestCommand;
 import com.sb24.asanzeman.request.domain.port.in.RegisteredRequest;
 import com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort;
-import com.sb24.asanzeman.request.domain.port.out.RegistrationNotifierPort;
+import com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort;
 import com.sb24.asanzeman.request.domain.port.out.RequestRepositoryPort;
 import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
 import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
@@ -39,13 +39,13 @@ public class RequestRegistrar {
     private final AgencyRegistryPort agencies;
     private final RequestRepositoryPort requests;
     private final TrackingCodeGenerator trackingCodes;
-    private final RegistrationNotifierPort notifier;
+    private final CustomerNotifierPort notifier;
     private final RecordAuditUseCase audit;
     private final Clock clock;
     private final RegistrationSettings settings;
 
     public RequestRegistrar(AgencyRegistryPort agencies, RequestRepositoryPort requests,
-            TrackingCodeGenerator trackingCodes, RegistrationNotifierPort notifier, RecordAuditUseCase audit,
+            TrackingCodeGenerator trackingCodes, CustomerNotifierPort notifier, RecordAuditUseCase audit,
             Clock clock, RegistrationSettings settings) {
         this.agencies = agencies;
         this.requests = requests;

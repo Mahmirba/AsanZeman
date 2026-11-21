@@ -133,8 +133,143 @@ paths:
         "403": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
-    get: { tags: [agency], summary: "Track requests; ?format=csv streams CSV (D42)", responses: { "200": { description: page or CSV } } }
-  /agency/requests/{id}/revocation: { post: { tags: [agency], summary: "Cancel before Eqdam, otherwise create a revocation request (D11)", responses: { "200": { description: outcome } } } }
+    get:
+      tags: [agency]
+      summary: "Tracking list (SRS UC-AZS-13), newest first, only this agency's requests"
+      description: |
+        AGENCY role only. Every filter is optional and they combine with AND. Dates are Jalali `yyyy/MM/dd`; the
+        "to" day is included whole. Errors: 400 `request.invalid-data` (bad filter, date or page), 401, 403.
+      parameters:
+        - { name: nationalCode, in: query, schema: { type: string } }
+        - { name: customerNumber, in: query, schema: { type: string }, description: "Yaghut customer number (cif)" }
+        - { name: type, in: query, schema: { type: array, items: { type: string, enum: [ISSUANCE, REVOCATION] } }, explode: true }
+        - { name: trackingCode, in: query, schema: { type: string } }
+        - { name: name, in: query, schema: { type: string }, description: "Part of the customer's full name" }
+        - { name: registeredFrom, in: query, schema: { type: string } }
+        - { name: registeredTo, in: query, schema: { type: string } }
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 20 } }
+      responses:
+        "200":
+          description: A page of requests.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RequestPage" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+  /agency/requests/export:
+    get:
+      tags: [agency]
+      summary: "The same search as a CSV file (D42)"
+      description: |
+        Same filters as the list, without paging. UTF-8 with a byte order mark, streamed page by page. Cells a
+        spreadsheet would read as a formula are prefixed with an apostrophe.
+      responses:
+        "200":
+          description: CSV file `requests.csv`.
+          content:
+            text/csv:
+              schema: { type: string }
+        "400": { $ref: "#/components/responses/Problem" }
+  /agency/requests/{id}:
+    get:
+      tags: [agency]
+      summary: "Request details with companions (SRS UC-AZS-13, alternative flow 2)"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The request. Another agency's request is a 404.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RequestDetails" }
+        "404": { $ref: "#/components/responses/Problem" }
+  /agency/requests/{id}/cancel:
+    post:
+      tags: [agency]
+      summary: "«ثبت درخواست ابطال»: cancel before «اقدام» (4.2, D11)"
+      description: |
+        Decided under the row lock. `REGISTERED_AT_AGENCY` or `PENDING_BRANCH_REVIEW` becomes `CANCELLED` and the
+        customer is sent an SMS. A request the branch has started on needs a revocation request, which is not built
+        yet: 409 `request.revocation-not-available`. Other 409s: `request.busy` (another user holds the row) and
+        `request.not-cancellable` (already finished). 404 for an unknown or foreign request.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: What happened.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/CancelResult" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /agency/profile:
+    get:
+      tags: [agency]
+      summary: "The agency name for the top of every page"
+      responses:
+        "200":
+          description: Name and 4-digit code.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name: { type: string }
+                  code: { type: string }
+        "403": { $ref: "#/components/responses/Problem" }
+  /agency/branches:
+    get:
+      tags: [agency]
+      summary: "Open branches for the cascading list (SRS UC-AZS-8)"
+      parameters:
+        - { name: q, in: query, schema: { type: string }, description: "First letters of the name or code; typing three narrows the list" }
+      responses:
+        "200":
+          description: Open branches, ordered by name.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code: { type: string }
+                    name: { type: string }
+                    city: { type: string }
+  /agency/customers/lookup:
+    post:
+      tags: [agency]
+      summary: "The «جستجو» step of the registration form"
+      description: |
+        The customer from Yaghut with the agency's own session, checked as registration checks it. Errors: 400
+        `request.customer-not-found`, `request.customer-underage`, `request.customer-not-actual`,
+        `request.invalid-data`; 401 `auth.yaghut.session-expired`; 503.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nationalCode]
+              properties:
+                nationalCode: { type: string }
+      responses:
+        "200":
+          description: The customer. The birth date is Jalali `yyyy/MM/dd`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cif: { type: string }
+                  nationalCode: { type: string }
+                  fullName: { type: string }
+                  birthDate: { type: string }
+                  mobile: { type: string }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
   /customer/requests/{id}: { get: { tags: [customer], responses: { "200": { description: request for completion } } } }
   /customer/requests/{id}/inquiries: { post: { tags: [customer], summary: "Start the two-stage inquiry run (202 + runId)", responses: { "202": { description: runId } } } }
   /customer/requests/{id}/inquiries/{runId}: { get: { tags: [customer], responses: { "200": { description: per-inquiry status } } } }
@@ -213,6 +348,52 @@ components:
         id: { type: string, format: uuid }
         trackingCode: { type: string, description: "Branch code + agency code + Jalali YYMMDD + 4-digit counter (D12)" }
         status: { type: string, enum: [REGISTERED_AT_AGENCY] }
+    RequestSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        trackingCode: { type: string }
+        type: { type: string, enum: [ISSUANCE, REVOCATION] }
+        typeLabel: { type: string }
+        status: { type: string, enum: [REGISTERED_AT_AGENCY, PENDING_BRANCH_REVIEW, UNDER_REVIEW, UNDER_ACTION, ISSUED, REJECTED, CANCELLED, REVOKED, COMPLETED] }
+        statusLabel: { type: string }
+        customerCode: { type: string }
+        customerCif: { type: string }
+        customerName: { type: string }
+        amount: { type: integer, format: int64, description: Rials }
+        branchCode: { type: string }
+        branchName: { type: string }
+        dueDate: { type: string, description: "Jalali yyyy/MM/dd" }
+        registeredAt: { type: string, format: date-time }
+        registeredAtJalali: { type: string, description: "Jalali yyyy/MM/dd HH:mm:ss, Tehran time" }
+        agencyName: { type: string }
+        customerMobile: { type: string }
+    RequestPage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/RequestSummary" } }
+        total: { type: integer, format: int64 }
+        page: { type: integer }
+        size: { type: integer }
+    RequestDetails:
+      type: object
+      properties:
+        request: { $ref: "#/components/schemas/RequestSummary" }
+        companions:
+          type: array
+          items:
+            type: object
+            properties:
+              fullName: { type: string }
+              nationalCode: { type: string }
+              birthDate: { type: string, description: "Jalali yyyy/MM/dd" }
+              passportNumber: { type: string }
+    CancelResult:
+      type: object
+      properties:
+        requestId: { type: string, format: uuid }
+        outcome: { type: string, enum: [CANCELLED, REVOCATION_REQUESTED] }
+        status: { type: string }
     TokenResponse:
       type: object
       required: [accessToken, tokenType, expiresIn, refreshToken, refreshExpiresIn]

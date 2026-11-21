@@ -122,4 +122,24 @@ class JdbcRequestRepositoryTest {
         assertThat(repository.existsSince(agency, "1000000028", since)).isFalse();
         assertThat(repository.existsSince(UUID.randomUUID(), "1000000011", since)).isFalse();
     }
+
+    @Test
+    void theRowLockReadsTheRequestAndTheStatusCanBeChanged() {
+        Request saved = request(7, List.of());
+        repository.insert(saved);
+
+        assertThat(repository.findByIdForUpdate(saved.id())).contains(saved);
+        repository.updateStatus(saved.id(), com.sb24.asanzeman.request.domain.model.RequestStatus.CANCELLED,
+                NOW.plusSeconds(5));
+
+        assertThat(repository.findById(saved.id()).orElseThrow().status())
+                .isEqualTo(com.sb24.asanzeman.request.domain.model.RequestStatus.CANCELLED);
+        assertThat(jdbc.sql("SELECT version FROM azs_business.request WHERE tracking_code = :c")
+                .param("c", saved.trackingCode().value()).query(Integer.class).single()).isEqualTo(1);
+    }
+
+    @Test
+    void anUnknownRequestHasNoRowToLock() {
+        assertThat(repository.findByIdForUpdate(UUID.randomUUID())).isEmpty();
+    }
 }

@@ -19,4 +19,10 @@ public interface BranchRepositoryPort {
 
     /** @return true when the branch exists, is active and is not closed (4.4): new requests may use it */
     boolean isOpen(String branchCode);
+
+    /**
+     * Open branches whose name or code starts with {@code prefix} (blank means all), ordered by name, at most
+     * {@code limit}.
+     */
+    java.util.List<com.sb24.asanzeman.request.domain.model.BranchSummary> searchOpen(String prefix, int limit);
 }
