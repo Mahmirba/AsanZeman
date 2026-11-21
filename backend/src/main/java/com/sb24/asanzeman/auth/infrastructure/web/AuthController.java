@@ -1,6 +1,7 @@
 package com.sb24.asanzeman.auth.infrastructure.web;
 
 import com.sb24.asanzeman.auth.domain.model.ClientInfo;
+import com.sb24.asanzeman.auth.domain.port.in.AgencyLoginUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.BankLoginUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.LogoutUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.RefreshSessionUseCase;
@@ -26,13 +27,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final BankLoginUseCase bankLogin;
+    private final AgencyLoginUseCase agencyLogin;
     private final RefreshSessionUseCase refresh;
     private final LogoutUseCase logout;
     private final Clock clock;
 
-    public AuthController(BankLoginUseCase bankLogin, RefreshSessionUseCase refresh, LogoutUseCase logout,
-            Clock clock) {
+    public AuthController(BankLoginUseCase bankLogin, AgencyLoginUseCase agencyLogin, RefreshSessionUseCase refresh,
+            LogoutUseCase logout, Clock clock) {
         this.bankLogin = bankLogin;
+        this.agencyLogin = agencyLogin;
         this.refresh = refresh;
         this.logout = logout;
         this.clock = clock;
@@ -42,6 +45,12 @@ public class AuthController {
     public TokenResponse bankLogin(@Valid @RequestBody BankLoginRequest body, HttpServletRequest request) {
         return TokenResponse.of(
                 bankLogin.login(body.username(), body.password(), body.arcaptchaToken(), client(request)), clock);
+    }
+
+    @PostMapping("/agency/login")
+    public TokenResponse agencyLogin(@Valid @RequestBody AgencyLoginRequest body, HttpServletRequest request) {
+        return TokenResponse.of(
+                agencyLogin.login(body.username(), body.password(), body.arcaptchaToken(), client(request)), clock);
     }
 
     @PostMapping("/refresh")

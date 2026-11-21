@@ -97,6 +97,32 @@ class TokenServiceTest {
     }
 
     @Test
+    void aCappedSessionKeepsItsFamilyAndEndsAtTheCapWithTheAccessTokenInsideIt() {
+        UUID family = UUID.randomUUID();
+        Instant cap = NOW.plusSeconds(300);
+        when(issuer.issue(eq(SESSION), anyString(), eq(NOW), eq(cap))).thenReturn("jwt");
+
+        IssuedTokens tokens = service.start(SESSION, family, cap, CLIENT);
+
+        assertThat(tokens.refreshTokenExpiresAt()).isEqualTo(cap);
+        assertThat(tokens.accessTokenExpiresAt()).isEqualTo(cap);
+        ArgumentCaptor<RefreshTokenRecord> saved = ArgumentCaptor.forClass(RefreshTokenRecord.class);
+        verify(store).save(saved.capture());
+        assertThat(saved.getValue().familyId()).isEqualTo(family);
+        assertThat(saved.getValue().expiresAt()).isEqualTo(cap);
+    }
+
+    @Test
+    void aCapBeyondTheNormalLengthChangesNothing() {
+        when(issuer.issue(any(), anyString(), any(), any())).thenReturn("jwt");
+
+        IssuedTokens tokens = service.start(SESSION, UUID.randomUUID(), NOW.plus(Duration.ofDays(1)), CLIENT);
+
+        assertThat(tokens.refreshTokenExpiresAt()).isEqualTo(NOW.plus(REFRESH));
+        assertThat(tokens.accessTokenExpiresAt()).isEqualTo(NOW.plus(ACCESS));
+    }
+
+    @Test
     void everyAccessTokenGetsItsOwnId() {
         when(issuer.issue(any(), anyString(), any(), any())).thenReturn("jwt");
 

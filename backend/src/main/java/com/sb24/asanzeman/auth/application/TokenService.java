@@ -57,9 +57,17 @@ public class TokenService implements StartSessionUseCase, RefreshSessionUseCase,
 
     @Override
     public IssuedTokens start(Session session, ClientInfo client) {
+        return start(session, UUID.randomUUID(), null, client);
+    }
+
+    @Override
+    public IssuedTokens start(Session session, UUID family, Instant latestEnd, ClientInfo client) {
         Instant now = clock.instant();
-        UUID family = UUID.randomUUID();
-        IssuedTokens tokens = issue(session, family, now, now.plus(settings.refreshTtl()));
+        Instant end = now.plus(settings.refreshTtl());
+        if (latestEnd != null && latestEnd.isBefore(end)) {
+            end = latestEnd;
+        }
+        IssuedTokens tokens = issue(session, family, now, end);
         audit.record(entry(session, family, "LOGIN", null, client));
         return tokens;
     }
@@ -100,6 +108,9 @@ public class TokenService implements StartSessionUseCase, RefreshSessionUseCase,
 
     private IssuedTokens issue(Session session, UUID family, Instant now, Instant sessionEnd) {
         Instant accessExpiresAt = now.plus(settings.accessTtl());
+        if (accessExpiresAt.isAfter(sessionEnd)) {
+            accessExpiresAt = sessionEnd; // an access token never outlives its session
+        }
         String accessToken = issuer.issue(session, UUID.randomUUID().toString(), now, accessExpiresAt);
         String refreshToken = RefreshTokens.newToken();
         store.save(new RefreshTokenRecord(UUID.randomUUID(), family, session, RefreshTokens.hash(refreshToken),
