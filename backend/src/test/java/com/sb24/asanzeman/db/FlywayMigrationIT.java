@@ -60,7 +60,7 @@ class FlywayMigrationIT {
     void authTablesExistAndTheRefreshTokenHashIsUnique() {
         var jdbc = new JdbcTemplate(dataSource);
         assertThat(count(jdbc, "SELECT COUNT(*) FROM all_tables WHERE owner = 'AZS_AUTH' AND table_name IN "
-                + "('APP_USER','REFRESH_TOKENS','JWT_BLACKLIST')")).isEqualTo(3);
+                + "('APP_USER','REFRESH_TOKENS','JWT_BLACKLIST','YAGHUT_SESSION')")).isEqualTo(4);
         assertThat(count(jdbc, "SELECT COUNT(*) FROM all_constraints WHERE owner = 'AZS_AUTH' "
                 + "AND constraint_name IN ('UX_REFRESH_TOKENS_HASH','UX_APP_USER_ACCOUNT_NAME','CK_APP_USER_ROLE')"))
                 .isEqualTo(3);
