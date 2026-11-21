@@ -1,0 +1,19 @@
+package com.sb24.asanzeman.request.domain.port.out;
+
+import com.sb24.asanzeman.request.domain.model.BranchData;
+import com.sb24.asanzeman.request.domain.model.BranchSyncResult;
+import java.time.Instant;
+import java.util.List;
+
+/** The {@code branch} table. Branch data is never cached (D45). */
+public interface BranchRepositoryPort {
+
+    /**
+     * Applies a full list from Yaghut in one transaction (4.4): a new branch is inserted with
+     * {@code parent_branch = branch_code}; an existing one has its details updated and is reactivated, but its
+     * {@code parent_branch} is never touched; a branch missing from the list is set inactive, never deleted.
+     */
+    BranchSyncResult apply(List<BranchData> fetched, Instant now);
+
+    boolean any();
+}

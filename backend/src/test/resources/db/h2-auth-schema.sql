@@ -59,6 +59,26 @@ CREATE TABLE azs_business.agency (
     CONSTRAINT ux_agency_cif UNIQUE (cif)
 );
 
+-- stand-in for AZS_BUSINESS.branch (V002), as the branch sync uses it
+CREATE TABLE azs_business.branch (
+    branch_code     VARCHAR(10)   NOT NULL,
+    name            VARCHAR(200)  NOT NULL,
+    city            VARCHAR(100),
+    address         VARCHAR(500),
+    tel             VARCHAR(50),
+    fax             VARCHAR(50),
+    zip_code        VARCHAR(20),
+    parent_branch   VARCHAR(10)   NOT NULL,
+    active          NUMBER(1)     DEFAULT 1 NOT NULL,
+    last_synced_at  TIMESTAMP(6)  NOT NULL,
+    created_at      TIMESTAMP(6)  DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at      TIMESTAMP(6)  DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    created_by      VARCHAR(100),
+    updated_by      VARCHAR(100),
+    CONSTRAINT pk_branch PRIMARY KEY (branch_code),
+    CONSTRAINT fk_branch_parent FOREIGN KEY (parent_branch) REFERENCES azs_business.branch (branch_code)
+);
+
 CREATE TABLE azs_auth.jwt_blacklist (
     jti        VARCHAR(64)  NOT NULL,
     expires_at TIMESTAMP(6) NOT NULL,
