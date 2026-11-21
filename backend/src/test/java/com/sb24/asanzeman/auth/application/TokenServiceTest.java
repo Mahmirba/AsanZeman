@@ -75,7 +75,7 @@ class TokenServiceTest {
 
     @Test
     void startIssuesTheTokensStoresTheHashAndAuditsTheLogin() {
-        when(issuer.issue(eq(SESSION), anyString(), eq(NOW), eq(NOW.plus(ACCESS)))).thenReturn("signed-jwt");
+        when(issuer.issue(eq(SESSION), any(UUID.class), anyString(), eq(NOW), eq(NOW.plus(ACCESS)))).thenReturn("signed-jwt");
 
         IssuedTokens tokens = service.start(SESSION, CLIENT);
 
@@ -100,7 +100,7 @@ class TokenServiceTest {
     void aCappedSessionKeepsItsFamilyAndEndsAtTheCapWithTheAccessTokenInsideIt() {
         UUID family = UUID.randomUUID();
         Instant cap = NOW.plusSeconds(300);
-        when(issuer.issue(eq(SESSION), anyString(), eq(NOW), eq(cap))).thenReturn("jwt");
+        when(issuer.issue(eq(SESSION), any(UUID.class), anyString(), eq(NOW), eq(cap))).thenReturn("jwt");
 
         IssuedTokens tokens = service.start(SESSION, family, cap, CLIENT);
 
@@ -114,7 +114,7 @@ class TokenServiceTest {
 
     @Test
     void aCapBeyondTheNormalLengthChangesNothing() {
-        when(issuer.issue(any(), anyString(), any(), any())).thenReturn("jwt");
+        when(issuer.issue(any(), any(), anyString(), any(), any())).thenReturn("jwt");
 
         IssuedTokens tokens = service.start(SESSION, UUID.randomUUID(), NOW.plus(Duration.ofDays(1)), CLIENT);
 
@@ -124,13 +124,13 @@ class TokenServiceTest {
 
     @Test
     void everyAccessTokenGetsItsOwnId() {
-        when(issuer.issue(any(), anyString(), any(), any())).thenReturn("jwt");
+        when(issuer.issue(any(), any(), anyString(), any(), any())).thenReturn("jwt");
 
         service.start(SESSION, CLIENT);
         service.start(SESSION, CLIENT);
 
         ArgumentCaptor<String> jti = ArgumentCaptor.forClass(String.class);
-        verify(issuer, org.mockito.Mockito.times(2)).issue(any(), jti.capture(), any(), any());
+        verify(issuer, org.mockito.Mockito.times(2)).issue(any(), any(), jti.capture(), any(), any());
         assertThat(jti.getAllValues().get(0)).isNotEqualTo(jti.getAllValues().get(1));
     }
 
@@ -179,7 +179,7 @@ class TokenServiceTest {
         RefreshTokenRecord old = stored(" t ".trim(), null, null, sessionEnd);
         when(store.findByHash(RefreshTokens.hash("t"))).thenReturn(Optional.of(old));
         when(store.markUsed(old.id(), NOW)).thenReturn(true);
-        when(issuer.issue(eq(SESSION), anyString(), eq(NOW), eq(NOW.plus(ACCESS)))).thenReturn("new-jwt");
+        when(issuer.issue(eq(SESSION), any(UUID.class), anyString(), eq(NOW), eq(NOW.plus(ACCESS)))).thenReturn("new-jwt");
 
         IssuedTokens tokens = service.refresh("  t ", CLIENT);
 

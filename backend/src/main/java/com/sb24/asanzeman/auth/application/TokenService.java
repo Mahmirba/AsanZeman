@@ -111,7 +111,7 @@ public class TokenService implements StartSessionUseCase, RefreshSessionUseCase,
         if (accessExpiresAt.isAfter(sessionEnd)) {
             accessExpiresAt = sessionEnd; // an access token never outlives its session
         }
-        String accessToken = issuer.issue(session, UUID.randomUUID().toString(), now, accessExpiresAt);
+        String accessToken = issuer.issue(session, family, UUID.randomUUID().toString(), now, accessExpiresAt);
         String refreshToken = RefreshTokens.newToken();
         store.save(new RefreshTokenRecord(UUID.randomUUID(), family, session, RefreshTokens.hash(refreshToken),
                 sessionEnd, null, null));

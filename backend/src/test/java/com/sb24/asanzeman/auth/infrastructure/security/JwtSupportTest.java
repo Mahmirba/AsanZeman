@@ -41,7 +41,7 @@ class JwtSupportTest {
 
     private String token(Session session, String jti, Duration age, Duration lifetime) {
         Instant issuedAt = Instant.now().minus(age);
-        return issuer.issue(session, jti, issuedAt, issuedAt.plus(lifetime));
+        return issuer.issue(session, UUID.randomUUID(), jti, issuedAt, issuedAt.plus(lifetime));
     }
 
     @Test
@@ -59,6 +59,16 @@ class JwtSupportTest {
         assertThat(jwt.<String>getClaim("uid")).isEqualTo(BRANCH_USER.subjectId().toString());
         assertThat(jwt.getIssuedAt()).isNotNull();
         assertThat(Duration.between(jwt.getIssuedAt(), jwt.getExpiresAt())).isEqualTo(Duration.ofMinutes(15));
+    }
+
+    @Test
+    void aTokenNamesItsSession() {
+        UUID family = UUID.randomUUID();
+        Instant now = Instant.now();
+
+        Jwt jwt = decoder.decode(issuer.issue(BRANCH_USER, family, "jti-sid", now, now.plusSeconds(60)));
+
+        assertThat(jwt.<String>getClaim("sid")).isEqualTo(family.toString());
     }
 
     @Test
@@ -98,7 +108,7 @@ class JwtSupportTest {
         var foreign = new NimbusAccessTokenIssuer(JwtSupport.encoder(
                 TestKeys.pem("PRIVATE KEY", other.getPrivate().getEncoded()),
                 TestKeys.pem("PUBLIC KEY", other.getPublic().getEncoded())), ISSUER);
-        String token = foreign.issue(BRANCH_USER, "jti-5", Instant.now(), Instant.now().plusSeconds(900));
+        String token = foreign.issue(BRANCH_USER, UUID.randomUUID(), "jti-5", Instant.now(), Instant.now().plusSeconds(900));
 
         assertThatThrownBy(() -> decoder.decode(token)).isInstanceOf(JwtException.class);
     }
@@ -106,7 +116,7 @@ class JwtSupportTest {
     @Test
     void aTokenFromAnotherIssuerIsRejected() {
         var other = new NimbusAccessTokenIssuer(JwtSupport.encoder(PRIVATE, PUBLIC), "someone-else");
-        String token = other.issue(BRANCH_USER, "jti-6", Instant.now(), Instant.now().plusSeconds(900));
+        String token = other.issue(BRANCH_USER, UUID.randomUUID(), "jti-6", Instant.now(), Instant.now().plusSeconds(900));
 
         assertThatThrownBy(() -> decoder.decode(token)).isInstanceOf(JwtException.class);
     }

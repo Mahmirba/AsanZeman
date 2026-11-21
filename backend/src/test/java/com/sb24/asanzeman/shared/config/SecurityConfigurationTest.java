@@ -78,7 +78,7 @@ class SecurityConfigurationTest {
     private static String token(Role role, String jti, Duration age, Duration lifetime, String issuer) {
         Instant issuedAt = Instant.now().minus(age);
         var session = new Session(UUID.randomUUID(), "ali", role, role == Role.AGENCY ? null : "0123");
-        return new NimbusAccessTokenIssuer(JwtSupport.encoder(PRIVATE, PUBLIC), issuer).issue(session, jti, issuedAt,
+        return new NimbusAccessTokenIssuer(JwtSupport.encoder(PRIVATE, PUBLIC), issuer).issue(session, UUID.randomUUID(), jti, issuedAt,
                 issuedAt.plus(lifetime));
     }
 

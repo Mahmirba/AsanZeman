@@ -7,5 +7,5 @@ import java.time.Instant;
 public interface AccessTokenIssuerPort {
 
     /** @return the signed, compact token */
-    String issue(Session session, String jti, Instant issuedAt, Instant expiresAt);
+    String issue(Session session, java.util.UUID familyId, String jti, Instant issuedAt, Instant expiresAt);
 }
