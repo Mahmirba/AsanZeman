@@ -26,6 +26,7 @@ class FlywayMigrationIT {
         registry.add("spring.datasource.url", OracleTestContainer::jdbcUrl);
         registry.add("spring.datasource.username", () -> "azs_app");
         registry.add("spring.datasource.password", () -> "test");
+        com.sb24.asanzeman.support.TestKeys.register(registry);
     }
 
     @Autowired
@@ -38,7 +39,7 @@ class FlywayMigrationIT {
     void allMigrationsAppliedInOrder() {
         var info = flyway.info();
         assertThat(info.pending()).isEmpty();
-        assertThat(info.applied()).extracting(m -> m.getVersion().toString()).containsExactly("001", "002");
+        assertThat(info.applied()).extracting(m -> m.getVersion().toString()).containsExactly("001", "002", "003");
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
     }
 
@@ -53,6 +54,16 @@ class FlywayMigrationIT {
                 + "AND constraint_name = 'FK_BRANCH_PARENT' AND constraint_type = 'R'")).isEqualTo(1);
         // nothing is partitioned (D43)
         assertThat(count(jdbc, "SELECT COUNT(*) FROM all_part_tables WHERE owner LIKE 'AZS_%'")).isZero();
+    }
+
+    @Test
+    void authTablesExistAndTheRefreshTokenHashIsUnique() {
+        var jdbc = new JdbcTemplate(dataSource);
+        assertThat(count(jdbc, "SELECT COUNT(*) FROM all_tables WHERE owner = 'AZS_AUTH' AND table_name IN "
+                + "('APP_USER','REFRESH_TOKENS','JWT_BLACKLIST')")).isEqualTo(3);
+        assertThat(count(jdbc, "SELECT COUNT(*) FROM all_constraints WHERE owner = 'AZS_AUTH' "
+                + "AND constraint_name IN ('UX_REFRESH_TOKENS_HASH','UX_APP_USER_ACCOUNT_NAME','CK_APP_USER_ROLE')"))
+                .isEqualTo(3);
     }
 
     @Test

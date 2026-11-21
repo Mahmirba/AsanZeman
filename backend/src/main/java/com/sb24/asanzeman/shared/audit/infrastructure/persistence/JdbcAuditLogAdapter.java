@@ -2,8 +2,8 @@ package com.sb24.asanzeman.shared.audit.infrastructure.persistence;
 
 import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
 import com.sb24.asanzeman.shared.audit.domain.port.out.AuditLogPort;
+import com.sb24.asanzeman.shared.persistence.RawUuid;
 import com.sb24.asanzeman.shared.web.CorrelationIdFilter;
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -55,10 +55,6 @@ public class JdbcAuditLogAdapter implements AuditLogPort {
 
     /** UUID as the 16 bytes of an Oracle {@code RAW(16)}, or {@code null}. */
     static byte[] raw(UUID id) {
-        if (id == null) {
-            return null;
-        }
-        return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits()).putLong(id.getLeastSignificantBits())
-                .array();
+        return RawUuid.toBytes(id);
     }
 }

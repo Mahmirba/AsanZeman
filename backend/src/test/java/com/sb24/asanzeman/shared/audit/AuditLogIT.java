@@ -25,6 +25,7 @@ class AuditLogIT {
         registry.add("spring.datasource.url", OracleTestContainer::jdbcUrl);
         registry.add("spring.datasource.username", () -> "azs_app");
         registry.add("spring.datasource.password", () -> "test");
+        com.sb24.asanzeman.support.TestKeys.register(registry);
     }
 
     @Autowired

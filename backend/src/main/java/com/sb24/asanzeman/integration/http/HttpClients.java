@@ -29,13 +29,19 @@ public final class HttpClients {
     /** The request factory alone, for clients that need to add their own converters or error handling. */
     public static JdkClientHttpRequestFactory requestFactory(Duration connectTimeout, Duration readTimeout,
             boolean skipTlsVerify) {
+        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(
+                httpClient(connectTimeout, skipTlsVerify));
+        factory.setReadTimeout(readTimeout);
+        return factory;
+    }
+
+    /** The JDK {@link HttpClient} alone, for clients that are not built on {@code RestClient} (the SOAP client). */
+    public static HttpClient httpClient(Duration connectTimeout, boolean skipTlsVerify) {
         HttpClient.Builder http = HttpClient.newBuilder().connectTimeout(connectTimeout);
         if (skipTlsVerify) {
             http.sslContext(trustAllContext());
         }
-        JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http.build());
-        factory.setReadTimeout(readTimeout);
-        return factory;
+        return http.build();
     }
 
     static SSLContext trustAllContext() {
