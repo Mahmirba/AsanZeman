@@ -14,6 +14,7 @@ import com.sb24.asanzeman.request.domain.port.out.CollateralRepositoryPort;
 import com.sb24.asanzeman.request.domain.port.out.ReviewRepositoryPort;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.springframework.stereotype.Service;
 
 /**
@@ -46,6 +47,18 @@ public class BranchQueryService implements BranchQueryUseCase {
         var scoped = new BranchSearchCriteria(user.admin() ? null : user.branchCode(), c.statuses(), c.customerCode(),
                 c.customerCif(), c.trackingCode(), c.registeredFrom(), c.registeredTo());
         return queries.search(scoped, page, size);
+    }
+
+    @Override
+    public void export(BranchUser user, BranchSearchCriteria criteria, Consumer<List<BranchRequestRow>> sink) {
+        int page = 0;
+        PageResult<BranchRequestRow> current;
+        do {
+            current = search(user, criteria, page++, MAX_PAGE_SIZE);
+            if (!current.items().isEmpty()) {
+                sink.accept(current.items());
+            }
+        } while ((long) page * MAX_PAGE_SIZE < current.total() && !current.items().isEmpty());
     }
 
     @Override

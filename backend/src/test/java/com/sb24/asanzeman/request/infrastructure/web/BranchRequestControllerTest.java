@@ -97,6 +97,33 @@ class BranchRequestControllerTest {
     // ---- reading --------------------------------------------------------------------------------------------
 
     @Test
+    void theReportStreamsACsvFileWithTheBothBranchesTheGuaranteeNumberAndTheRejection() throws Exception {
+        org.mockito.Mockito.doAnswer(call -> {
+            java.util.function.Consumer<List<BranchRequestRow>> sink = call.getArgument(2);
+            sink.accept(List.of(row("sara")));
+            return null;
+        }).when(queries).export(eq(ALI), any(), any());
+
+        var started = mvc.perform(get("/api/branch/requests/export").param("status", "ISSUED"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted())
+                .andReturn();
+        var result = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                .asyncDispatch(started)).andExpect(status().isOk()).andReturn();
+
+        assertThat(result.getResponse().getContentType()).startsWith("text/csv");
+        assertThat(result.getResponse().getHeader("Content-Disposition")).contains("attachment").contains("report.csv");
+        String csv = new String(result.getResponse().getContentAsByteArray(),
+                java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(csv).startsWith("﻿کد ملی مشتری,").contains("شعبه رسیدگی‌کننده")
+                .contains("1000000011,555,Ali Rezaei,1000000000,0123,Valiasr,0456,");
+    }
+
+    @Test
+    void aBadReportFilterIsA400BeforeAnythingIsStreamed() throws Exception {
+        mvc.perform(get("/api/branch/requests/export").param("status", "NOPE")).andExpect(status().isBadRequest());
+    }
+
+    @Test
     void theInboxShowsEachRequestWithItsHolderAndWhetherTheUserMayActOnIt() throws Exception {
         when(queries.search(eq(ALI), any(), eq(0), eq(20))).thenReturn(new PageResult<>(List.of(row("sara")), 1, 0, 20));
 

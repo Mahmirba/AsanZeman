@@ -83,6 +83,31 @@ class BranchQueryServiceTest {
     }
 
     @Test
+    void theReportReadsPageAfterPageInTheUsersScopeUntilTheEnd() {
+        var first = new PageResult<>(java.util.stream.IntStream.range(0, 200).mapToObj(i -> row("0123", "0123")).toList(),
+                201, 0, 200);
+        var second = new PageResult<>(List.of(row("0123", "0123")), 201, 1, 200);
+        when(queries.search(org.mockito.ArgumentMatchers.any(), eq(0), eq(200))).thenReturn(first);
+        when(queries.search(org.mockito.ArgumentMatchers.any(), eq(1), eq(200))).thenReturn(second);
+        var sizes = new java.util.ArrayList<Integer>();
+
+        service.export(ALI, ANY, page -> sizes.add(page.size()));
+
+        assertThat(sizes).containsExactly(200, 1);
+        var scoped = ArgumentCaptor.forClass(BranchSearchCriteria.class);
+        verify(queries, org.mockito.Mockito.times(2)).search(scoped.capture(), org.mockito.ArgumentMatchers.anyInt(), eq(200));
+        assertThat(scoped.getAllValues()).allSatisfy(c -> assertThat(c.branchCode()).isEqualTo("0123"));
+    }
+
+    @Test
+    void anEmptyReportCallsTheSinkNever() {
+        when(queries.search(org.mockito.ArgumentMatchers.any(), eq(0), eq(200)))
+                .thenReturn(new PageResult<>(List.of(), 0, 0, 200));
+
+        service.export(ADMIN, ANY, page -> org.junit.jupiter.api.Assertions.fail("nothing to write"));
+    }
+
+    @Test
     void aBadPageOrSizeIsRefused() {
         assertThatThrownBy(() -> service.search(ALI, ANY, -1, 20)).isInstanceOf(InvalidRequestDataException.class);
         assertThatThrownBy(() -> service.search(ALI, ANY, 0, 0)).isInstanceOf(InvalidRequestDataException.class);
