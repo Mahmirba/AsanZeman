@@ -12,4 +12,7 @@ public interface CollateralRepositoryPort {
 
     /** @return whether the request has chosen its collateral */
     boolean exists(UUID requestId);
+
+    /** The saved allocations of a request, cash first, in the order they were chosen. */
+    java.util.List<com.sb24.asanzeman.request.domain.model.CollateralAllocation> find(UUID requestId);
 }

@@ -8,7 +8,11 @@ public enum SmsTemplate {
     /** Event 1: an agency registered a request; args: the agency name. */
     REQUEST_REGISTERED("sms.request-registered"),
     /** Event 6: the agency cancelled the request before «اقدام»; args: the agency name, the Jalali date. */
-    REQUEST_CANCELLED("sms.request-cancelled");
+    REQUEST_CANCELLED("sms.request-cancelled"),
+    /** The branch rejected the request; args: the agency name, the branch name, the Jalali date. */
+    REQUEST_REJECTED("sms.request-rejected"),
+    /** The guarantee was issued; args: the agency name, the branch name, the Jalali date. */
+    GUARANTEE_ISSUED("sms.guarantee-issued");
 
     private final String messageKey;
 

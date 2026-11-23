@@ -50,6 +50,21 @@ public class JdbcCollateralRepository implements CollateralRepositoryPort {
     }
 
     @Override
+    public java.util.List<CollateralAllocation> find(UUID requestId) {
+        return jdbc.sql("""
+                SELECT deposit_number, kind, price_class, share_percent, factor, allocated, collateral
+                  FROM azs_business.collateral WHERE request_id = :request ORDER BY kind, created_at, deposit_number
+                """)
+                .param("request", RawUuid.toBytes(requestId), Types.VARBINARY)
+                .query((rs, row) -> new CollateralAllocation(rs.getString("deposit_number"),
+                        com.sb24.asanzeman.request.domain.model.CollateralKind.valueOf(rs.getString("kind")),
+                        com.sb24.asanzeman.request.domain.model.PriceClass.valueOf(rs.getString("price_class")),
+                        rs.getInt("share_percent"), rs.getBigDecimal("factor"),
+                        com.sb24.asanzeman.shared.model.Rials.of(rs.getLong("allocated")),
+                        com.sb24.asanzeman.shared.model.Rials.of(rs.getLong("collateral")))).list();
+    }
+
+    @Override
     public boolean exists(UUID requestId) {
         return jdbc.sql("SELECT COUNT(*) FROM azs_business.collateral WHERE request_id = :request")
                 .param("request", RawUuid.toBytes(requestId), Types.VARBINARY).query(Long.class).single() > 0;

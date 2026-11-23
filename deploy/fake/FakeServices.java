@@ -37,6 +37,8 @@ public class FakeServices {
         server.createContext("/yaghut/branches", FakeServices::branches);
         server.createContext("/yaghut/customerDetailInfo", FakeServices::customer);
         server.createContext("/yaghut/deposit", FakeServices::deposits);
+        server.createContext("/aaa/AuthorizationSrv.svc", FakeServices::aaa);
+        server.createContext("/personnel-info", FakeServices::personnel);
         server.createContext("/notifier/api/v1/sms/SendSimpleSms", FakeServices::sms);
         server.createContext("/notifier/api/v1/Sms/SendOtp", FakeServices::otpSend);
         server.createContext("/notifier/api/v1/Sms/OtpValidate", FakeServices::otpValidate);
@@ -89,6 +91,34 @@ public class FakeServices {
                 + "\",\"firstName\":\"Ali\",\"lastName\":\"Rezaei\","
                 + "\"fatherName\":\"Reza\",\"birthDate\":\"" + born + "\",\"mobile\":\"09121234567\","
                 + "\"personalityType\":\"" + type + "\",\"gender\":\"MALE\"}}", null);
+    }
+
+    /** The bank's role service (SOAP): a user name with "admin" in it is an Admin, anyone else a Branch user. */
+    private static void aaa(HttpExchange x) throws IOException {
+        String request = read(x);
+        String ns = "http://www.sb24.com/Services/Security/AuthorizationSrv";
+        String role = request.contains("admin") ? "Admin" : "Branch";
+        byte[] body = ("<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\"><s:Body>"
+                + "<GetRoleWindowsResponse xmlns=\"" + ns + "\"><GetRoleWindowsResult>"
+                + "<DetailError xmlns=\"" + ns + "/RoleDataResult\"/>"
+                + "<UserRoles xmlns=\"" + ns + "/RoleDataResult\" "
+                + "xmlns:a=\"http://schemas.microsoft.com/2003/10/Serialization/Arrays\"><a:string>" + role
+                + "</a:string></UserRoles></GetRoleWindowsResult></GetRoleWindowsResponse></s:Body></s:Envelope>")
+                .getBytes(StandardCharsets.UTF_8);
+        x.getResponseHeaders().set("Content-Type", "text/xml;charset=UTF-8");
+        x.sendResponseHeaders(200, body.length);
+        x.getResponseBody().write(body);
+        x.close();
+    }
+
+    /** The user's branch: 0456 or 0999 when the account name says so, otherwise 0123. */
+    private static void personnel(HttpExchange x) throws IOException {
+        String account = field(read(x), "accountName");
+        String branch = account != null && account.contains("0456") ? "0456"
+                : account != null && account.contains("0999") ? "0999" : "0123";
+        reply(x, 200, "{\"userInfo\":{\"abrnchcod\":\"" + branch + "\",\"prsnCode\":\"1\",\"personelUserName\":\""
+                + account + "\",\"aBranchName\":\"Branch " + branch + "\",\"position\":\"clerk\",\"job\":\"branch\"}}",
+                null);
     }
 
     /** Seven deposits: three can be offered (D-100, D-200 cheap and D-300 expensive); the rest must be filtered out. */

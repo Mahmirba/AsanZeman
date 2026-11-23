@@ -47,7 +47,10 @@ class OpenApiContractTest {
                 "/auth/customer/otp/verify", "/customer/requests", "/customer/requests/{id}",
                 "/customer/requests/{requestId}/inquiries", "/customer/requests/{requestId}/inquiries/{runId}",
                 "/customer/requests/{requestId}/deposits", "/customer/requests/{requestId}/collateral",
-                "/customer/requests/{requestId}/submit");
+                "/customer/requests/{requestId}/submit", "/branch/requests", "/branch/requests/{id}",
+                "/branch/rejection-reasons", "/branch/requests/{id}/lock", "/branch/requests/{id}/approve",
+                "/branch/requests/{id}/reject", "/branch/requests/{id}/issue", "/branch/requests/{id}/abandon",
+                "/branch/requests/{id}/force-release");
     }
 
     @Test

@@ -491,12 +491,184 @@ paths:
                   statusLabel: { type: string }
         "404": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
-  /branch/requests: { get: { tags: [branch], summary: "Inbox: original branch or replacement (D32)", responses: { "200": { description: page } } } }
-  /branch/requests/{id}/lock: { post: { tags: [branch], summary: "«اقدام» - ownership lock (D1)", responses: { "200": { description: locked }, "409": { $ref: "#/components/responses/Problem" } } } }
-  /branch/requests/{id}/approve: { post: { tags: [branch], responses: { "200": { description: UNDER_ACTION } } } }
-  /branch/requests/{id}/reject: { post: { tags: [branch], responses: { "200": { description: REJECTED } } } }
-  /branch/requests/{id}/abandon: { post: { tags: [branch], summary: "«انصراف» / «لغو اقدام» (D44)", responses: { "200": { description: back to inbox } } } }
-  /branch/requests/{id}/issue: { post: { tags: [branch], summary: "Record the Farangin guarantee number", responses: { "200": { description: ISSUED } } } }
+  /branch/requests:
+    get:
+      tags: [branch]
+      summary: "The branch's inbox, or a search (SRS review use case, 4.4)"
+      description: |
+        Without `status`, the inbox: requests waiting, in review and in action. A branch user sees the requests of their own
+        branch and of the branches it replaced; an admin sees every branch. A request someone holds is listed with the
+        holder's name (`lockedBy`) and is read-only for everyone else. `canAct` is the branch rule for this user. Dates are
+        Jalali `yyyy/MM/dd`; "to" includes the whole day. BRANCH and ADMIN roles.
+      parameters:
+        - { name: status, in: query, schema: { type: array, items: { $ref: "#/components/schemas/RequestStatus" } } }
+        - { name: nationalCode, in: query, schema: { type: string } }
+        - { name: customerNumber, in: query, schema: { type: string } }
+        - { name: trackingCode, in: query, schema: { type: string } }
+        - { name: registeredFrom, in: query, schema: { type: string, example: "1405/09/01" } }
+        - { name: registeredTo, in: query, schema: { type: string, example: "1405/09/30" } }
+        - { name: page, in: query, schema: { type: integer, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, default: 20, maximum: 200 } }
+      responses:
+        "200":
+          description: A page of requests, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total, page, size]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/BranchRequest" } }
+                  total: { type: integer, format: int64 }
+                  page: { type: integer }
+                  size: { type: integer }
+        "400": { $ref: "#/components/responses/Problem" }
+  /branch/requests/{id}:
+    get:
+      tags: [branch]
+      summary: "One request with its companions and the collateral the customer chose"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The request. Another branch's request is a 404 for a branch user.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request: { $ref: "#/components/schemas/BranchRequest" }
+                  companions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        fullName: { type: string }
+                        nationalCode: { type: string }
+                        birthDate: { type: string, description: Jalali yyyy/MM/dd }
+                        passportNumber: { type: string }
+                  collateral:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        depositNumber: { type: string }
+                        kind: { type: string, enum: [CASH, PLEDGE] }
+                        priceClass: { type: string, enum: [CHEAP, EXPENSIVE] }
+                        sharePercent: { type: integer }
+                        factor: { type: number }
+                        allocated: { type: integer, format: int64 }
+                        collateral: { type: integer, format: int64 }
+        "404": { $ref: "#/components/responses/Problem" }
+  /branch/rejection-reasons:
+    get:
+      tags: [branch]
+      summary: "The reasons a rejection may give (from the admin's list)"
+      responses:
+        "200":
+          description: Active issuance rejection reasons, in order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: string, format: uuid }
+                    text: { type: string }
+  /branch/requests/{id}/lock:
+    post:
+      tags: [branch]
+      summary: "«اقدام»: take a request (4.1, D1)"
+      description: |
+        Atomic: two users clicking at the same moment cannot both win (one gets 409). PENDING_BRANCH_REVIEW becomes
+        UNDER_REVIEW and the caller owns it. Taking a request you already hold is fine. 403 `request.branch-forbidden`
+        (another branch); 409 `request.locked-by-other` (names the holder and since when), `request.busy`,
+        `request.not-reviewable`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { $ref: "#/components/responses/ReviewResult" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /branch/requests/{id}/approve:
+    post:
+      tags: [branch]
+      summary: "«تایید درخواست صدور»: UNDER_REVIEW becomes UNDER_ACTION; the holder keeps the request"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { $ref: "#/components/responses/ReviewResult" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /branch/requests/{id}/reject:
+    post:
+      tags: [branch]
+      summary: "«رد درخواست صدور»: UNDER_REVIEW becomes REJECTED; the customer is sent an SMS"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reasonId, comment]
+              properties:
+                reasonId: { type: string, format: uuid, description: From /branch/rejection-reasons }
+                comment: { type: string, maxLength: 200 }
+      responses:
+        "200": { $ref: "#/components/responses/ReviewResult" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /branch/requests/{id}/issue:
+    post:
+      tags: [branch]
+      summary: "Record the Farangin guarantee number: UNDER_ACTION becomes ISSUED; the customer is sent an SMS"
+      description: The number is 1 to 30 letters, digits, `-`, `/` or `_` (the format is to be confirmed with the bank).
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [guaranteeNumber]
+              properties:
+                guaranteeNumber: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/ReviewResult" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /branch/requests/{id}/abandon:
+    post:
+      tags: [branch]
+      summary: "«انصراف از درخواست» (in review) or «لغو اقدام» (in action, D44): back to the queue"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { $ref: "#/components/responses/ReviewResult" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /branch/requests/{id}/force-release:
+    post:
+      tags: [branch]
+      summary: "ADMIN only: free a request whoever holds it (4.1); the reason is audited"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, maxLength: 200 }
+      responses:
+        "200": { $ref: "#/components/responses/ReviewResult" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
   /branch/requests/{id}/complete-revocation: { post: { tags: [branch], responses: { "200": { description: COMPLETED / parent REVOKED } } } }
   /branch/reports: { get: { tags: [reports], summary: "Filtered report; ?format=csv streams CSV (D42)", responses: { "200": { description: page or CSV } } } }
   /admin/agencies: { get: { tags: [admin], responses: { "200": { description: list } } }, post: { tags: [admin], responses: { "201": { description: created } } } }
@@ -506,6 +678,19 @@ components:
   securitySchemes:
     bearerJwt: { type: http, scheme: bearer, bearerFormat: JWT }
   responses:
+    ReviewResult:
+      description: What the action left behind. `heldBy` and `heldSince` are set while someone owns the request.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [requestId, status, statusLabel]
+            properties:
+              requestId: { type: string, format: uuid }
+              status: { $ref: "#/components/schemas/RequestStatus" }
+              statusLabel: { type: string }
+              heldBy: { type: string }
+              heldSince: { type: string, format: date-time }
     Problem:
       description: RFC 7807 Problem Details
       content:
@@ -563,6 +748,21 @@ components:
         id: { type: string, format: uuid }
         trackingCode: { type: string, description: "Branch code + agency code + Jalali YYMMDD + 4-digit counter (D12)" }
         status: { type: string, enum: [REGISTERED_AT_AGENCY] }
+    RequestStatus:
+      type: string
+      enum: [REGISTERED_AT_AGENCY, PENDING_BRANCH_REVIEW, UNDER_REVIEW, UNDER_ACTION, ISSUED, REJECTED, CANCELLED, REVOKED, COMPLETED]
+    BranchRequest:
+      type: object
+      description: A request as the branch sees it (4.1, 4.4).
+      properties:
+        request: { $ref: "#/components/schemas/RequestSummary" }
+        lockedBy: { type: string, description: The user who took it with «اقدام», if any }
+        lockedAt: { type: string, format: date-time }
+        canAct: { type: boolean, description: The branch rule for the calling user; false means read-only }
+        handlingBranch: { type: string, description: The branch that handles the request now }
+        rejectionReason: { type: string }
+        rejectionComment: { type: string }
+        guaranteeNumber: { type: string }
     RequestSummary:
       type: object
       properties:

@@ -20,6 +20,9 @@ public interface BranchRepositoryPort {
     /** @return true when the branch exists, is active and is not closed (4.4): new requests may use it */
     boolean isOpen(String branchCode);
 
+    /** @return the branch's name, whether or not it is closed (a request keeps its original branch) */
+    java.util.Optional<String> nameOf(String branchCode);
+
     /**
      * Open branches whose name or code starts with {@code prefix} (blank means all), ordered by name, at most
      * {@code limit}.

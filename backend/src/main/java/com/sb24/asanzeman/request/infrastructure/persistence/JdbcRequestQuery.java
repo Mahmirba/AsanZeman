@@ -138,11 +138,11 @@ public class JdbcRequestQuery implements RequestQueryPort {
         return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
-    private static boolean notBlank(String value) {
+    static boolean notBlank(String value) {
         return value != null && !value.isBlank();
     }
 
-    private static RequestSummary summary(ResultSet rs) throws SQLException {
+    static RequestSummary summary(ResultSet rs) throws SQLException {
         return new RequestSummary(RawUuid.fromBytes(rs.getBytes("id")), rs.getString("tracking_code"),
                 RequestType.valueOf(rs.getString("request_type")), RequestStatus.valueOf(rs.getString("status")),
                 rs.getString("customer_code"), rs.getString("customer_cif"), rs.getString("customer_full_name"),
