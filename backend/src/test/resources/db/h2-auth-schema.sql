@@ -98,8 +98,13 @@ CREATE TABLE azs_business.agency (
     name   VARCHAR(200)   NOT NULL,
     active NUMBER(1)      DEFAULT 1 NOT NULL,
     mobile VARCHAR(11),
+    version NUMBER(10) DEFAULT 0 NOT NULL,
+    updated_at TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
     CONSTRAINT pk_agency PRIMARY KEY (id),
-    CONSTRAINT ux_agency_cif UNIQUE (cif)
+    CONSTRAINT ux_agency_cif UNIQUE (cif),
+    CONSTRAINT ux_agency_code UNIQUE (code)
 );
 
 -- stand-in for AZS_BUSINESS.branch (V002), as the branch sync uses it
@@ -136,6 +141,9 @@ CREATE TABLE azs_business.rejection_reason (
     text       VARCHAR(500)  NOT NULL,
     active     NUMBER(1)     DEFAULT 1 NOT NULL,
     sort_order NUMBER(5)     DEFAULT 0 NOT NULL,
+    updated_at TIMESTAMP,
+    created_by VARCHAR(100),
+    updated_by VARCHAR(100),
     CONSTRAINT pk_rejection_reason PRIMARY KEY (id)
 );
 

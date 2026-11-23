@@ -704,8 +704,66 @@ paths:
         "200": { $ref: "#/components/responses/ReviewResult" }
         "403": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
-  /admin/agencies: { get: { tags: [admin], responses: { "200": { description: list } } }, post: { tags: [admin], responses: { "201": { description: created } } } }
-  /admin/rejection-reasons: { get: { tags: [admin], responses: { "200": { description: list } } }, post: { tags: [admin], responses: { "201": { description: created } } } }
+  /admin/agencies:
+    get:
+      tags: [admin]
+      summary: "Every agency, by code"
+      responses:
+        "200": { description: The agencies, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AdminAgency" } } } } }
+        "403": { $ref: "#/components/responses/Problem" }
+    post:
+      tags: [admin]
+      summary: "Add an agency (audited)"
+      description: "400 for a bad value; 409 `admin.agency-duplicate` when the customer number or the 4-digit code is taken."
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/AdminAgencyBody" } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/AdminAgency" } } } }
+        "400": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /admin/agencies/{id}:
+    put:
+      tags: [admin]
+      summary: "Change an agency, or switch it off with active=false (audited)"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/AdminAgencyBody" } } }
+      responses:
+        "200": { description: Changed, content: { application/json: { schema: { $ref: "#/components/schemas/AdminAgency" } } } }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /admin/rejection-reasons:
+    get:
+      tags: [admin]
+      summary: "Every rejection reason, both kinds, switched off ones too"
+      responses:
+        "200": { description: The reasons, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/AdminReason" } } } } }
+    post:
+      tags: [admin]
+      summary: "Add a rejection reason (audited)"
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/AdminReasonBody" } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/AdminReason" } } } }
+        "400": { $ref: "#/components/responses/Problem" }
+  /admin/rejection-reasons/{id}:
+    put:
+      tags: [admin]
+      summary: "Change a rejection reason, or switch it off with active=false (audited)"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/AdminReasonBody" } } }
+      responses:
+        "200": { description: Changed, content: { application/json: { schema: { $ref: "#/components/schemas/AdminReason" } } } }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
   /admin/requests/{id}/force-release: { post: { tags: [admin], summary: "Admin force-release with reason (audited)", responses: { "200": { description: released } } } }
 components:
   securitySchemes:
@@ -836,6 +894,40 @@ components:
               nationalCode: { type: string }
               birthDate: { type: string, description: "Jalali yyyy/MM/dd" }
               passportNumber: { type: string }
+    AdminAgencyBody:
+      type: object
+      required: [cif, code, name]
+      properties:
+        cif: { type: string, maxLength: 20, description: "The Yaghut customer number the agency logs in with" }
+        code: { type: string, pattern: "^[0-9]{4}$", description: "Goes into every tracking code" }
+        name: { type: string, maxLength: 200 }
+        active: { type: boolean, default: true }
+        mobile: { type: string, pattern: "^09[0-9]{9}$", nullable: true, description: "Told about revocations by SMS; optional" }
+    AdminAgency:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        cif: { type: string }
+        code: { type: string }
+        name: { type: string }
+        active: { type: boolean }
+        mobile: { type: string, nullable: true }
+    AdminReasonBody:
+      type: object
+      required: [kind, text]
+      properties:
+        kind: { type: string, enum: [ISSUANCE, REVOCATION] }
+        text: { type: string, maxLength: 500 }
+        active: { type: boolean, default: true }
+        sortOrder: { type: integer, minimum: 0, maximum: 99999, default: 0 }
+    AdminReason:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        kind: { type: string }
+        text: { type: string }
+        active: { type: boolean }
+        sortOrder: { type: integer }
     CancelResult:
       type: object
       properties:
