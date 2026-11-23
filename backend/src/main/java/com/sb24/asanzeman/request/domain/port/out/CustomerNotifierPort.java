@@ -33,4 +33,12 @@ public interface CustomerNotifierPort {
 
     /** SMS event 7: the branch did not approve the revocation request. */
     void revocationRejected(UUID requestId, String mobile, String agencyName, String branchName, String sentDate);
+
+    /** SMS to the agency: its revocation request was completed. Does nothing when the agency has no mobile number. */
+    void agencyRevocationCompleted(UUID requestId, String agencyMobile, String trackingCode, String branchName,
+            String sentDate);
+
+    /** SMS to the agency: its revocation request was not approved. Does nothing when the agency has no mobile number. */
+    void agencyRevocationRejected(UUID requestId, String agencyMobile, String trackingCode, String branchName,
+            String sentDate);
 }

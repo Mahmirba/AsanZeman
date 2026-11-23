@@ -40,6 +40,18 @@ class JdbcAgencyRegistryTest {
     }
 
     @Test
+    void theMobileNumberIsReadWhenTheAgencyHasOne() {
+        UUID id = insert("9005", "0046", 1);
+        assertThat(registry.find(id).orElseThrow().mobile()).isNull();
+
+        jdbc.sql("UPDATE azs_business.agency SET mobile = '09129990000' WHERE id = :id")
+                .param("id", RawUuid.toBytes(id), Types.VARBINARY).update();
+
+        assertThat(registry.find(id).orElseThrow().mobile()).isEqualTo("09129990000");
+        assertThat(registry.lock(id).orElseThrow().mobile()).isEqualTo("09129990000");
+    }
+
+    @Test
     void anUnknownAgencyIsEmpty() {
         assertThat(registry.lock(UUID.randomUUID())).isEmpty();
     }

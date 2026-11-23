@@ -55,6 +55,27 @@ public class OutboxCustomerNotifier implements CustomerNotifierPort {
     }
 
     @Override
+    public void agencyRevocationCompleted(UUID requestId, String agencyMobile, String trackingCode,
+            String branchName, String sentDate) {
+        toAgency(SmsTemplate.AGENCY_REVOCATION_COMPLETED, requestId, agencyMobile, trackingCode, branchName, sentDate);
+    }
+
+    @Override
+    public void agencyRevocationRejected(UUID requestId, String agencyMobile, String trackingCode,
+            String branchName, String sentDate) {
+        toAgency(SmsTemplate.AGENCY_REVOCATION_REJECTED, requestId, agencyMobile, trackingCode, branchName, sentDate);
+    }
+
+    /** An agency without a mobile number is simply not told. */
+    private void toAgency(SmsTemplate template, UUID requestId, String mobile, String trackingCode, String branchName,
+            String sentDate) {
+        if (mobile != null && !mobile.isBlank()) {
+            sms.enqueue(new EnqueueSmsCommand(mobile, template, List.of(trackingCode, branchName, sentDate),
+                    requestId));
+        }
+    }
+
+    @Override
     public void requestCancelled(UUID requestId, String mobile, String agencyName, String sentDate) {
         sms.enqueue(new EnqueueSmsCommand(mobile, SmsTemplate.REQUEST_CANCELLED, List.of(agencyName, sentDate),
                 requestId));

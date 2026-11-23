@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class JdbcAgencyRegistry implements AgencyRegistryPort {
 
-    static final String LOCK = "SELECT id, code, name, active FROM azs_business.agency WHERE id = :id FOR UPDATE";
+    static final String LOCK = "SELECT id, code, name, active, mobile FROM azs_business.agency WHERE id = :id FOR UPDATE";
 
     private final JdbcClient jdbc;
 
@@ -31,7 +31,7 @@ public class JdbcAgencyRegistry implements AgencyRegistryPort {
     public Optional<AgencyInfo> lock(UUID agencyId) {
         return jdbc.sql(LOCK).param("id", RawUuid.toBytes(agencyId), Types.VARBINARY)
                 .query((rs, row) -> new AgencyInfo(RawUuid.fromBytes(rs.getBytes("id")), rs.getString("code"),
-                        rs.getString("name"), rs.getInt("active") == 1))
+                        rs.getString("name"), rs.getInt("active") == 1, rs.getString("mobile")))
                 .optional();
     }
 
@@ -39,7 +39,7 @@ public class JdbcAgencyRegistry implements AgencyRegistryPort {
     public Optional<AgencyInfo> find(UUID agencyId) {
         return jdbc.sql(LOCK.replace(" FOR UPDATE", "")).param("id", RawUuid.toBytes(agencyId), Types.VARBINARY)
                 .query((rs, row) -> new AgencyInfo(RawUuid.fromBytes(rs.getBytes("id")), rs.getString("code"),
-                        rs.getString("name"), rs.getInt("active") == 1))
+                        rs.getString("name"), rs.getInt("active") == 1, rs.getString("mobile")))
                 .optional();
     }
 }
