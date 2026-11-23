@@ -525,6 +525,27 @@ paths:
                   page: { type: integer }
                   size: { type: integer }
         "400": { $ref: "#/components/responses/Problem" }
+  /branch/requests/export:
+    get:
+      tags: [branch]
+      summary: "The bank report: the same filters as the list, as a CSV file (D42)"
+      description: |
+        UTF-8 with a byte order mark, streamed page by page. Columns: the tracking columns, the original branch and the
+        branch that handles the request now, the guarantee number, and the rejection reason and comment. A branch user
+        gets their own branch's requests, an admin every branch's. A bad filter is a 400 before anything is written.
+      parameters:
+        - { name: status, in: query, required: false, schema: { type: array, items: { type: string } } }
+        - { name: nationalCode, in: query, required: false, schema: { type: string } }
+        - { name: customerNumber, in: query, required: false, schema: { type: string } }
+        - { name: trackingCode, in: query, required: false, schema: { type: string } }
+        - { name: registeredFrom, in: query, required: false, schema: { type: string }, description: "Jalali yyyy/MM/dd" }
+        - { name: registeredTo, in: query, required: false, schema: { type: string }, description: "Jalali yyyy/MM/dd" }
+      responses:
+        "200":
+          description: The CSV file.
+          content:
+            text/csv: { schema: { type: string } }
+        "400": { $ref: "#/components/responses/Problem" }
   /branch/requests/{id}:
     get:
       tags: [branch]
@@ -683,7 +704,6 @@ paths:
         "200": { $ref: "#/components/responses/ReviewResult" }
         "403": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
-  /branch/reports: { get: { tags: [reports], summary: "Filtered report; ?format=csv streams CSV (D42)", responses: { "200": { description: page or CSV } } } }
   /admin/agencies: { get: { tags: [admin], responses: { "200": { description: list } } }, post: { tags: [admin], responses: { "201": { description: created } } } }
   /admin/rejection-reasons: { get: { tags: [admin], responses: { "200": { description: list } } }, post: { tags: [admin], responses: { "201": { description: created } } } }
   /admin/requests/{id}/force-release: { post: { tags: [admin], summary: "Admin force-release with reason (audited)", responses: { "200": { description: released } } } }

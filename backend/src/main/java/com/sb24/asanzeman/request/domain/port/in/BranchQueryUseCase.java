@@ -8,6 +8,7 @@ import com.sb24.asanzeman.request.domain.model.PageResult;
 import com.sb24.asanzeman.request.domain.model.RejectionReason;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /** The branch user's inbox, search and details (SRS review use case, 4.4). */
 public interface BranchQueryUseCase {
@@ -22,6 +23,12 @@ public interface BranchQueryUseCase {
      * @throws com.sb24.asanzeman.request.domain.model.InvalidRequestDataException a bad page or size
      */
     PageResult<BranchRequestRow> search(BranchUser user, BranchSearchCriteria criteria, int page, int size);
+
+    /**
+     * Every request the search finds, in pages for the sink (D42), so a large report never sits in memory. The same
+     * scope as {@link #search}.
+     */
+    void export(BranchUser user, BranchSearchCriteria criteria, Consumer<List<BranchRequestRow>> sink);
 
     /**
      * One request with its companions and collateral.
