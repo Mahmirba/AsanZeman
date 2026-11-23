@@ -9,6 +9,10 @@ public enum SmsTemplate {
     REQUEST_REGISTERED("sms.request-registered"),
     /** Event 6: the agency cancelled the request before «اقدام»; args: the agency name, the Jalali date. */
     REQUEST_CANCELLED("sms.request-cancelled"),
+    /** An inquiry rejected the request; args: the agency name, the Jalali date. */
+    REQUEST_REJECTED_BY_INQUIRY("sms.request-rejected-by-inquiry"),
+    /** Not completed within 7 days; args: the agency name, the Jalali date. */
+    REQUEST_EXPIRED("sms.request-expired"),
     /** The branch rejected the request; args: the agency name, the branch name, the Jalali date. */
     REQUEST_REJECTED("sms.request-rejected"),
     /** The guarantee was issued; args: the agency name, the branch name, the Jalali date. */

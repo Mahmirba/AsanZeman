@@ -4,9 +4,12 @@ import com.sb24.asanzeman.inquiry.domain.model.InquiryVerdict;
 import com.sb24.asanzeman.inquiry.domain.port.in.InquiryRunFinished;
 import com.sb24.asanzeman.request.domain.model.Request;
 import com.sb24.asanzeman.request.domain.model.RequestBusyException;
+import com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort;
+import com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort;
 import com.sb24.asanzeman.request.domain.port.out.RequestRepositoryPort;
 import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
 import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
+import com.sb24.asanzeman.shared.model.JalaliDate;
 import java.time.Clock;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -19,7 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
  * Listens for the end of an inquiry run (5.1): a rejection rejects the request. The inquiry module never calls this
  * module, it only announces the result. The request is read under the row lock; if it is no longer waiting for its
  * inquiries (the agency cancelled it meanwhile) nothing changes, and if the lock cannot be had at once the rejection
- * is dropped, which is safe: the customer's next run asks again and is rejected again.
+ * is dropped, which is safe: the customer's next run asks again and is rejected again. The customer is told by SMS
+ * in the same transaction (6.4, event 8).
  */
 @Service
 public class InquiryRejectionService {
@@ -28,11 +32,16 @@ public class InquiryRejectionService {
     private static final Logger log = LoggerFactory.getLogger(InquiryRejectionService.class);
 
     private final RequestRepositoryPort requests;
+    private final AgencyRegistryPort agencies;
+    private final CustomerNotifierPort notifier;
     private final RecordAuditUseCase audit;
     private final Clock clock;
 
-    public InquiryRejectionService(RequestRepositoryPort requests, RecordAuditUseCase audit, Clock clock) {
+    public InquiryRejectionService(RequestRepositoryPort requests, AgencyRegistryPort agencies,
+            CustomerNotifierPort notifier, RecordAuditUseCase audit, Clock clock) {
         this.requests = requests;
+        this.agencies = agencies;
+        this.notifier = notifier;
         this.audit = audit;
         this.clock = clock;
     }
@@ -59,5 +68,8 @@ public class InquiryRejectionService {
         requests.updateStatus(request.id(), rejected.status(), clock.instant());
         audit.record(new AuditEntry(null, "inquiry", "SYSTEM", ENTITY, request.id(), "REJECT_BY_INQUIRY",
                 request.status().name(), rejected.status().name(), event.rejectionMessageKey(), null, null, null));
+        String agencyName = agencies.find(request.agencyId()).map(a -> a.name()).orElse("");
+        notifier.requestRejectedByInquiry(request.id(), request.customer().mobile(), agencyName,
+                JalaliDate.fromGregorian(clock.instant().atZone(TrackingCodeGenerator.TEHRAN).toLocalDate()).toSlashed());
     }
 }

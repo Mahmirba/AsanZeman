@@ -75,6 +75,20 @@ class OutboxCustomerNotifierTest {
     }
 
     @Test
+    void queuesTheInquiryRejectionAndTheExpiryTexts() {
+        UUID request = UUID.randomUUID();
+        var notifier = new OutboxCustomerNotifier(sms);
+
+        notifier.requestRejectedByInquiry(request, "09121234567", "Sky Travel", "1405/09/02");
+        notifier.requestExpired(request, "09121234567", "Sky Travel", "1405/09/02");
+
+        verify(sms).enqueue(new EnqueueSmsCommand("09121234567", SmsTemplate.REQUEST_REJECTED_BY_INQUIRY,
+                List.of("Sky Travel", "1405/09/02"), request));
+        verify(sms).enqueue(new EnqueueSmsCommand("09121234567", SmsTemplate.REQUEST_EXPIRED,
+                List.of("Sky Travel", "1405/09/02"), request));
+    }
+
+    @Test
     void queuesTheCancellationTextWithTheAgencyNameAndTheJalaliDate() {
         UUID request = UUID.randomUUID();
 

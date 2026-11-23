@@ -41,13 +41,17 @@ class InquiryRejectionServiceTest {
     @Mock
     private RequestRepositoryPort requests;
     @Mock
+    private com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort agencies;
+    @Mock
+    private com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort notifier;
+    @Mock
     private RecordAuditUseCase audit;
 
     private InquiryRejectionService service;
 
     @BeforeEach
     void setUp() {
-        service = new InquiryRejectionService(requests, audit, new MutableClock(NOW));
+        service = new InquiryRejectionService(requests, agencies, notifier, audit, new MutableClock(NOW));
     }
 
     private static Request request(RequestStatus status) {
@@ -64,11 +68,14 @@ class InquiryRejectionServiceTest {
     @Test
     void aRejectionRejectsTheRequestAndIsAudited() {
         Request request = request(RequestStatus.REGISTERED_AT_AGENCY);
+        when(agencies.find(request.agencyId())).thenReturn(Optional.of(
+                new com.sb24.asanzeman.request.domain.model.AgencyInfo(request.agencyId(), "0042", "Sky Travel", true)));
         when(requests.findByIdForUpdate(request.id())).thenReturn(Optional.of(request));
 
         service.on(finished(request, Decision.REJECT));
 
         verify(requests).updateStatus(request.id(), RequestStatus.REJECTED, NOW);
+        verify(notifier).requestRejectedByInquiry(request.id(), "09121234567", "Sky Travel", "1405/09/02");
         var entry = ArgumentCaptor.forClass(AuditEntry.class);
         verify(audit).record(entry.capture());
         assertThat(entry.getValue()).extracting(AuditEntry::action, AuditEntry::userRole, AuditEntry::reason)
@@ -82,7 +89,7 @@ class InquiryRejectionServiceTest {
         service.on(finished(request, Decision.BLOCKED));
         service.on(finished(request, Decision.PROCEED));
 
-        verifyNoInteractions(requests, audit);
+        verifyNoInteractions(requests, audit, notifier);
     }
 
     @Test
@@ -96,7 +103,7 @@ class InquiryRejectionServiceTest {
         service.on(new InquiryRunFinished(unknown, UUID.randomUUID(), Decision.REJECT, "k"));
 
         verify(requests, never()).updateStatus(any(), any(), any());
-        verifyNoInteractions(audit);
+        verifyNoInteractions(audit, notifier);
     }
 
     @Test
