@@ -30,9 +30,9 @@ public class NotifierOtpGateway implements OtpGatewayPort {
     }
 
     @Override
-    public boolean validate(String otpId, String code) {
+    public boolean validate(String mobile, String otpId, String code) {
         try {
-            return client.validateOtp(otpId, code);
+            return client.validateOtp(mobile, otpId, code);
         } catch (NotifierRejectedException | NotifierCredentialsException e) {
             throw new TemporarilyUnavailableException("Notifier", e);
         }

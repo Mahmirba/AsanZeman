@@ -31,11 +31,11 @@ class NotifierOtpGatewayTest {
 
     @Test
     void checksTheCodeThroughTheNotifier() {
-        when(client.validateOtp("otp-1", "1234")).thenReturn(true);
-        when(client.validateOtp("otp-1", "0000")).thenReturn(false);
+        when(client.validateOtp("09121234567", "otp-1", "1234")).thenReturn(true);
+        when(client.validateOtp("09121234567", "otp-1", "0000")).thenReturn(false);
 
-        assertThat(gateway.validate("otp-1", "1234")).isTrue();
-        assertThat(gateway.validate("otp-1", "0000")).isFalse();
+        assertThat(gateway.validate("09121234567", "otp-1", "1234")).isTrue();
+        assertThat(gateway.validate("09121234567", "otp-1", "0000")).isFalse();
     }
 
     @Test
@@ -49,10 +49,10 @@ class NotifierOtpGatewayTest {
 
     @Test
     void aRefusedCheckIsOurProblemTooNeverAWrongCode() {
-        when(client.validateOtp("a", "1")).thenThrow(new NotifierRejectedException("bad id"));
-        when(client.validateOtp("b", "1")).thenThrow(new NotifierCredentialsException("403"));
+        when(client.validateOtp("09121234567", "a", "1")).thenThrow(new NotifierRejectedException("bad id"));
+        when(client.validateOtp("09121234567", "b", "1")).thenThrow(new NotifierCredentialsException("403"));
 
-        assertThatThrownBy(() -> gateway.validate("a", "1")).isInstanceOf(TemporarilyUnavailableException.class);
-        assertThatThrownBy(() -> gateway.validate("b", "1")).isInstanceOf(TemporarilyUnavailableException.class);
+        assertThatThrownBy(() -> gateway.validate("09121234567", "a", "1")).isInstanceOf(TemporarilyUnavailableException.class);
+        assertThatThrownBy(() -> gateway.validate("09121234567", "b", "1")).isInstanceOf(TemporarilyUnavailableException.class);
     }
 }

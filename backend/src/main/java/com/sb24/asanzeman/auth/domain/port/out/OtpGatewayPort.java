@@ -11,5 +11,5 @@ public interface OtpGatewayPort {
     String send(String mobile);
 
     /** @return {@code false} for a wrong or used code */
-    boolean validate(String otpId, String code);
+    boolean validate(String mobile, String otpId, String code);
 }

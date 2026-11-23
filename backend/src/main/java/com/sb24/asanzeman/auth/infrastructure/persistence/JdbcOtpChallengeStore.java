@@ -31,11 +31,12 @@ public class JdbcOtpChallengeStore implements OtpChallengeStorePort {
     @Override
     public void save(OtpChallenge c) {
         jdbc.sql("""
-                INSERT INTO azs_auth.otp_challenge (id, national_code, otp_id, family_id, sent_at, status)
-                VALUES (:id, :nationalCode, :otpId, :familyId, :sentAt, 'SENT')
+                INSERT INTO azs_auth.otp_challenge (id, national_code, mobile, otp_id, family_id, sent_at, status)
+                VALUES (:id, :nationalCode, :mobile, :otpId, :familyId, :sentAt, 'SENT')
                 """)
                 .param("id", RawUuid.toBytes(c.id()), Types.VARBINARY)
                 .param("nationalCode", c.nationalCode(), Types.VARCHAR)
+                .param("mobile", c.mobile(), Types.VARCHAR)
                 .param("otpId", c.otpId(), Types.VARCHAR)
                 .param("familyId", RawUuid.toBytes(c.familyId()), Types.VARBINARY)
                 .param("sentAt", DbTime.toDb(c.sentAt()), Types.TIMESTAMP)
@@ -45,11 +46,12 @@ public class JdbcOtpChallengeStore implements OtpChallengeStorePort {
     @Override
     public Optional<OtpChallenge> find(UUID id) {
         return jdbc.sql("""
-                SELECT national_code, otp_id, family_id, sent_at, status
+                SELECT national_code, mobile, otp_id, family_id, sent_at, status
                   FROM azs_auth.otp_challenge WHERE id = :id
                 """)
                 .param("id", RawUuid.toBytes(id), Types.VARBINARY)
-                .query((rs, row) -> new OtpChallenge(id, rs.getString("national_code"), rs.getString("otp_id"),
+                .query((rs, row) -> new OtpChallenge(id, rs.getString("national_code"), rs.getString("mobile"),
+                        rs.getString("otp_id"),
                         RawUuid.fromBytes(rs.getBytes("family_id")),
                         DbTime.fromDb(rs.getObject("sent_at", LocalDateTime.class)),
                         "VERIFIED".equals(rs.getString("status"))))

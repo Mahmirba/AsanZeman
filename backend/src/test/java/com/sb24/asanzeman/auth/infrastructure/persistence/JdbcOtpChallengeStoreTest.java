@@ -21,7 +21,7 @@ class JdbcOtpChallengeStoreTest {
     private final JdbcOtpChallengeStore store = new JdbcOtpChallengeStore(jdbc);
 
     private OtpChallenge challenge() {
-        return new OtpChallenge(UUID.randomUUID(), CODE, "otp-1", UUID.randomUUID(), NOW, false);
+        return new OtpChallenge(UUID.randomUUID(), CODE, "09121234567", "otp-1", UUID.randomUUID(), NOW, false);
     }
 
     @Test

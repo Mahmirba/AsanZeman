@@ -50,6 +50,7 @@ CREATE TABLE azs_auth.yaghut_session (
 CREATE TABLE azs_auth.otp_challenge (
     id            VARBINARY(16) NOT NULL,
     national_code VARCHAR(10)   NOT NULL,
+    mobile        VARCHAR(20),
     otp_id        VARCHAR(100)  NOT NULL,
     family_id     VARBINARY(16) NOT NULL,
     sent_at       TIMESTAMP(6)  NOT NULL,

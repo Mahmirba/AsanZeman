@@ -57,9 +57,27 @@ final class FakeHandler implements InquiryHandler {
         });
     }
 
+    /** Answers only once {@code running} says the slow inquiry is under way, so the answer finds it to cancel. */
+    static FakeHandler answeringWhenRunning(InquiryType type, InquiryOutcome outcome, CountDownLatch running) {
+        return new FakeHandler(type, c -> true, c -> {
+            try {
+                running.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return outcome;
+        });
+    }
+
     /** Sleeps until it is interrupted, and records that it was. */
     static FakeHandler neverAnswering(InquiryType type, AtomicBoolean interrupted) {
+        return neverAnswering(type, interrupted, new CountDownLatch(1));
+    }
+
+    /** Same, and says when it has started. */
+    static FakeHandler neverAnswering(InquiryType type, AtomicBoolean interrupted, CountDownLatch started) {
         return new FakeHandler(type, c -> true, c -> {
+            started.countDown();
             try {
                 Thread.sleep(60_000);
             } catch (InterruptedException e) {
