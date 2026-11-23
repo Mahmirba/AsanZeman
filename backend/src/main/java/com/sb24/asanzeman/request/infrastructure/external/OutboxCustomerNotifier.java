@@ -76,6 +76,17 @@ public class OutboxCustomerNotifier implements CustomerNotifierPort {
     }
 
     @Override
+    public void requestRejectedByInquiry(UUID requestId, String mobile, String agencyName, String sentDate) {
+        sms.enqueue(new EnqueueSmsCommand(mobile, SmsTemplate.REQUEST_REJECTED_BY_INQUIRY, List.of(agencyName, sentDate),
+                requestId));
+    }
+
+    @Override
+    public void requestExpired(UUID requestId, String mobile, String agencyName, String sentDate) {
+        sms.enqueue(new EnqueueSmsCommand(mobile, SmsTemplate.REQUEST_EXPIRED, List.of(agencyName, sentDate), requestId));
+    }
+
+    @Override
     public void requestCancelled(UUID requestId, String mobile, String agencyName, String sentDate) {
         sms.enqueue(new EnqueueSmsCommand(mobile, SmsTemplate.REQUEST_CANCELLED, List.of(agencyName, sentDate),
                 requestId));

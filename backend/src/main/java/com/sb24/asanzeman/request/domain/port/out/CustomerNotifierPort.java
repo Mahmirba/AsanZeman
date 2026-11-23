@@ -22,6 +22,12 @@ public interface CustomerNotifierPort {
      */
     void requestCancelled(UUID requestId, String mobile, String agencyName, String sentDate);
 
+    /** SMS event 8: an inquiry rejected the request. */
+    void requestRejectedByInquiry(UUID requestId, String mobile, String agencyName, String sentDate);
+
+    /** SMS event 7: the customer did not complete the request within 7 days and it was rejected (the scheduler, Phase 8). */
+    void requestExpired(UUID requestId, String mobile, String agencyName, String sentDate);
+
     /** SMS event 4: the branch rejected the request. The salutation line is left out: the registry gender is not at hand here (6.4). */
     void requestRejected(UUID requestId, String mobile, String agencyName, String branchName, String sentDate);
 
