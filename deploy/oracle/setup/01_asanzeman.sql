@@ -1,5 +1,5 @@
 -- Runs once as SYSDBA, after the database is created (first start only).
-ALTER SESSION SET CONTAINER = ORCLPDB1;
+ALTER SESSION SET CONTAINER = FREEPDB1;
 
 -- The five schemas that own the tables (nobody logs in as these).
 CREATE USER azs_business IDENTIFIED BY "243648" DEFAULT TABLESPACE users QUOTA UNLIMITED ON users;

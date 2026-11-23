@@ -1,27 +1,23 @@
-# Local Oracle Database 19c Enterprise Edition. The app runs on the host.
-# Needs: docker login container-registry.oracle.com (terms accepted for "Database Enterprise")
-# and deploy/.env with ORACLE_PWD (copy .env.example).
+# Local Oracle Database Free. The app runs on the host.
+# Needs deploy/.env with ORACLE_PWD (copy .env.example).
 services:
-  oracle19c:
-    image: container-registry.oracle.com/database/enterprise:19.3.0.0
-    container_name: oracle19c
+  oracle-free:
+    image: gvenzl/oracle-free:23-slim-faststart
+    container_name: oracle-free
     ports:
       - "1521:1521"
     environment:
-      ORACLE_SID: ORCLCDB
-      ORACLE_PDB: ORCLPDB1
-      ORACLE_CHARACTERSET: AL32UTF8
-      ORACLE_PWD: ${ORACLE_PWD:?set ORACLE_PWD in deploy/.env}
+      ORACLE_PASSWORD: ${ORACLE_PWD:?set ORACLE_PWD in deploy/.env}
     volumes:
-      - oracle19c-data:/opt/oracle/oradata
-      # *.sql here run once, after the database is created (first start only)
-      - ./oracle/setup:/opt/oracle/scripts/setup:ro
+      - oracle-free-data:/opt/oracle/oradata
+      # *.sql here run once, on the first start with an empty volume
+      - ./oracle/setup:/container-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD", "/opt/oracle/checkDBStatus.sh"]
-      interval: 30s
-      timeout: 10s
-      retries: 40
-      start_period: 5m
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 1m
 
 volumes:
-  oracle19c-data:
+  oracle-free-data:
