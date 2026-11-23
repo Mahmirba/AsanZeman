@@ -1,6 +1,7 @@
 package com.sb24.asanzeman.auth.infrastructure.config;
 
 import com.sb24.asanzeman.auth.application.BankLoginSettings;
+import com.sb24.asanzeman.auth.application.OtpSettings;
 import com.sb24.asanzeman.auth.application.TokenSettings;
 import com.sb24.asanzeman.auth.domain.port.out.AccessTokenIssuerPort;
 import com.sb24.asanzeman.auth.domain.port.out.JwtBlacklistPort;
@@ -14,7 +15,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(JwtProperties.class)
+@EnableConfigurationProperties({JwtProperties.class, OtpProperties.class})
 public class AuthConfiguration {
 
     @Bean
@@ -35,6 +36,11 @@ public class AuthConfiguration {
     @Bean
     TokenSettings tokenSettings(JwtProperties p) {
         return new TokenSettings(p.accessTokenTtl(), p.refreshTokenTtl());
+    }
+
+    @Bean
+    OtpSettings otpSettings(JwtProperties jwt, OtpProperties otp) {
+        return new OtpSettings(otp.validity(), otp.maxWrongAttempts(), otp.lockout(), jwt.customerSessionTtl());
     }
 
     @Bean

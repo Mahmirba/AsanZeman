@@ -19,6 +19,9 @@ import java.util.regex.Pattern;
  *          POST /yaghut/branches           two branches
  *          POST /yaghut/customerDetailInfo 1000000011 adult, 1000000036 minor, 1000000044 company, others unknown
  * Notifier POST /notifier/api/v1/sms/SendSimpleSms   prints the SMS and answers with an smsId
+ *          POST /notifier/api/v1/Sms/SendOtp          prints the code (always 1234) and answers with an sId
+ *          POST /notifier/api/v1/Sms/OtpValidate      1234 is valid, anything else is 410
+ * A Yaghut user name that is a 10-digit national code logs in as that customer.
  */
 public class FakeServices {
 
@@ -31,6 +34,8 @@ public class FakeServices {
         server.createContext("/yaghut/branches", FakeServices::branches);
         server.createContext("/yaghut/customerDetailInfo", FakeServices::customer);
         server.createContext("/notifier/api/v1/sms/SendSimpleSms", FakeServices::sms);
+        server.createContext("/notifier/api/v1/Sms/SendOtp", FakeServices::otpSend);
+        server.createContext("/notifier/api/v1/Sms/OtpValidate", FakeServices::otpValidate);
         server.start();
         System.out.println("Fake Yaghut and Notifier on http://localhost:" + port);
     }
@@ -44,8 +49,13 @@ public class FakeServices {
         }
         String end = ZonedDateTime.now(ZoneId.of("Asia/Tehran")).plusHours(8)
                 .format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")) + "IRST";
-        reply(x, 200, "{\"success\":true,\"result\":{\"name\":\"Sky Travel\",\"cif\":\"9001\",\"code\":\"9001\","
-                + "\"sessionExpirationDate\":\"" + end + "\"}}", "JSESSIONID=fake-" + System.nanoTime() + "; Path=/");
+        String user = field(body, "username");
+        // a user name that is a 10-digit national code logs in as that customer, anything else as the agency
+        String who = user != null && user.matches("\\d{10}")
+                ? "\"name\":\"Ali Rezaei\",\"code\":\"" + user + "\""
+                : "\"name\":\"Sky Travel\",\"cif\":\"9001\",\"code\":\"9001\"";
+        reply(x, 200, "{\"success\":true,\"result\":{" + who + ",\"sessionExpirationDate\":\"" + end + "\"}}",
+                "JSESSIONID=fake-" + System.nanoTime() + "; Path=/");
     }
 
     private static void branches(HttpExchange x) throws IOException {
@@ -79,6 +89,18 @@ public class FakeServices {
         System.out.println("SMS to " + body.replaceAll("(?s).*\"numbers\"\\s*:\\s*\\[\\s*\"([^\"]*)\".*", "$1")
                 + ": " + field(body, "message"));
         reply(x, 200, "{\"retval\":[{\"smsId\":\"" + SMS_ID.incrementAndGet() + "\"}]}", null);
+    }
+
+    private static void otpSend(HttpExchange x) throws IOException {
+        String number = field(read(x), "number");
+        System.out.println("OTP to " + number + ": 1234");
+        reply(x, 200, "{\"retval\":[{\"number\":\"" + number + "\",\"smsId\":\"" + SMS_ID.incrementAndGet()
+                + "\",\"sId\":\"otp-" + SMS_ID.incrementAndGet() + "\"}]}", null);
+    }
+
+    private static void otpValidate(HttpExchange x) throws IOException {
+        boolean ok = "1234".equals(field(read(x), "OtpCode"));
+        reply(x, ok ? 200 : 410, ok ? "{\"isValid\":true}" : "{\"isValid\":false}", null);
     }
 
     private static String field(String json, String name) {

@@ -47,6 +47,23 @@ CREATE TABLE azs_auth.yaghut_session (
     CONSTRAINT pk_yaghut_session PRIMARY KEY (family_id)
 );
 
+CREATE TABLE azs_auth.otp_challenge (
+    id            VARBINARY(16) NOT NULL,
+    national_code VARCHAR(10)   NOT NULL,
+    otp_id        VARCHAR(100)  NOT NULL,
+    family_id     VARBINARY(16) NOT NULL,
+    sent_at       TIMESTAMP(6)  NOT NULL,
+    status        VARCHAR(10)   DEFAULT 'SENT' NOT NULL,
+    CONSTRAINT pk_otp_challenge PRIMARY KEY (id)
+);
+
+CREATE TABLE azs_auth.otp_lockout (
+    national_code  VARCHAR(10)  NOT NULL,
+    wrong_attempts NUMBER(3)    DEFAULT 0 NOT NULL,
+    locked_until   TIMESTAMP(6),
+    CONSTRAINT pk_otp_lockout PRIMARY KEY (national_code)
+);
+
 -- stand-in for AZS_BUSINESS.agency (V002), only what the login reads
 CREATE SCHEMA IF NOT EXISTS azs_business;
 CREATE TABLE azs_business.agency (

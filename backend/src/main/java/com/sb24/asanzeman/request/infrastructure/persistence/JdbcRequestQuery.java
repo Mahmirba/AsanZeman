@@ -67,9 +67,25 @@ public class JdbcRequestQuery implements RequestQueryPort {
 
     @Override
     public Optional<RequestDetails> details(UUID agencyId, UUID requestId) {
-        Optional<RequestSummary> summary = jdbc.sql(COLUMNS + FROM + " WHERE r.id = :id AND r.agency_id = :agency")
+        return details(" WHERE r.id = :id AND r.agency_id = :owner", requestId, RawUuid.toBytes(agencyId));
+    }
+
+    @Override
+    public List<RequestSummary> forCustomer(String nationalCode) {
+        return jdbc.sql(COLUMNS + FROM + " WHERE r.customer_code = :code ORDER BY r.registered_at DESC, r.id")
+                .param("code", nationalCode).query((rs, row) -> summary(rs)).list();
+    }
+
+    @Override
+    public Optional<RequestDetails> detailsForCustomer(String nationalCode, UUID requestId) {
+        return details(" WHERE r.id = :id AND r.customer_code = :owner", requestId, nationalCode);
+    }
+
+    /** One request and its companions; {@code where} also restricts it to its owner, the {@code :owner} value. */
+    private Optional<RequestDetails> details(String where, UUID requestId, Object owner) {
+        Optional<RequestSummary> summary = jdbc.sql(COLUMNS + FROM + where)
                 .param("id", RawUuid.toBytes(requestId), Types.VARBINARY)
-                .param("agency", RawUuid.toBytes(agencyId), Types.VARBINARY)
+                .param("owner", owner)
                 .query((rs, row) -> summary(rs)).optional();
         return summary.map(s -> new RequestDetails(s, jdbc.sql(SELECT_COMPANIONS)
                 .param("id", RawUuid.toBytes(requestId), Types.VARBINARY)
