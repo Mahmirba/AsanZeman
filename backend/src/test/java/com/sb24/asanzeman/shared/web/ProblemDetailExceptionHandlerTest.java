@@ -43,7 +43,7 @@ class ProblemDetailExceptionHandlerTest {
 
     static final class LockedException extends DomainException {
         LockedException(String holder) {
-            super("request.locked-by-other", Kind.CONFLICT, holder);
+            super("test.only-conflict", Kind.CONFLICT, holder);
         }
     }
 
@@ -105,11 +105,11 @@ class ProblemDetailExceptionHandlerTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.title").value("Conflict"))
-                .andExpect(jsonPath("$.code").value("request.locked-by-other"))
-                .andExpect(jsonPath("$.type").value("urn:asanzeman:error:request.locked-by-other"))
+                .andExpect(jsonPath("$.code").value("test.only-conflict"))
+                .andExpect(jsonPath("$.type").value("urn:asanzeman:error:test.only-conflict"))
                 .andExpect(jsonPath("$.instance").value("/api/auth/x/login"))
                 // no Persian text for this test-only code yet: the code itself is the fallback
-                .andExpect(jsonPath("$.detail").value("request.locked-by-other"));
+                .andExpect(jsonPath("$.detail").value("test.only-conflict"));
     }
 
     @Test

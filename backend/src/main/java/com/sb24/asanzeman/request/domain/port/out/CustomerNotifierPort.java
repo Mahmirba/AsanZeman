@@ -21,4 +21,10 @@ public interface CustomerNotifierPort {
      * @param sentDate the day of the message, Jalali {@code yyyy/MM/dd}
      */
     void requestCancelled(UUID requestId, String mobile, String agencyName, String sentDate);
+
+    /** SMS event 4: the branch rejected the request. The salutation line is left out: the registry gender is not at hand here (6.4). */
+    void requestRejected(UUID requestId, String mobile, String agencyName, String branchName, String sentDate);
+
+    /** SMS event 3: the branch recorded the guarantee number, so the guarantee is issued. */
+    void guaranteeIssued(UUID requestId, String mobile, String agencyName, String branchName, String sentDate);
 }

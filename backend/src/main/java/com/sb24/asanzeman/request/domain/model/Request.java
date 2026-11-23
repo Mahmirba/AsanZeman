@@ -87,6 +87,44 @@ public record Request(
         return withStatus(RequestStatus.PENDING_BRANCH_REVIEW);
     }
 
+    // ---- the branch's work (4.1): each step is allowed from one status only, and only for an issuance request ------
+
+    /** «اقدام»: the branch user takes the request. */
+    Request reviewStarted() {
+        return step(RequestStatus.PENDING_BRANCH_REVIEW, RequestStatus.UNDER_REVIEW);
+    }
+
+    /** «تایید درخواست صدور»: the branch goes on to the digital signature and Farangin. */
+    Request approvedForAction() {
+        return step(RequestStatus.UNDER_REVIEW, RequestStatus.UNDER_ACTION);
+    }
+
+    /** «رد درخواست صدور». */
+    Request rejectedByBranch() {
+        return step(RequestStatus.UNDER_REVIEW, RequestStatus.REJECTED);
+    }
+
+    /** The guarantee number was entered: «صادر شده». */
+    Request issued() {
+        return step(RequestStatus.UNDER_ACTION, RequestStatus.ISSUED);
+    }
+
+    /** «انصراف» or «لغو اقدام», an auto-release or an admin release: back to the queue. */
+    Request releasedToBranch() {
+        if (type != RequestType.ISSUANCE || status != RequestStatus.UNDER_REVIEW
+                && status != RequestStatus.UNDER_ACTION) {
+            throw new RequestNotReviewableException("the request is " + status + ", nobody is working on it");
+        }
+        return withStatus(RequestStatus.PENDING_BRANCH_REVIEW);
+    }
+
+    private Request step(RequestStatus from, RequestStatus to) {
+        if (type != RequestType.ISSUANCE || status != from) {
+            throw new RequestNotReviewableException("the request is " + status + ", not " + from);
+        }
+        return withStatus(to);
+    }
+
     private Request withStatus(RequestStatus newStatus) {
         return new Request(id, trackingCode, type, newStatus, agencyId, branchCode, amount, dueDate, customer,
                 companions, registeredBy, registeredAt);

@@ -103,6 +103,16 @@ class JdbcBranchRepositoryTest {
     }
 
     @Test
+    void aBranchHasANameEvenAfterItIsClosedAndAnUnknownOneHasNone() {
+        repository.apply(List.of(branch("0123", "Main"), branch("0456", "Other")), T1);
+        repository.apply(List.of(branch("0456", "Other")), T2); // 0123 is gone from Yaghut: deactivated
+
+        assertThat(repository.isOpen("0123")).isFalse();
+        assertThat(repository.nameOf("0123")).contains("Main");
+        assertThat(repository.nameOf("9999")).isEmpty();
+    }
+
+    @Test
     void anUnknownBranchIsNotOpen() {
         assertThat(repository.isOpen("9999")).isFalse();
     }

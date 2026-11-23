@@ -1,0 +1,322 @@
+package com.sb24.asanzeman.request.application;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+import com.sb24.asanzeman.request.domain.model.AgencyInfo;
+import com.sb24.asanzeman.request.domain.model.BranchUser;
+import com.sb24.asanzeman.request.domain.model.InvalidRequestDataException;
+import com.sb24.asanzeman.request.domain.model.NotYourBranchException;
+import com.sb24.asanzeman.request.domain.model.Request;
+import com.sb24.asanzeman.request.domain.model.RequestBusyException;
+import com.sb24.asanzeman.request.domain.model.RequestLockedByOtherException;
+import com.sb24.asanzeman.request.domain.model.RequestNotFoundException;
+import com.sb24.asanzeman.request.domain.model.RequestNotReviewableException;
+import com.sb24.asanzeman.request.domain.model.RequestStatus;
+import com.sb24.asanzeman.request.domain.model.RequestTest;
+import com.sb24.asanzeman.request.domain.model.RequestType;
+import com.sb24.asanzeman.request.domain.model.Review;
+import com.sb24.asanzeman.request.domain.model.ReviewLock;
+import com.sb24.asanzeman.request.domain.port.in.BranchCommand;
+import com.sb24.asanzeman.request.domain.port.in.ReviewResult;
+import com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort;
+import com.sb24.asanzeman.request.domain.port.out.BranchRepositoryPort;
+import com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort;
+import com.sb24.asanzeman.request.domain.port.out.ReviewRepositoryPort;
+import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
+import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
+import com.sb24.asanzeman.shared.model.Rials;
+import com.sb24.asanzeman.support.MutableClock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.Transactional;
+
+@ExtendWith(MockitoExtension.class)
+class BranchReviewServiceTest {
+
+    private static final Instant NOW = Instant.parse("2026-11-23T10:00:00Z");
+    private static final BranchUser ALI = new BranchUser(UUID.randomUUID(), "ali.b", "0123", false);
+    private static final BranchUser SARA = new BranchUser(UUID.randomUUID(), "sara.b", "0123", false);
+    private static final BranchUser ADMIN = new BranchUser(UUID.randomUUID(), "root", "0123", true);
+    private static final UUID REASON = UUID.randomUUID();
+
+    @Mock
+    private ReviewRepositoryPort reviews;
+    @Mock
+    private CustomerNotifierPort notifier;
+    @Mock
+    private AgencyRegistryPort agencies;
+    @Mock
+    private BranchRepositoryPort branches;
+    @Mock
+    private RecordAuditUseCase audit;
+
+    private BranchReviewService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new BranchReviewService(reviews, notifier, agencies, branches, audit, new MutableClock(NOW),
+                new ReviewSettings(Duration.ofMinutes(60)));
+    }
+
+    private static Request request(RequestStatus status) {
+        return new Request(UUID.randomUUID(), RequestTest.CODE, RequestType.ISSUANCE, status, UUID.randomUUID(),
+                "0123", Rials.of(1000), LocalDate.of(2027, 1, 20),
+                RequestTest.customer(LocalDate.of(1990, 5, 17), "ACTUAL"), List.of(), "Sky Travel", NOW);
+    }
+
+    private Review found(Request request, BranchUser holder) {
+        var review = new Review(request, holder == null ? null
+                : new ReviewLock(holder.id(), holder.name(), NOW.minusSeconds(300), NOW.minusSeconds(300)), "0123");
+        when(reviews.findForUpdate(request.id())).thenReturn(Optional.of(review));
+        return review;
+    }
+
+    private static BranchCommand command(BranchUser user, Request request) {
+        return new BranchCommand(user, request.id(), "10.0.0.5", "Firefox");
+    }
+
+    // ---- «اقدام» -----------------------------------------------------------------------------------------------
+
+    @Test
+    void takingARequestSavesTheStatusAndTheLockAndAuditsIt() {
+        Request request = request(RequestStatus.PENDING_BRANCH_REVIEW);
+        found(request, null);
+
+        ReviewResult result = service.take(command(ALI, request));
+
+        assertThat(result.status()).isEqualTo(RequestStatus.UNDER_REVIEW);
+        assertThat(result.heldBy()).isEqualTo("ali.b");
+        assertThat(result.heldSince()).isEqualTo(NOW);
+        var lock = ArgumentCaptor.forClass(ReviewLock.class);
+        verify(reviews).save(org.mockito.ArgumentMatchers.eq(request.id()),
+                org.mockito.ArgumentMatchers.eq(RequestStatus.UNDER_REVIEW), lock.capture(),
+                org.mockito.ArgumentMatchers.eq(NOW));
+        assertThat(lock.getValue().holderId()).isEqualTo(ALI.id());
+        var entry = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(audit).record(entry.capture());
+        assertThat(entry.getValue()).extracting(AuditEntry::action, AuditEntry::userRole, AuditEntry::userName,
+                AuditEntry::oldValue, AuditEntry::newValue, AuditEntry::ipAddress)
+                .containsExactly("LOCK", "BRANCH", "ali.b", "PENDING_BRANCH_REVIEW", "UNDER_REVIEW", "10.0.0.5");
+    }
+
+    @Test
+    void anUnknownRequestIsNotFound() {
+        UUID unknown = UUID.randomUUID();
+        when(reviews.findForUpdate(unknown)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.take(new BranchCommand(ALI, unknown, null, null)))
+                .isInstanceOf(RequestNotFoundException.class);
+        verify(reviews, never()).save(any(), any(), any(), any());
+    }
+
+    @Test
+    void aBusyRowAndAnotherUsersLockAreRefusedAndNothingIsSavedOrAudited() {
+        Request busy = request(RequestStatus.PENDING_BRANCH_REVIEW);
+        when(reviews.findForUpdate(busy.id())).thenThrow(new RequestBusyException());
+        Request held = request(RequestStatus.UNDER_REVIEW);
+        found(held, ALI);
+
+        assertThatThrownBy(() -> service.take(command(SARA, busy))).isInstanceOf(RequestBusyException.class);
+        assertThatThrownBy(() -> service.take(command(SARA, held))).isInstanceOf(RequestLockedByOtherException.class);
+        verify(reviews, never()).save(any(), any(), any(), any());
+        verifyNoInteractions(audit);
+    }
+
+    @Test
+    void aUserOfAnotherBranchIsRefused() {
+        Request request = request(RequestStatus.PENDING_BRANCH_REVIEW);
+        found(request, null);
+
+        assertThatThrownBy(() -> service.take(command(new BranchUser(UUID.randomUUID(), "x", "0999", false), request)))
+                .isInstanceOf(NotYourBranchException.class);
+    }
+
+    // ---- approve, abandon -----------------------------------------------------------------------------------
+
+    @Test
+    void approvingKeepsTheOwnershipAndAbandoningClearsIt() {
+        Request review = request(RequestStatus.UNDER_REVIEW);
+        found(review, ALI);
+        Request action = request(RequestStatus.UNDER_ACTION);
+        found(action, ALI);
+
+        ReviewResult approved = service.approve(command(ALI, review));
+        ReviewResult abandoned = service.abandon(command(ALI, action));
+
+        assertThat(approved.status()).isEqualTo(RequestStatus.UNDER_ACTION);
+        assertThat(approved.heldBy()).isEqualTo("ali.b");
+        assertThat(abandoned.status()).isEqualTo(RequestStatus.PENDING_BRANCH_REVIEW);
+        assertThat(abandoned.heldBy()).isNull();
+        verify(reviews).save(action.id(), RequestStatus.PENDING_BRANCH_REVIEW, null, NOW);
+    }
+
+    // ---- reject ---------------------------------------------------------------------------------------------
+
+    @Test
+    void rejectingRecordsTheReasonAndTheCommentAndTellsTheCustomer() {
+        Request request = request(RequestStatus.UNDER_REVIEW);
+        found(request, ALI);
+        when(reviews.issuanceReasonExists(REASON)).thenReturn(true);
+        when(agencies.find(request.agencyId())).thenReturn(
+                Optional.of(new AgencyInfo(request.agencyId(), "0042", "Sky Travel", true)));
+        when(branches.nameOf("0123")).thenReturn(Optional.of("Valiasr"));
+
+        ReviewResult result = service.reject(command(ALI, request), REASON, "  documents are incomplete ");
+
+        assertThat(result.status()).isEqualTo(RequestStatus.REJECTED);
+        assertThat(result.heldBy()).isNull();
+        verify(reviews).recordRejection(request.id(), REASON, "documents are incomplete");
+        verify(notifier).requestRejected(request.id(), request.customer().mobile(), "Sky Travel", "Valiasr",
+                "1405/09/02");
+    }
+
+    @Test
+    void aRejectionNeedsACommentAndAKnownActiveReasonBeforeAnythingIsTouched() {
+        Request request = request(RequestStatus.UNDER_REVIEW);
+        when(reviews.issuanceReasonExists(REASON)).thenReturn(false);
+
+        for (String comment : new String[] {null, "", "   ", "x".repeat(201)}) {
+            assertThatThrownBy(() -> service.reject(command(ALI, request), REASON, comment))
+                    .isInstanceOf(InvalidRequestDataException.class);
+        }
+        assertThatThrownBy(() -> service.reject(command(ALI, request), REASON, "fine"))
+                .isInstanceOfSatisfying(InvalidRequestDataException.class,
+                        e -> assertThat(e.args().get(0).toString()).contains("reason"));
+        assertThatThrownBy(() -> service.reject(command(ALI, request), null, "fine"))
+                .isInstanceOf(InvalidRequestDataException.class);
+        verify(reviews, never()).findForUpdate(any());
+        verifyNoInteractions(notifier, audit);
+    }
+
+    @Test
+    void aCommentOfExactlyTwoHundredCharactersIsAccepted() {
+        Request request = request(RequestStatus.UNDER_REVIEW);
+        found(request, ALI);
+        when(reviews.issuanceReasonExists(REASON)).thenReturn(true);
+        when(branches.nameOf(anyString())).thenReturn(Optional.empty());
+
+        service.reject(command(ALI, request), REASON, "x".repeat(200));
+
+        verify(notifier).requestRejected(request.id(), request.customer().mobile(), "", "0123", "1405/09/02");
+    }
+
+    // ---- issue ----------------------------------------------------------------------------------------------
+
+    @Test
+    void issuingRecordsTheGuaranteeNumberAndTellsTheCustomer() {
+        Request request = request(RequestStatus.UNDER_ACTION);
+        found(request, ALI);
+        when(agencies.find(request.agencyId())).thenReturn(
+                Optional.of(new AgencyInfo(request.agencyId(), "0042", "Sky Travel", true)));
+        when(branches.nameOf("0123")).thenReturn(Optional.of("Valiasr"));
+
+        ReviewResult result = service.issue(command(ALI, request), " GT-001/2026 ");
+
+        assertThat(result.status()).isEqualTo(RequestStatus.ISSUED);
+        assertThat(result.heldBy()).isNull();
+        verify(reviews).recordIssue(request.id(), "GT-001/2026", NOW);
+        verify(notifier).guaranteeIssued(request.id(), request.customer().mobile(), "Sky Travel", "Valiasr",
+                "1405/09/02");
+        var entry = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(audit).record(entry.capture());
+        assertThat(entry.getValue()).extracting(AuditEntry::action, AuditEntry::reason)
+                .containsExactly("ISSUE", "GT-001/2026");
+    }
+
+    @Test
+    void aBadGuaranteeNumberIsRefusedBeforeAnythingIsTouched() {
+        Request request = request(RequestStatus.UNDER_ACTION);
+
+        assertThatThrownBy(() -> service.issue(command(ALI, request), "12 34"))
+                .isInstanceOf(InvalidRequestDataException.class);
+        verifyNoInteractions(reviews, notifier, audit);
+    }
+
+    @Test
+    void issuingBeforeTheApprovalIsRefusedAndNothingIsSent() {
+        Request request = request(RequestStatus.UNDER_REVIEW);
+        found(request, ALI);
+
+        assertThatThrownBy(() -> service.issue(command(ALI, request), "GT-1"))
+                .isInstanceOf(RequestNotReviewableException.class);
+        verifyNoInteractions(notifier);
+        verify(reviews, never()).recordIssue(any(), any(), any());
+    }
+
+    // ---- force release --------------------------------------------------------------------------------------
+
+    @Test
+    void anAdminReleasesARequestWhoeverHoldsItWithAReasonThatIsAudited() {
+        Request request = request(RequestStatus.UNDER_ACTION);
+        found(request, ALI);
+
+        ReviewResult result = service.forceRelease(command(ADMIN, request), " Ali is on leave ");
+
+        assertThat(result.status()).isEqualTo(RequestStatus.PENDING_BRANCH_REVIEW);
+        var entry = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(audit).record(entry.capture());
+        assertThat(entry.getValue()).extracting(AuditEntry::action, AuditEntry::userRole, AuditEntry::reason)
+                .containsExactly("FORCE_RELEASE", "ADMIN", "Ali is on leave");
+    }
+
+    @Test
+    void aReleaseNeedsAReason() {
+        Request request = request(RequestStatus.UNDER_ACTION);
+
+        for (String reason : new String[] {null, " ", "x".repeat(201)}) {
+            assertThatThrownBy(() -> service.forceRelease(command(ADMIN, request), reason))
+                    .isInstanceOf(InvalidRequestDataException.class);
+        }
+        verifyNoInteractions(reviews, audit);
+    }
+
+    // ---- the idle job ---------------------------------------------------------------------------------------
+
+    @Test
+    void idleReviewsAreFreedAndAuditedAndTheOthersAreLeftAlone() {
+        Request idle = request(RequestStatus.UNDER_REVIEW);
+        Request fresh = request(RequestStatus.UNDER_REVIEW);
+        Request busy = request(RequestStatus.UNDER_REVIEW);
+        Request gone = request(RequestStatus.UNDER_REVIEW);
+        when(reviews.idleReviews(NOW.minus(Duration.ofMinutes(60)))).thenReturn(
+                List.of(idle.id(), fresh.id(), busy.id(), gone.id()));
+        when(reviews.findForUpdate(idle.id())).thenReturn(Optional.of(new Review(idle,
+                new ReviewLock(ALI.id(), "ali.b", NOW.minusSeconds(7200), NOW.minusSeconds(3600)), "0123")));
+        when(reviews.findForUpdate(fresh.id())).thenReturn(Optional.of(new Review(fresh,
+                new ReviewLock(ALI.id(), "ali.b", NOW.minusSeconds(7200), NOW.minusSeconds(60)), "0123")));
+        when(reviews.findForUpdate(busy.id())).thenThrow(new RequestBusyException());
+        when(reviews.findForUpdate(gone.id())).thenReturn(Optional.empty());
+
+        int released = service.releaseIdle();
+
+        assertThat(released).isEqualTo(1);
+        verify(reviews).save(idle.id(), RequestStatus.PENDING_BRANCH_REVIEW, null, NOW);
+        verify(reviews, never()).save(org.mockito.ArgumentMatchers.eq(fresh.id()), any(), any(), any());
+        var entry = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(audit).record(entry.capture());
+        assertThat(entry.getValue()).extracting(AuditEntry::action, AuditEntry::userRole)
+                .containsExactly("AUTO_RELEASE", "SYSTEM");
+    }
+
+    @Test
+    void theServiceRunsEveryActionInOneTransaction() {
+        assertThat(BranchReviewService.class.getAnnotation(Transactional.class)).isNotNull();
+    }
+}

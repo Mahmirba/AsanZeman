@@ -88,6 +88,12 @@ public class JdbcBranchRepository implements BranchRepositoryPort {
     }
 
     @Override
+    public java.util.Optional<String> nameOf(String branchCode) {
+        return jdbc.sql("SELECT name FROM azs_business.branch WHERE branch_code = :c")
+                .param("c", branchCode, Types.VARCHAR).query(String.class).optional();
+    }
+
+    @Override
     public java.util.List<com.sb24.asanzeman.request.domain.model.BranchSummary> searchOpen(String prefix, int limit) {
         String like = escapeLike(prefix == null ? "" : prefix.trim()) + "%";
         return jdbc.sql("SELECT branch_code, name, city FROM azs_business.branch WHERE active = 1 "

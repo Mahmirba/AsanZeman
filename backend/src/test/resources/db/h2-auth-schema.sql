@@ -129,7 +129,16 @@ CREATE TABLE azs_auth.jwt_blacklist (
     CONSTRAINT pk_jwt_blacklist PRIMARY KEY (jti)
 );
 
--- stand-in for AZS_BUSINESS.request and request_companion (V005): same columns, no CHECK constraints
+CREATE TABLE azs_business.rejection_reason (
+    id         VARBINARY(16) DEFAULT RANDOM_UUID() NOT NULL,
+    kind       VARCHAR(16)   NOT NULL,
+    text       VARCHAR(500)  NOT NULL,
+    active     NUMBER(1)     DEFAULT 1 NOT NULL,
+    sort_order NUMBER(5)     DEFAULT 0 NOT NULL,
+    CONSTRAINT pk_rejection_reason PRIMARY KEY (id)
+);
+
+-- stand-in for AZS_BUSINESS.request and request_companion (V005, V011): same columns, no CHECK constraints
 CREATE TABLE azs_business.request (
     id                        VARBINARY(16)  NOT NULL,
     tracking_code             VARCHAR(20)    NOT NULL,
@@ -155,6 +164,14 @@ CREATE TABLE azs_business.request (
     customer_gender           VARCHAR(20),
     registered_by             VARCHAR(100)   NOT NULL,
     registered_at             TIMESTAMP(6)   NOT NULL,
+    locked_by                 VARBINARY(16),
+    locked_by_name            VARCHAR(100),
+    locked_at                 TIMESTAMP(6),
+    last_activity_at          TIMESTAMP(6),
+    rejection_reason_id       VARBINARY(16),
+    rejection_comment         VARCHAR(200),
+    guarantee_number          VARCHAR(30),
+    issued_at                 TIMESTAMP(6),
     version                   NUMBER(10)     DEFAULT 0 NOT NULL,
     created_at                TIMESTAMP(6)   DEFAULT CURRENT_TIMESTAMP NOT NULL,
     updated_at                TIMESTAMP(6)   DEFAULT CURRENT_TIMESTAMP NOT NULL,

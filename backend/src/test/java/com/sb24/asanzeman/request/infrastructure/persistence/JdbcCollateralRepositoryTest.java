@@ -71,6 +71,26 @@ class JdbcCollateralRepositoryTest {
     }
 
     @Test
+    void theSavedAllocationsAreReadBackCashFirstWithEveryDetail() {
+        UUID request = UUID.randomUUID();
+        repository.replace(request, plan(pledge("D-300", 800_000_000L, 840_000_000L), cash("D-100", 200_000_000L)),
+                NOW);
+
+        var found = repository.find(request);
+
+        assertThat(found).extracting(CollateralAllocation::depositNumber, CollateralAllocation::kind)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("D-100", CollateralKind.CASH),
+                        org.assertj.core.groups.Tuple.tuple("D-300", CollateralKind.PLEDGE));
+        var pledge = found.get(1);
+        assertThat(pledge.priceClass()).isEqualTo(PriceClass.EXPENSIVE);
+        assertThat(pledge.sharePercent()).isEqualTo(80);
+        assertThat(pledge.factor()).isEqualByComparingTo("1.05");
+        assertThat(pledge.allocated()).isEqualTo(Rials.of(800_000_000L));
+        assertThat(pledge.collateral()).isEqualTo(Rials.of(840_000_000L));
+        assertThat(repository.find(UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
     void aNewChoiceReplacesTheOldOneAndNeverTouchesAnotherRequest() {
         UUID request = UUID.randomUUID();
         UUID other = UUID.randomUUID();

@@ -46,7 +46,7 @@ final class RequestFilters {
     }
 
     /** The start of the Jalali day plus {@code plusDays}, or {@code null} for no date. */
-    private static Instant startOf(String jalali, int plusDays) {
+    static Instant startOf(String jalali, int plusDays) {
         if (blankToNull(jalali) == null) {
             return null;
         }
@@ -57,7 +57,7 @@ final class RequestFilters {
         }
     }
 
-    private static String blankToNull(String value) {
+    static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
 }
