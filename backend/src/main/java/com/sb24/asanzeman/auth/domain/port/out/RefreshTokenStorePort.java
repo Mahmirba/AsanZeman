@@ -22,4 +22,7 @@ public interface RefreshTokenStorePort {
 
     /** Revokes every token of the family that is not revoked yet. */
     void revokeFamily(UUID familyId, Instant at);
+
+    /** Deletes the tokens that expired before {@code before}. @return how many */
+    int deleteExpiredBefore(Instant before);
 }
