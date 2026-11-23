@@ -37,8 +37,9 @@ public class InquiryChain implements RunInquiriesUseCase {
                 });
     }
 
+    /** A retry re-runs only what failed or went stale (5.1): a reusable outcome stands in for its inquiry. */
     @Override
-    public InquiryVerdict run(InquiryContext start) {
+    public InquiryVerdict run(InquiryContext start, Map<InquiryType, InquiryOutcome> reusable) {
         InquiryContext context = start;
         List<InquiryOutcome> all = new ArrayList<>();
         for (int i = 0; i < settings.stages().size(); i++) {
@@ -49,8 +50,11 @@ public class InquiryChain implements RunInquiriesUseCase {
                     .filter(h -> h.type() == InquiryType.SABT_AHVAL || h.appliesTo(current)).toList();
             stage.stream().filter(h -> !applicable.contains(h)).forEach(h -> all.add(InquiryOutcome.skipped(h.type())));
 
-            List<InquiryOutcome> outcomes = stages.run(applicable, context, settings.deadlines().get(i)).stream()
-                    .map(InquiryChain::civilDataRequired).toList();
+            List<InquiryOutcome> outcomes = new ArrayList<>(applicable.stream()
+                    .filter(h -> reusable.containsKey(h.type())).map(h -> reusable.get(h.type())).toList());
+            List<InquiryHandler> toAsk = applicable.stream().filter(h -> !reusable.containsKey(h.type())).toList();
+            stages.run(toAsk, context, settings.deadlines().get(i)).stream()
+                    .map(InquiryChain::civilDataRequired).forEach(outcomes::add);
             all.addAll(outcomes);
 
             InquiryOutcome negative = first(outcomes, InquiryResult.NEGATIVE);

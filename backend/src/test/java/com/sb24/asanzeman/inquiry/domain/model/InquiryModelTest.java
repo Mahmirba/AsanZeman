@@ -64,6 +64,37 @@ class InquiryModelTest {
     }
 
     @Test
+    void aStartedRunIsRunningWithNoDecisionYet() {
+        var id = java.util.UUID.randomUUID();
+        var run = InquiryRun.started(id, java.util.UUID.randomUUID(), java.time.Instant.parse("2026-11-23T10:00:00Z"));
+
+        assertThat(run.status()).isEqualTo(RunStatus.RUNNING);
+        assertThat(run.decision()).isNull();
+        assertThat(run.finishedAt()).isNull();
+        assertThat(run.id()).isEqualTo(id);
+    }
+
+    @Test
+    void aRunViewKeepsItsOwnCopyOfTheOutcomes() {
+        var outcomes = new ArrayList<>(List.of(InquiryOutcome.passed(InquiryType.SHAHKAR)));
+        var view = new InquiryRunView(InquiryRun.started(java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
+                java.time.Instant.now()), outcomes);
+
+        outcomes.clear();
+
+        assertThat(view.outcomes()).hasSize(1);
+    }
+
+    @Test
+    void theRunRefusalsHaveTheRightStatusKinds() {
+        assertThat(new InquiryCooldownException(30).kind())
+                .isEqualTo(com.sb24.asanzeman.shared.model.DomainException.Kind.CONFLICT);
+        assertThat(new InquiryCooldownException(30).args()).containsExactly(30L);
+        assertThat(new InquiryRunNotFoundException().kind())
+                .isEqualTo(com.sb24.asanzeman.shared.model.DomainException.Kind.NOT_FOUND);
+    }
+
+    @Test
     void aVerdictKeepsItsOwnCopyOfTheOutcomes() {
         var outcomes = new ArrayList<>(List.of(InquiryOutcome.passed(InquiryType.SHAHKAR)));
         var verdict = new InquiryVerdict(InquiryVerdict.Decision.PROCEED, null, outcomes);

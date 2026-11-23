@@ -64,6 +64,30 @@ CREATE TABLE azs_auth.otp_lockout (
     CONSTRAINT pk_otp_lockout PRIMARY KEY (national_code)
 );
 
+CREATE SCHEMA IF NOT EXISTS azs_inquiry;
+CREATE TABLE azs_inquiry.inquiry_run (
+    id                VARBINARY(16) NOT NULL,
+    request_id        VARBINARY(16) NOT NULL,
+    status            VARCHAR(10)   NOT NULL,
+    decision          VARCHAR(10),
+    active_request_id VARBINARY(16),
+    started_at        TIMESTAMP(6)  NOT NULL,
+    finished_at       TIMESTAMP(6),
+    CONSTRAINT pk_inquiry_run PRIMARY KEY (id),
+    CONSTRAINT ux_inquiry_run_active UNIQUE (active_request_id)
+);
+CREATE TABLE azs_inquiry.inquiry_result (
+    run_id       VARBINARY(16) NOT NULL,
+    inquiry_type VARCHAR(20)   NOT NULL,
+    result       VARCHAR(10)   NOT NULL,
+    failure_kind VARCHAR(15),
+    message_key  VARCHAR(100),
+    gender       VARCHAR(10),
+    birth_date   DATE,
+    finished_at  TIMESTAMP(6)  NOT NULL,
+    CONSTRAINT pk_inquiry_result PRIMARY KEY (run_id, inquiry_type)
+);
+
 -- stand-in for AZS_BUSINESS.agency (V002), only what the login reads
 CREATE SCHEMA IF NOT EXISTS azs_business;
 CREATE TABLE azs_business.agency (
