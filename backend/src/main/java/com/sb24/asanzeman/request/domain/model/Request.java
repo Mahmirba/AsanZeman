@@ -74,6 +74,19 @@ public record Request(
         return withStatus(RequestStatus.REJECTED);
     }
 
+    /**
+     * The customer's final submit (SRS step 15): the request goes to the branch, «در انتظار بررسی». The caller has
+     * checked that the inquiries passed and the collateral was chosen.
+     *
+     * @throws RequestNotSubmittableException the request is not waiting at the agency's step
+     */
+    public Request submitted() {
+        if (!canBeInquired()) {
+            throw new RequestNotSubmittableException("the request is " + status);
+        }
+        return withStatus(RequestStatus.PENDING_BRANCH_REVIEW);
+    }
+
     private Request withStatus(RequestStatus newStatus) {
         return new Request(id, trackingCode, type, newStatus, agencyId, branchCode, amount, dueDate, customer,
                 companions, registeredBy, registeredAt);

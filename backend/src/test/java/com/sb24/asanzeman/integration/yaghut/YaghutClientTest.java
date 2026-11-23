@@ -307,6 +307,75 @@ class YaghutClientTest {
         assertThat(client.customerDetailInfo(session, "1").fullName()).isEqualTo("Sky Air Co");
     }
 
+    // ---- deposit --------------------------------------------------------------------------------------------
+
+    private static final String DEPOSIT_URL = BASE + "/deposit";
+    private static final String ONE_DEPOSIT = """
+            {"depositNumber": "D-100", "group": "SHORT_ACCOUNT", "depositType": 12, "owner": "INDIVIDUAL",
+             "signature": "OWNER_OF_DEPOSIT_AND_SIGNATURE", "depositStatus": "OPEN", "currency": "IRR",
+             "personality": "ACTUAL", "availableBalance": 5000000000.50}""";
+
+    @Test
+    void depositsAskForTheOpenDepositsOfAnOwnerWhoSignsWithTheCallersSessionAndReadThem() {
+        server.expect(requestTo(DEPOSIT_URL)).andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.COOKIE, "JSESSIONID=S1"))
+                .andExpect(content().json("""
+                        {"cif":"555","depositStatus":"OPEN","needWithdrawableBalance":true,
+                         "personality":["ACTUAL"],"signatureStatus":["OWNER_OF_DEPOSIT_AND_SIGNATURE"]}""", true))
+                .andRespond(json("{\"result\": {\"deposits\": [" + ONE_DEPOSIT + "]}}"));
+
+        var deposits = client.deposits(new YaghutSession("S1", null), "555");
+
+        assertThat(deposits).containsExactly(new YaghutDeposit("D-100", "SHORT_ACCOUNT", 12L, "INDIVIDUAL",
+                "OWNER_OF_DEPOSIT_AND_SIGNATURE", "OPEN", "IRR", "ACTUAL", new java.math.BigDecimal("5000000000.50")));
+    }
+
+    @Test
+    void depositsAlsoReadAResultThatIsTheListItself() {
+        server.expect(requestTo(DEPOSIT_URL)).andRespond(json("{\"result\": [" + ONE_DEPOSIT + "]}"));
+
+        assertThat(client.deposits(new YaghutSession("S1", null), "555")).hasSize(1);
+    }
+
+    @Test
+    void noDepositsIsAnEmptyListWhateverTheAnswerLooksLike() {
+        server.expect(requestTo(DEPOSIT_URL)).andRespond(json("{\"result\": {\"deposits\": []}}"));
+        server.expect(requestTo(DEPOSIT_URL)).andRespond(json("{\"result\": {}}"));
+        server.expect(requestTo(DEPOSIT_URL)).andRespond(json("{\"result\": null}"));
+
+        var session = new YaghutSession("S1", null);
+
+        assertThat(client.deposits(session, "555")).isEmpty();
+        assertThat(client.deposits(session, "555")).isEmpty();
+        assertThat(client.deposits(session, "555")).isEmpty();
+    }
+
+    @Test
+    void aBalanceGivenAsTextIsReadAndOneThatIsNotANumberIsNull() {
+        server.expect(requestTo(DEPOSIT_URL)).andRespond(json("""
+                {"result": {"deposits": [{"depositNumber": "A", "availableBalance": "1200"},
+                 {"depositNumber": "B", "availableBalance": "n/a"}, {"depositNumber": "C", "depositType": "x"}]}}"""));
+
+        var deposits = client.deposits(new YaghutSession("S1", null), "555");
+
+        assertThat(deposits).extracting(YaghutDeposit::availableBalance)
+                .containsExactly(new java.math.BigDecimal("1200"), null, null);
+        assertThat(deposits.get(2).typeCode()).isNull();
+    }
+
+    @Test
+    void anEndedSessionAndAnUnknownCustomerAreFaultsOfTheDepositCall() {
+        server.expect(requestTo(DEPOSIT_URL)).andRespond(fault(HttpStatus.OK, "InvalidSessionWSException", "ended"));
+        server.expect(requestTo(DEPOSIT_URL)).andRespond(fault(HttpStatus.OK, "InvalidCustomerWSException", "none"));
+
+        assertThatThrownBy(() -> client.deposits(new YaghutSession("S1", null), "555"))
+                .isInstanceOfSatisfying(YaghutException.class,
+                        e -> assertThat(e.fault()).isEqualTo(YaghutException.Fault.INVALID_SESSION));
+        assertThatThrownBy(() -> client.deposits(new YaghutSession("S1", null), "555"))
+                .isInstanceOfSatisfying(YaghutException.class,
+                        e -> assertThat(e.fault()).isEqualTo(YaghutException.Fault.INVALID_CUSTOMER));
+    }
+
     @Test
     void missingCustomerFieldsAreNull() {
         server.expect(requestTo(CUSTOMER_URL)).andRespond(json("{\"result\": {\"code\": \"1\"}}"));

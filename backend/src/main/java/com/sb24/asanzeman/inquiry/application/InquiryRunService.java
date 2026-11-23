@@ -70,6 +70,12 @@ public class InquiryRunService implements InquiryRunUseCase {
     }
 
     @Override
+    public boolean cleared(UUID requestId) {
+        return runs.findLatest(requestId).filter(r -> r.status() == RunStatus.FINISHED)
+                .filter(r -> r.decision() == InquiryVerdict.Decision.PROCEED).isPresent();
+    }
+
+    @Override
     public InquiryRunView get(UUID requestId, UUID runId) {
         return view(runs.find(requestId, runId).orElseThrow(InquiryRunNotFoundException::new));
     }

@@ -45,7 +45,9 @@ class OpenApiContractTest {
                 "/agency/requests/export", "/agency/requests/{id}", "/agency/requests/{id}/cancel",
                 "/agency/profile", "/agency/branches", "/agency/customers/lookup", "/auth/customer/login",
                 "/auth/customer/otp/verify", "/customer/requests", "/customer/requests/{id}",
-                "/customer/requests/{requestId}/inquiries", "/customer/requests/{requestId}/inquiries/{runId}");
+                "/customer/requests/{requestId}/inquiries", "/customer/requests/{requestId}/inquiries/{runId}",
+                "/customer/requests/{requestId}/deposits", "/customer/requests/{requestId}/collateral",
+                "/customer/requests/{requestId}/submit");
     }
 
     @Test

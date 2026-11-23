@@ -15,6 +15,9 @@ public interface InquiryRunUseCase {
      */
     InquiryRunView start(UUID requestId, InquiryContext context);
 
+    /** @return whether the request's latest run has finished and every inquiry passed: it may go on to the collateral */
+    boolean cleared(UUID requestId);
+
     /** @throws com.sb24.asanzeman.inquiry.domain.model.InquiryRunNotFoundException unknown, or another request's */
     InquiryRunView get(UUID requestId, UUID runId);
 }

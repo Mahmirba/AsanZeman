@@ -233,6 +233,22 @@ class InquiryRunServiceTest {
     }
 
     @Test
+    void onlyAFinishedRunThatPassedClearsTheRequestForTheCollateral() {
+        when(runs.findLatest(REQUEST)).thenReturn(Optional.of(finished(Decision.PROCEED, NOW)),
+                Optional.of(finished(Decision.BLOCKED, NOW)), Optional.of(finished(Decision.REJECT, NOW)),
+                Optional.of(InquiryRun.started(UUID.randomUUID(), REQUEST, NOW)),
+                Optional.of(new InquiryRun(UUID.randomUUID(), REQUEST, RunStatus.STALE, Decision.PROCEED, NOW, NOW)),
+                Optional.empty());
+
+        assertThat(service.cleared(REQUEST)).isTrue();
+        assertThat(service.cleared(REQUEST)).isFalse(); // blocked
+        assertThat(service.cleared(REQUEST)).isFalse(); // rejected
+        assertThat(service.cleared(REQUEST)).isFalse(); // still running
+        assertThat(service.cleared(REQUEST)).isFalse(); // stale
+        assertThat(service.cleared(REQUEST)).isFalse(); // never run
+    }
+
+    @Test
     void anUnknownRunOrAnotherRequestsRunIsNotFound() {
         UUID id = UUID.randomUUID();
         when(runs.find(REQUEST, id)).thenReturn(Optional.empty());

@@ -165,6 +165,20 @@ CREATE TABLE azs_business.request (
     CONSTRAINT fk_request_agency FOREIGN KEY (agency_id) REFERENCES azs_business.agency (id),
     CONSTRAINT fk_request_branch FOREIGN KEY (branch_code) REFERENCES azs_business.branch (branch_code)
 );
+CREATE TABLE azs_business.collateral (
+    id             VARBINARY(16) DEFAULT RANDOM_UUID() NOT NULL,
+    request_id     VARBINARY(16) NOT NULL,
+    deposit_number VARCHAR(30)   NOT NULL,
+    kind           VARCHAR(10)   NOT NULL,
+    price_class    VARCHAR(10)   NOT NULL,
+    share_percent  NUMBER(3)     NOT NULL,
+    factor         NUMBER(5, 2)  NOT NULL,
+    allocated      NUMBER(19)    NOT NULL,
+    collateral     NUMBER(19)    NOT NULL,
+    created_at     TIMESTAMP(6)  DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT pk_collateral PRIMARY KEY (id)
+);
+
 CREATE TABLE azs_business.request_companion (
     id               VARBINARY(16)  NOT NULL,
     request_id       VARBINARY(16)  NOT NULL,

@@ -54,6 +54,26 @@ class RequestInquiryTest {
     }
 
     @Test
+    void submittingSendsAnIssuanceRequestToTheBranchAndChangesNothingElse() {
+        Request original = request(RequestType.ISSUANCE, RequestStatus.REGISTERED_AT_AGENCY);
+
+        Request submitted = original.submitted();
+
+        assertThat(submitted.status()).isEqualTo(RequestStatus.PENDING_BRANCH_REVIEW);
+        assertThat(submitted).usingRecursiveComparison().ignoringFields("status").isEqualTo(original);
+    }
+
+    @Test
+    void aRequestThatIsNotAtTheAgencyStepCannotBeSubmitted() {
+        assertThatThrownBy(() -> request(RequestType.ISSUANCE, RequestStatus.REJECTED).submitted())
+                .isInstanceOf(RequestNotSubmittableException.class).hasMessageContaining("REJECTED");
+        assertThatThrownBy(() -> request(RequestType.REVOCATION, RequestStatus.REGISTERED_AT_AGENCY).submitted())
+                .isInstanceOf(RequestNotSubmittableException.class);
+        assertThat(new RequestNotSubmittableException("x").kind()).isEqualTo(DomainException.Kind.CONFLICT);
+        assertThat(new RequestNotSubmittableException("x").reason()).isEqualTo("x");
+    }
+
+    @Test
     void theRefusalIsAConflict() {
         assertThat(new RequestNotInquirableException().kind()).isEqualTo(DomainException.Kind.CONFLICT);
     }
