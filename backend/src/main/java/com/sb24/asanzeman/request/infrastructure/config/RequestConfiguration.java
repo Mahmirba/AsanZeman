@@ -1,5 +1,6 @@
 package com.sb24.asanzeman.request.infrastructure.config;
 
+import com.sb24.asanzeman.request.application.CompletionSettings;
 import com.sb24.asanzeman.request.application.RegistrationSettings;
 import com.sb24.asanzeman.request.application.ReviewSettings;
 import com.sb24.asanzeman.request.domain.model.CollateralPolicy;
@@ -20,6 +21,11 @@ public class RequestConfiguration {
     @Bean
     RegistrationSettings registrationSettings(@Value("${azs.request.duplicate-window:10s}") Duration duplicateWindow) {
         return new RegistrationSettings(duplicateWindow);
+    }
+
+    @Bean
+    CompletionSettings completionSettings(@Value("${azs.request.completion-window:7d}") Duration window) {
+        return new CompletionSettings(window);
     }
 
     @Bean

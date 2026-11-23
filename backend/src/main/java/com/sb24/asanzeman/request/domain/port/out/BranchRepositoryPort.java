@@ -17,6 +17,9 @@ public interface BranchRepositoryPort {
 
     boolean any();
 
+    /** Every branch with the one that handles it, for the integrity check (4.4). */
+    java.util.List<com.sb24.asanzeman.request.domain.model.BranchLink> links();
+
     /** @return true when the branch exists, is active and is not closed (4.4): new requests may use it */
     boolean isOpen(String branchCode);
 

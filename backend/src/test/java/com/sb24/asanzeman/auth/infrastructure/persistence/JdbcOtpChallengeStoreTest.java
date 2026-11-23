@@ -34,6 +34,21 @@ class JdbcOtpChallengeStoreTest {
     }
 
     @Test
+    void onlyTheCodesSentBeforeTheLimitAreDeleted() {
+        OtpChallenge old = new OtpChallenge(UUID.randomUUID(), CODE, "09121234567", "otp-0", UUID.randomUUID(),
+                NOW.minusSeconds(100), false);
+        OtpChallenge fresh = challenge();
+        store.save(old);
+        store.save(fresh);
+
+        assertThat(store.deleteSentBefore(NOW)).isEqualTo(1);
+
+        assertThat(store.find(old.id())).isEmpty();
+        assertThat(store.find(fresh.id())).isPresent();
+        assertThat(store.deleteSentBefore(NOW)).isZero();
+    }
+
+    @Test
     void anUnknownChallengeIsNotFound() {
         assertThat(store.find(UUID.randomUUID())).isEmpty();
     }

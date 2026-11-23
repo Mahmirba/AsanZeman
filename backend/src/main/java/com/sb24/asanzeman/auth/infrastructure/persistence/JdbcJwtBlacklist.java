@@ -35,6 +35,12 @@ public class JdbcJwtBlacklist implements JwtBlacklistPort {
     }
 
     @Override
+    public int deleteExpired(Instant now) {
+        return jdbc.sql("DELETE FROM azs_auth.jwt_blacklist WHERE expires_at < :now")
+                .param("now", DbTime.toDb(now), Types.TIMESTAMP).update();
+    }
+
+    @Override
     public boolean isRevoked(String jti) {
         return jdbc.sql(COUNT).param("jti", jti, Types.VARCHAR).query(Integer.class).single() > 0;
     }

@@ -1,5 +1,6 @@
 package com.sb24.asanzeman.request.infrastructure.persistence;
 
+import com.sb24.asanzeman.request.domain.model.BranchLink;
 import com.sb24.asanzeman.request.domain.model.BranchData;
 import com.sb24.asanzeman.request.domain.model.BranchSyncResult;
 import com.sb24.asanzeman.request.domain.port.out.BranchRepositoryPort;
@@ -78,6 +79,13 @@ public class JdbcBranchRepository implements BranchRepositoryPort {
     @Override
     public boolean any() {
         return jdbc.sql("SELECT COUNT(*) FROM azs_business.branch").query(Integer.class).single() > 0;
+    }
+
+    @Override
+    public java.util.List<BranchLink> links() {
+        return jdbc.sql("SELECT branch_code, active, parent_branch FROM azs_business.branch ORDER BY branch_code")
+                .query((rs, row) -> new BranchLink(rs.getString("branch_code"), rs.getInt("active") == 1,
+                        rs.getString("parent_branch"))).list();
     }
 
     @Override

@@ -59,6 +59,12 @@ public class JdbcOtpChallengeStore implements OtpChallengeStorePort {
     }
 
     @Override
+    public int deleteSentBefore(Instant before) {
+        return jdbc.sql("DELETE FROM azs_auth.otp_challenge WHERE sent_at < :before")
+                .param("before", DbTime.toDb(before), Types.TIMESTAMP).update();
+    }
+
+    @Override
     public boolean markVerified(UUID id) {
         return jdbc.sql("UPDATE azs_auth.otp_challenge SET status = 'VERIFIED' WHERE id = :id AND status = 'SENT'")
                 .param("id", RawUuid.toBytes(id), Types.VARBINARY).update() == 1;

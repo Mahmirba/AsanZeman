@@ -9,4 +9,7 @@ public interface JwtBlacklistPort {
     void revoke(String jti, Instant expiresAt, String reason);
 
     boolean isRevoked(String jti);
+
+    /** Deletes the entries whose token has expired by {@code now}: they can no longer be used, so listing them is pointless. @return how many */
+    int deleteExpired(Instant now);
 }

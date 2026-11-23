@@ -32,6 +32,18 @@ class JdbcJwtBlacklistTest {
     }
 
     @Test
+    void onlyTheEntriesOfTokensThatHaveExpiredAreDeleted() {
+        Instant now = Instant.parse("2026-11-17T10:15:00Z");
+        blacklist.revoke("expired", now.minusSeconds(1), "LOGOUT");
+        blacklist.revoke("still-valid", now.plusSeconds(60), "LOGOUT");
+
+        assertThat(blacklist.deleteExpired(now)).isEqualTo(1);
+
+        assertThat(blacklist.isRevoked("expired")).isFalse();
+        assertThat(blacklist.isRevoked("still-valid")).isTrue();
+    }
+
+    @Test
     void revokingTwiceIsHarmless() {
         blacklist.revoke("jti-1", Instant.parse("2026-11-17T10:15:00Z"), "LOGOUT");
         blacklist.revoke("jti-1", Instant.parse("2026-11-17T10:15:00Z"), "LOGOUT");
