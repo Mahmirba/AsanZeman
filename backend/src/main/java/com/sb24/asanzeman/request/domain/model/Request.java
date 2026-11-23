@@ -62,6 +62,14 @@ public record Request(
         return type == RequestType.ISSUANCE && status == RequestStatus.REGISTERED_AT_AGENCY;
     }
 
+    /** The customer did not complete the request in time: it is rejected (7-day rule, 4.2). */
+    public Request expired() {
+        if (!canBeInquired()) {
+            throw new RequestNotInquirableException();
+        }
+        return withStatus(RequestStatus.REJECTED);
+    }
+
     /**
      * A negative inquiry rejects the request (D3, 5.1).
      *

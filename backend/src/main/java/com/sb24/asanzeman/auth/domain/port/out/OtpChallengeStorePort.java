@@ -26,6 +26,9 @@ public interface OtpChallengeStorePort {
      */
     boolean recordWrong(String nationalCode, Instant now, int maxAttempts, Duration lockout);
 
+    /** Deletes the codes sent before {@code before}. @return how many */
+    int deleteSentBefore(Instant before);
+
     /** A right code ends the count. */
     void clearWrong(String nationalCode);
 }

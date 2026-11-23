@@ -40,6 +40,18 @@ class JdbcBranchRepositoryTest {
     }
 
     @Test
+    void theLinksShowEachBranchWithItsStateAndTheOneThatHandlesIt() {
+        repository.apply(List.of(branch("0123", "Main"), branch("0456", "Other"), branch("0789", "Third")), T1);
+        jdbc.sql("UPDATE azs_business.branch SET parent_branch = '0456' WHERE branch_code = '0123'").update();
+        jdbc.sql("UPDATE azs_business.branch SET active = 0 WHERE branch_code = '0789'").update();
+
+        assertThat(repository.links()).containsExactly(
+                new com.sb24.asanzeman.request.domain.model.BranchLink("0123", true, "0456"),
+                new com.sb24.asanzeman.request.domain.model.BranchLink("0456", true, "0456"),
+                new com.sb24.asanzeman.request.domain.model.BranchLink("0789", false, "0789"));
+    }
+
+    @Test
     void anEmptyTableHasNoBranches() {
         assertThat(repository.any()).isFalse();
     }

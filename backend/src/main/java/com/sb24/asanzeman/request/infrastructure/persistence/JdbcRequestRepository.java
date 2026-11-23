@@ -117,6 +117,14 @@ public class JdbcRequestRepository implements RequestRepositoryPort {
     }
 
     @Override
+    public java.util.List<UUID> incompleteSince(java.time.Instant before) {
+        return jdbc.sql("SELECT id FROM azs_business.request WHERE request_type = 'ISSUANCE' "
+                + "AND status = 'REGISTERED_AT_AGENCY' AND registered_at <= :before ORDER BY registered_at")
+                .param("before", DbTime.toDb(before), Types.TIMESTAMP)
+                .query((rs, row) -> RawUuid.fromBytes(rs.getBytes("id"))).list();
+    }
+
+    @Override
     public boolean existsSince(UUID agencyId, String customerCode, java.time.Instant since) {
         return jdbc.sql("""
                 SELECT COUNT(*) FROM azs_business.request

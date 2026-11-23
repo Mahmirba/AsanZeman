@@ -46,6 +46,17 @@ class RequestInquiryTest {
     }
 
     @Test
+    void aRequestNotCompletedInTimeIsRejectedOnlyWhileItStillWaitsForTheCustomer() {
+        Request original = request(RequestType.ISSUANCE, RequestStatus.REGISTERED_AT_AGENCY);
+
+        assertThat(original.expired().status()).isEqualTo(RequestStatus.REJECTED);
+        assertThatThrownBy(() -> request(RequestType.ISSUANCE, RequestStatus.PENDING_BRANCH_REVIEW).expired())
+                .isInstanceOf(RequestNotInquirableException.class);
+        assertThatThrownBy(() -> request(RequestType.REVOCATION, RequestStatus.REGISTERED_AT_AGENCY).expired())
+                .isInstanceOf(RequestNotInquirableException.class);
+    }
+
+    @Test
     void aRequestThatIsNoLongerWaitingCannotBeRejectedByAnInquiry() {
         assertThatThrownBy(() -> request(RequestType.ISSUANCE, RequestStatus.CANCELLED).rejectedByInquiry())
                 .isInstanceOf(RequestNotInquirableException.class);

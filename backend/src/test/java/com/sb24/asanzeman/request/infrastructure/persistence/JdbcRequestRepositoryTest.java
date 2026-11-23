@@ -108,6 +108,18 @@ class JdbcRequestRepositoryTest {
     }
 
     @Test
+    void onlyIssuanceRequestsStillAtTheAgencyStepAndOldEnoughAreIncomplete() {
+        var old = request(7, List.of());
+        var waiting = request(8, List.of());
+        repository.insert(old);
+        repository.insert(waiting);
+        repository.updateStatus(waiting.id(), com.sb24.asanzeman.request.domain.model.RequestStatus.PENDING_BRANCH_REVIEW, NOW);
+
+        assertThat(repository.incompleteSince(NOW)).containsExactly(old.id());
+        assertThat(repository.incompleteSince(NOW.minusSeconds(1))).isEmpty();
+    }
+
+    @Test
     void aRequestBeforeTheWindowIsNotFound() {
         repository.insert(request(5, List.of()));
 
