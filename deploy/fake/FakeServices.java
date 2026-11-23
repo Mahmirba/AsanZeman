@@ -36,6 +36,7 @@ public class FakeServices {
         server.createContext("/yaghut/user/loginStatic", FakeServices::login);
         server.createContext("/yaghut/branches", FakeServices::branches);
         server.createContext("/yaghut/customerDetailInfo", FakeServices::customer);
+        server.createContext("/yaghut/deposit", FakeServices::deposits);
         server.createContext("/notifier/api/v1/sms/SendSimpleSms", FakeServices::sms);
         server.createContext("/notifier/api/v1/Sms/SendOtp", FakeServices::otpSend);
         server.createContext("/notifier/api/v1/Sms/OtpValidate", FakeServices::otpValidate);
@@ -88,6 +89,28 @@ public class FakeServices {
                 + "\",\"firstName\":\"Ali\",\"lastName\":\"Rezaei\","
                 + "\"fatherName\":\"Reza\",\"birthDate\":\"" + born + "\",\"mobile\":\"09121234567\","
                 + "\"personalityType\":\"" + type + "\",\"gender\":\"MALE\"}}", null);
+    }
+
+    /** Seven deposits: three can be offered (D-100, D-200 cheap and D-300 expensive); the rest must be filtered out. */
+    private static void deposits(HttpExchange x) throws IOException {
+        FakeServices.read(x);
+        reply(x, 200, "{\"success\":true,\"result\":{\"deposits\":["
+                + deposit("D-100", "SHORT_ACCOUNT", 1, "INDIVIDUAL", "OPEN", "IRR", "5000000000")
+                + "," + deposit("D-200", "PASANDAZ", 2, "INDIVIDUAL", "OPEN", "IRR", "100000000")
+                + "," + deposit("D-300", "LONG_ACCOUNT", 3, "INDIVIDUAL", "OPEN", "IRR", "3000000000")
+                + "," + deposit("D-400", "SHORT_ACCOUNT", 1, "JOINT", "OPEN", "IRR", "9000000000")
+                + "," + deposit("D-500", "SHORT_ACCOUNT", 1, "INDIVIDUAL", "OPEN", "USD", "9000000000")
+                + "," + deposit("D-600", "SHORT_ACCOUNT", 1, "INDIVIDUAL", "NEGATIVE_BLOCK", "IRR", "9000000000")
+                + "," + deposit("D-700", "ANDOKHTE_ACCOUNT", 9, "INDIVIDUAL", "OPEN", "IRR", "9000000000")
+                + "]}}", null);
+    }
+
+    private static String deposit(String number, String group, int type, String owner, String status, String currency,
+            String balance) {
+        return "{\"depositNumber\":\"" + number + "\",\"group\":\"" + group + "\",\"depositType\":" + type
+                + ",\"owner\":\"" + owner + "\",\"signature\":\"OWNER_OF_DEPOSIT_AND_SIGNATURE\",\"depositStatus\":\""
+                + status + "\",\"currency\":\"" + currency + "\",\"personality\":\"ACTUAL\",\"availableBalance\":"
+                + balance + ",\"balance\":" + balance + "}";
     }
 
     private static void sms(HttpExchange x) throws IOException {

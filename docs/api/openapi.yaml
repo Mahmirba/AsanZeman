@@ -391,9 +391,106 @@ paths:
                   mobile: { type: string }
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Problem" }
-  /customer/requests/{id}/deposits: { get: { tags: [customer], summary: "Eligible deposits from Yaghut (customer session)", responses: { "200": { description: deposits } } } }
-  /customer/requests/{id}/collateral: { post: { tags: [customer], responses: { "200": { description: allocation summary } } } }
-  /customer/requests/{id}/submit: { post: { tags: [customer], responses: { "200": { description: submitted } } } }
+  /customer/requests/{requestId}/deposits:
+    get:
+      tags: [customer]
+      summary: "The deposits the customer may offer as collateral, with their balances now (4.3)"
+      description: |
+        Read from Yaghut with the customer's own session and filtered again here: held alone, owner who signs, a
+        natural person's, open, in rials, and of a type the bank prices. Balances are never stored (D16). Needs every
+        inquiry to have passed: 409 `request.not-submittable` otherwise.
+      parameters:
+        - { name: requestId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The deposits. `allowedFor` is CASH and PLEDGE for a cheap deposit, PLEDGE only for an expensive one.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [number, priceClass, availableBalance, allowedFor]
+                  properties:
+                    number: { type: string }
+                    priceClass: { type: string, enum: [CHEAP, EXPENSIVE] }
+                    availableBalance: { type: integer, format: int64, description: Whole rials }
+                    allowedFor: { type: array, items: { type: string, enum: [CASH, PLEDGE] } }
+        "401": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /customer/requests/{requestId}/collateral:
+    post:
+      tags: [customer]
+      summary: "Choose the collateral: cash share and deposits (4.3, D14, D15, D18)"
+      description: |
+        Calculates from the balances as they are now and saves the result, replacing any earlier choice. The cash share is
+        20 to 100 in steps of 10; the pledge is the rest. Cash comes from cheap deposits only; the pledge fills cheap
+        deposits first (x1.00) then expensive ones (x1.05, at most 95 % of a balance). Everything is rounded up to the whole
+        rial. 400 `request.collateral-invalid` or `request.collateral-insufficient` (the SRS text).
+      parameters:
+        - { name: requestId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cashPercent]
+              properties:
+                cashPercent: { type: integer, example: 20 }
+                cashDeposits: { type: array, items: { type: string }, description: Deposit numbers, in the order selected }
+                pledgeDeposits: { type: array, items: { type: string }, description: Deposit numbers, in the order selected }
+      responses:
+        "200":
+          description: The calculated and saved collateral.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [cash, pledgeBase, totalCollateral, allocations]
+                properties:
+                  cash: { type: integer, format: int64 }
+                  pledgeBase: { type: integer, format: int64, description: Guarantee amount minus cash }
+                  totalCollateral: { type: integer, format: int64, description: Cash plus the pledge collateral }
+                  allocations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        depositNumber: { type: string }
+                        kind: { type: string, enum: [CASH, PLEDGE] }
+                        priceClass: { type: string, enum: [CHEAP, EXPENSIVE] }
+                        sharePercent: { type: integer }
+                        factor: { type: number }
+                        allocated: { type: integer, format: int64 }
+                        collateral: { type: integer, format: int64 }
+        "400": { $ref: "#/components/responses/Problem" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /customer/requests/{requestId}/submit:
+    post:
+      tags: [customer]
+      summary: "Send the request to the branch (SRS step 15)"
+      description: |
+        The request becomes PENDING_BRANCH_REVIEW. 409 `request.not-submittable` when the inquiries have not passed, no
+        collateral was chosen, or the request is not at the agency's step (so a second submit is refused).
+      parameters:
+        - { name: requestId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Submitted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, statusLabel]
+                properties:
+                  status: { type: string, enum: [PENDING_BRANCH_REVIEW] }
+                  statusLabel: { type: string }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
   /branch/requests: { get: { tags: [branch], summary: "Inbox: original branch or replacement (D32)", responses: { "200": { description: page } } } }
   /branch/requests/{id}/lock: { post: { tags: [branch], summary: "«اقدام» - ownership lock (D1)", responses: { "200": { description: locked }, "409": { $ref: "#/components/responses/Problem" } } } }
   /branch/requests/{id}/approve: { post: { tags: [branch], responses: { "200": { description: UNDER_ACTION } } } }

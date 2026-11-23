@@ -31,7 +31,9 @@ public class YaghutClient {
     static final String SERVICE = "Yaghut";
     private static final String SESSION_COOKIE = "JSESSIONID";
     private static final Logger log = LoggerFactory.getLogger(YaghutClient.class);
-    private static final JsonMapper JSON = JsonMapper.builder().build();
+    /** Decimals are read exactly: a balance must never pass through a double. */
+    private static final JsonMapper JSON = JsonMapper.builder()
+            .enable(tools.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
 
     private record Reply(int status, String body, List<String> setCookies) {
     }
@@ -102,6 +104,45 @@ public class YaghutClient {
     }
 
     /**
+     * {@code POST /deposit}: the customer's open deposits of a natural person who owns and signs, with the withdrawable
+     * balance, with the customer's own session. The filters are asked for here and checked again by the caller.
+     * The list is read from {@code result.deposits}, or from {@code result} itself when that is the list.
+     *
+     * @throws YaghutException {@code InvalidSessionWSException} or {@code InvalidCustomerWSException}
+     */
+    public List<YaghutDeposit> deposits(YaghutSession session, String cif) {
+        Map<String, Object> body = Map.of("cif", cif, "depositStatus", "OPEN", "needWithdrawableBalance", true,
+                "personality", List.of("ACTUAL"), "signatureStatus", List.of("OWNER_OF_DEPOSIT_AND_SIGNATURE"));
+        Object result = rawResult(post("/deposit", body, session));
+        Object list = result instanceof List<?> ? result : asMap(result).get("deposits");
+        List<YaghutDeposit> deposits = new ArrayList<>();
+        if (list instanceof List<?> items) {
+            for (Object item : items) {
+                Map<String, Object> d = asMap(item);
+                deposits.add(new YaghutDeposit(text(d, "depositNumber"), text(d, "group"), number(d, "depositType"),
+                        text(d, "owner"), text(d, "signature"), text(d, "depositStatus"), text(d, "currency"),
+                        text(d, "personality"), decimal(d, "availableBalance")));
+            }
+        }
+        return deposits;
+    }
+
+    private static Long number(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value instanceof Number n ? n.longValue() : null;
+    }
+
+    private static java.math.BigDecimal decimal(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        try {
+            return value == null ? null : new java.math.BigDecimal(value.toString());
+        } catch (NumberFormatException e) {
+            log.warn("Yaghut {} is not a number: {}", key, value);
+            return null;
+        }
+    }
+
+    /**
      * Yaghut gives {@code firstName} and {@code lastName} (and {@code title}), not a full name: the full name is the
      * two put together, or the {@code title} when there is no first or last name (a company).
      */
@@ -143,6 +184,12 @@ public class YaghutClient {
 
     /** The {@code result} object of a successful answer, or the faults described in the class comment. */
     private Map<String, Object> result(Reply reply) {
+        Object result = rawResult(reply);
+        return result instanceof Map<?, ?> ? asMap(result) : Map.of();
+    }
+
+    /** The {@code result} of a successful answer, whatever its shape: an object, or a list. */
+    private Object rawResult(Reply reply) {
         Map<String, Object> json = parse(reply);
         if (Boolean.FALSE.equals(json.get("success"))) {
             throw fault(json, reply);
@@ -151,7 +198,7 @@ public class YaghutClient {
             log.warn("Yaghut answered HTTP {}: {}", reply.status(), reply.body());
             throw technical(new IllegalStateException("Yaghut answered HTTP " + reply.status()));
         }
-        return json.containsKey("result") ? asMap(json.get("result")) : json;
+        return json.containsKey("result") ? json.get("result") : json;
     }
 
     private Map<String, Object> parse(Reply reply) {
