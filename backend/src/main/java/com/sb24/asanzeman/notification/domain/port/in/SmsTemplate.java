@@ -12,7 +12,11 @@ public enum SmsTemplate {
     /** The branch rejected the request; args: the agency name, the branch name, the Jalali date. */
     REQUEST_REJECTED("sms.request-rejected"),
     /** The guarantee was issued; args: the agency name, the branch name, the Jalali date. */
-    GUARANTEE_ISSUED("sms.guarantee-issued");
+    GUARANTEE_ISSUED("sms.guarantee-issued"),
+    /** The guarantee was revoked; args: the agency name, the branch name, the Jalali date. */
+    GUARANTEE_REVOKED("sms.guarantee-revoked"),
+    /** The branch did not approve the revocation request; args: the agency name, the branch name, the Jalali date. */
+    REVOCATION_REJECTED("sms.revocation-rejected");
 
     private final String messageKey;
 

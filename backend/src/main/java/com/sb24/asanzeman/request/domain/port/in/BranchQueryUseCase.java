@@ -31,6 +31,10 @@ public interface BranchQueryUseCase {
      */
     BranchRequestDetails get(BranchUser user, UUID requestId);
 
-    /** The reasons a rejection may give, from the admin's list. */
-    List<RejectionReason> rejectionReasons();
+    /**
+     * The reasons a rejection may give, from the admin's list for that kind of request.
+     *
+     * @param kind {@code ISSUANCE} or {@code REVOCATION}
+     */
+    List<RejectionReason> rejectionReasons(String kind);
 }

@@ -27,4 +27,10 @@ public interface CustomerNotifierPort {
 
     /** SMS event 3: the branch recorded the guarantee number, so the guarantee is issued. */
     void guaranteeIssued(UUID requestId, String mobile, String agencyName, String branchName, String sentDate);
+
+    /** SMS event 5: the branch revoked the guarantee. */
+    void guaranteeRevoked(UUID requestId, String mobile, String agencyName, String branchName, String sentDate);
+
+    /** SMS event 7: the branch did not approve the revocation request. */
+    void revocationRejected(UUID requestId, String mobile, String agencyName, String branchName, String sentDate);
 }

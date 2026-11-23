@@ -312,9 +312,11 @@ paths:
       summary: "«ثبت درخواست ابطال»: cancel before «اقدام» (4.2, D11)"
       description: |
         Decided under the row lock. `REGISTERED_AT_AGENCY` or `PENDING_BRANCH_REVIEW` becomes `CANCELLED` and the
-        customer is sent an SMS. A request the branch has started on needs a revocation request, which is not built
-        yet: 409 `request.revocation-not-available`. Other 409s: `request.busy` (another user holds the row) and
-        `request.not-cancellable` (already finished). 404 for an unknown or foreign request.
+        customer is sent an SMS (outcome `CANCELLED`). From `UNDER_REVIEW`, `UNDER_ACTION` or `ISSUED` a new
+        `REVOCATION` request is created with its own tracking code (outcome `REVOCATION_REQUESTED`; `requestId` is the
+        revocation's). It joins the branch queue, or goes straight to the user holding the issuance request (D17).
+        409s: `request.revocation-duplicate` (one is already open), `request.busy`, `request.not-cancellable`
+        (finished, or itself a revocation). 404 for an unknown or foreign request.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
@@ -564,6 +566,8 @@ paths:
     get:
       tags: [branch]
       summary: "The reasons a rejection may give (from the admin's list)"
+      parameters:
+        - { name: kind, in: query, required: false, schema: { type: string, enum: [ISSUANCE, REVOCATION], default: ISSUANCE } }
       responses:
         "200":
           description: Active issuance rejection reasons, in order.
@@ -669,7 +673,16 @@ paths:
         "200": { $ref: "#/components/responses/ReviewResult" }
         "403": { $ref: "#/components/responses/Problem" }
         "409": { $ref: "#/components/responses/Problem" }
-  /branch/requests/{id}/complete-revocation: { post: { tags: [branch], responses: { "200": { description: COMPLETED / parent REVOKED } } } }
+  /branch/requests/{id}/complete-revocation:
+    post:
+      tags: [branch]
+      summary: "Confirm the guarantee was revoked in Farangin: the revocation is COMPLETED, the issuance REVOKED, the customer is sent an SMS"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200": { $ref: "#/components/responses/ReviewResult" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
   /branch/reports: { get: { tags: [reports], summary: "Filtered report; ?format=csv streams CSV (D42)", responses: { "200": { description: page or CSV } } } }
   /admin/agencies: { get: { tags: [admin], responses: { "200": { description: list } } }, post: { tags: [admin], responses: { "201": { description: created } } } }
   /admin/rejection-reasons: { get: { tags: [admin], responses: { "200": { description: list } } }, post: { tags: [admin], responses: { "201": { description: created } } } }

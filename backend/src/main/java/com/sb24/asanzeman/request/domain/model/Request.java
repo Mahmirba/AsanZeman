@@ -87,39 +87,90 @@ public record Request(
         return withStatus(RequestStatus.PENDING_BRANCH_REVIEW);
     }
 
-    // ---- the branch's work (4.1): each step is allowed from one status only, and only for an issuance request ------
+    // ---- the branch's work (4.1, 4.2): the same steps for an issuance and a revocation request -----------------------
 
     /** «اقدام»: the branch user takes the request. */
     Request reviewStarted() {
         return step(RequestStatus.PENDING_BRANCH_REVIEW, RequestStatus.UNDER_REVIEW);
     }
 
-    /** «تایید درخواست صدور»: the branch goes on to the digital signature and Farangin. */
+    /** «تایید درخواست»: the branch goes on to the digital signature and Farangin. */
     Request approvedForAction() {
         return step(RequestStatus.UNDER_REVIEW, RequestStatus.UNDER_ACTION);
     }
 
-    /** «رد درخواست صدور». */
+    /** «رد درخواست». */
     Request rejectedByBranch() {
         return step(RequestStatus.UNDER_REVIEW, RequestStatus.REJECTED);
     }
 
-    /** The guarantee number was entered: «صادر شده». */
+    /** The guarantee number was entered: «صادر شده». Only an issuance request is issued. */
     Request issued() {
+        requireType(RequestType.ISSUANCE);
         return step(RequestStatus.UNDER_ACTION, RequestStatus.ISSUED);
+    }
+
+    /** The branch revoked the guarantee in Farangin and confirmed it: the revocation request is done. */
+    Request revocationCompleted() {
+        requireType(RequestType.REVOCATION);
+        return step(RequestStatus.UNDER_ACTION, RequestStatus.COMPLETED);
+    }
+
+    /**
+     * The revocation of this issuance request was completed (4.2): it is revoked, whether it was issued or still being
+     * worked on.
+     */
+    Request revoked() {
+        requireType(RequestType.ISSUANCE);
+        if (status != RequestStatus.ISSUED && status != RequestStatus.UNDER_REVIEW
+                && status != RequestStatus.UNDER_ACTION) {
+            throw new RequestNotReviewableException("the request is " + status + ", it cannot be revoked");
+        }
+        return withStatus(RequestStatus.REVOKED);
     }
 
     /** «انصراف» or «لغو اقدام», an auto-release or an admin release: back to the queue. */
     Request releasedToBranch() {
-        if (type != RequestType.ISSUANCE || status != RequestStatus.UNDER_REVIEW
-                && status != RequestStatus.UNDER_ACTION) {
+        if (status != RequestStatus.UNDER_REVIEW && status != RequestStatus.UNDER_ACTION) {
             throw new RequestNotReviewableException("the request is " + status + ", nobody is working on it");
         }
         return withStatus(RequestStatus.PENDING_BRANCH_REVIEW);
     }
 
+    /**
+     * From «اقدام» on, the agency's one action cannot cancel the request any more: it asks for a revocation (4.2, D11).
+     * That is an issuance request the branch has taken, or has issued.
+     */
+    public boolean needsRevocation() {
+        return type == RequestType.ISSUANCE && (status == RequestStatus.UNDER_REVIEW
+                || status == RequestStatus.UNDER_ACTION || status == RequestStatus.ISSUED);
+    }
+
+    /**
+     * The revocation request for this issuance request (4.2): the same customer, guarantee and branch, with its own
+     * tracking code. It waits in the branch's queue, or, when the issuance request is mid-work, goes straight to the
+     * user who holds it (D17), which the caller says with {@code status}.
+     *
+     * @param registeredBy the agency user who asked for it
+     * @throws RequestNotCancellableException nothing started, or already finished: there is nothing to revoke
+     */
+    public Request requestRevocation(UUID revocationId, TrackingCode revocationCode, RequestStatus status,
+            String registeredBy, Instant at) {
+        if (!needsRevocation()) {
+            throw new RequestNotCancellableException();
+        }
+        return new Request(revocationId, revocationCode, RequestType.REVOCATION, status, agencyId, branchCode, amount,
+                dueDate, customer, companions, registeredBy, at);
+    }
+
+    private void requireType(RequestType required) {
+        if (type != required) {
+            throw new RequestNotReviewableException("this step is for a " + required + " request, not " + type);
+        }
+    }
+
     private Request step(RequestStatus from, RequestStatus to) {
-        if (type != RequestType.ISSUANCE || status != from) {
+        if (status != from) {
             throw new RequestNotReviewableException("the request is " + status + ", not " + from);
         }
         return withStatus(to);

@@ -50,7 +50,7 @@ class OpenApiContractTest {
                 "/customer/requests/{requestId}/submit", "/branch/requests", "/branch/requests/{id}",
                 "/branch/rejection-reasons", "/branch/requests/{id}/lock", "/branch/requests/{id}/approve",
                 "/branch/requests/{id}/reject", "/branch/requests/{id}/issue", "/branch/requests/{id}/abandon",
-                "/branch/requests/{id}/force-release");
+                "/branch/requests/{id}/complete-revocation", "/branch/requests/{id}/force-release");
     }
 
     @Test

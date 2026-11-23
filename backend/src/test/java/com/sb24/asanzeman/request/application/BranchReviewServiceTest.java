@@ -173,7 +173,7 @@ class BranchReviewServiceTest {
     void rejectingRecordsTheReasonAndTheCommentAndTellsTheCustomer() {
         Request request = request(RequestStatus.UNDER_REVIEW);
         found(request, ALI);
-        when(reviews.issuanceReasonExists(REASON)).thenReturn(true);
+        when(reviews.reasonExists(REASON, "ISSUANCE")).thenReturn(true);
         when(agencies.find(request.agencyId())).thenReturn(
                 Optional.of(new AgencyInfo(request.agencyId(), "0042", "Sky Travel", true)));
         when(branches.nameOf("0123")).thenReturn(Optional.of("Valiasr"));
@@ -190,18 +190,23 @@ class BranchReviewServiceTest {
     @Test
     void aRejectionNeedsACommentAndAKnownActiveReasonBeforeAnythingIsTouched() {
         Request request = request(RequestStatus.UNDER_REVIEW);
-        when(reviews.issuanceReasonExists(REASON)).thenReturn(false);
 
         for (String comment : new String[] {null, "", "   ", "x".repeat(201)}) {
             assertThatThrownBy(() -> service.reject(command(ALI, request), REASON, comment))
                     .isInstanceOf(InvalidRequestDataException.class);
         }
+        verifyNoInteractions(reviews, notifier, audit); // a bad comment is refused before the request is even read
+
+        found(request, ALI);
+        when(reviews.reasonExists(REASON, "ISSUANCE")).thenReturn(false);
         assertThatThrownBy(() -> service.reject(command(ALI, request), REASON, "fine"))
                 .isInstanceOfSatisfying(InvalidRequestDataException.class,
                         e -> assertThat(e.args().get(0).toString()).contains("reason"));
         assertThatThrownBy(() -> service.reject(command(ALI, request), null, "fine"))
                 .isInstanceOf(InvalidRequestDataException.class);
-        verify(reviews, never()).findForUpdate(any());
+        // a wrong reason ends the transaction with nothing saved, audited or sent
+        verify(reviews, never()).save(any(), any(), any(), any());
+        verify(reviews, never()).recordRejection(any(), any(), any());
         verifyNoInteractions(notifier, audit);
     }
 
@@ -209,7 +214,7 @@ class BranchReviewServiceTest {
     void aCommentOfExactlyTwoHundredCharactersIsAccepted() {
         Request request = request(RequestStatus.UNDER_REVIEW);
         found(request, ALI);
-        when(reviews.issuanceReasonExists(REASON)).thenReturn(true);
+        when(reviews.reasonExists(REASON, "ISSUANCE")).thenReturn(true);
         when(branches.nameOf(anyString())).thenReturn(Optional.empty());
 
         service.reject(command(ALI, request), REASON, "x".repeat(200));
@@ -258,6 +263,116 @@ class BranchReviewServiceTest {
                 .isInstanceOf(RequestNotReviewableException.class);
         verifyNoInteractions(notifier);
         verify(reviews, never()).recordIssue(any(), any(), any());
+    }
+
+    // ---- revocation (4.2) -----------------------------------------------------------------------------------
+
+    private Request revocation(RequestStatus status) {
+        return request(RequestStatus.ISSUED).requestRevocation(UUID.randomUUID(),
+                com.sb24.asanzeman.request.domain.model.TrackingCode.of("0123", "0042",
+                        com.sb24.asanzeman.shared.model.JalaliDate.of(1405, 9, 2), 9), status, "Sky Travel", NOW);
+    }
+
+    private Review foundRevocation(Request revocation, UUID parentId) {
+        var review = new Review(revocation, new ReviewLock(ALI.id(), "ali.b", NOW.minusSeconds(300),
+                NOW.minusSeconds(300)), "0123", parentId, false);
+        when(reviews.findForUpdate(revocation.id())).thenReturn(Optional.of(review));
+        return review;
+    }
+
+    @Test
+    void aRevocationIsRejectedWithAReasonFromTheRevocationList() {
+        Request revocation = revocation(RequestStatus.UNDER_REVIEW);
+        foundRevocation(revocation, UUID.randomUUID());
+        when(reviews.reasonExists(REASON, "REVOCATION")).thenReturn(true);
+        when(agencies.find(revocation.agencyId())).thenReturn(
+                Optional.of(new AgencyInfo(revocation.agencyId(), "0042", "Sky Travel", true)));
+        when(branches.nameOf("0123")).thenReturn(Optional.of("Valiasr"));
+
+        ReviewResult result = service.reject(command(ALI, revocation), REASON, "still in use");
+
+        assertThat(result.status()).isEqualTo(RequestStatus.REJECTED);
+        verify(reviews).recordRejection(revocation.id(), REASON, "still in use");
+        verify(notifier).revocationRejected(revocation.id(), revocation.customer().mobile(), "Sky Travel", "Valiasr",
+                "1405/09/02");
+        verify(notifier, never()).requestRejected(any(), any(), any(), any(), any());
+        var entry = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(audit).record(entry.capture());
+        assertThat(entry.getValue().action()).isEqualTo("REJECT_REVOCATION");
+    }
+
+    @Test
+    void anIssuanceReasonCannotRejectARevocation() {
+        Request revocation = revocation(RequestStatus.UNDER_REVIEW);
+        foundRevocation(revocation, UUID.randomUUID());
+        when(reviews.reasonExists(REASON, "REVOCATION")).thenReturn(false);
+
+        assertThatThrownBy(() -> service.reject(command(ALI, revocation), REASON, "x"))
+                .isInstanceOf(InvalidRequestDataException.class);
+        verify(reviews, never()).save(any(), any(), any(), any());
+        verifyNoInteractions(notifier, audit);
+    }
+
+    @Test
+    void completingARevocationRevokesTheIssuanceAndTellsTheCustomerInOneTransaction() {
+        UUID issuanceId = UUID.randomUUID();
+        Request revocation = revocation(RequestStatus.UNDER_ACTION);
+        foundRevocation(revocation, issuanceId);
+        Request issued = new Request(issuanceId, RequestTest.CODE, RequestType.ISSUANCE, RequestStatus.ISSUED,
+                revocation.agencyId(), "0123", Rials.of(1000), LocalDate.of(2027, 1, 20), revocation.customer(),
+                List.of(), "Sky Travel", NOW);
+        when(reviews.findForUpdate(issuanceId)).thenReturn(Optional.of(new Review(issued, null, "0123")));
+        when(agencies.find(issued.agencyId())).thenReturn(
+                Optional.of(new AgencyInfo(issued.agencyId(), "0042", "Sky Travel", true)));
+        when(branches.nameOf("0123")).thenReturn(Optional.of("Valiasr"));
+
+        ReviewResult result = service.completeRevocation(command(ALI, revocation));
+
+        assertThat(result.status()).isEqualTo(RequestStatus.COMPLETED);
+        assertThat(result.heldBy()).isNull();
+        verify(reviews).save(revocation.id(), RequestStatus.COMPLETED, null, NOW);
+        verify(reviews).save(issuanceId, RequestStatus.REVOKED, null, NOW);
+        verify(notifier).guaranteeRevoked(issuanceId, issued.customer().mobile(), "Sky Travel", "Valiasr",
+                "1405/09/02");
+        var entries = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(audit, org.mockito.Mockito.times(2)).record(entries.capture());
+        assertThat(entries.getAllValues()).extracting(AuditEntry::action, AuditEntry::entityId, AuditEntry::newValue)
+                .containsExactly(org.assertj.core.groups.Tuple.tuple("COMPLETE_REVOCATION", revocation.id(), "COMPLETED"),
+                        org.assertj.core.groups.Tuple.tuple("REVOKED", issuanceId, "REVOKED"));
+    }
+
+    @Test
+    void anIssuanceWorkedOnWhenItsRevocationCompletesIsRevokedToo() {
+        UUID issuanceId = UUID.randomUUID();
+        Request revocation = revocation(RequestStatus.UNDER_ACTION);
+        foundRevocation(revocation, issuanceId);
+        Request working = new Request(issuanceId, RequestTest.CODE, RequestType.ISSUANCE, RequestStatus.UNDER_ACTION,
+                revocation.agencyId(), "0123", Rials.of(1000), LocalDate.of(2027, 1, 20), revocation.customer(),
+                List.of(), "Sky Travel", NOW);
+        when(reviews.findForUpdate(issuanceId)).thenReturn(Optional.of(new Review(working,
+                new ReviewLock(ALI.id(), "ali.b", NOW, NOW), "0123", null, true)));
+        when(branches.nameOf(anyString())).thenReturn(Optional.empty());
+
+        service.completeRevocation(command(ALI, revocation));
+
+        verify(reviews).save(issuanceId, RequestStatus.REVOKED, null, NOW); // and nobody holds it any more
+    }
+
+    @Test
+    void aRevocationWithoutAnIssuanceAndAnIssuanceThatCannotBeRevokedAreRefused() {
+        Request orphan = revocation(RequestStatus.UNDER_ACTION);
+        foundRevocation(orphan, null);
+        Request revocation = revocation(RequestStatus.UNDER_ACTION);
+        UUID rejectedIssuance = UUID.randomUUID();
+        foundRevocation(revocation, rejectedIssuance);
+        when(reviews.findForUpdate(rejectedIssuance)).thenReturn(Optional.of(new Review(
+                request(RequestStatus.REJECTED), null, "0123")));
+
+        assertThatThrownBy(() -> service.completeRevocation(command(ALI, orphan)))
+                .isInstanceOf(RequestNotFoundException.class);
+        assertThatThrownBy(() -> service.completeRevocation(command(ALI, revocation)))
+                .isInstanceOf(RequestNotReviewableException.class);
+        verify(reviews, never()).save(rejectedIssuance, RequestStatus.REVOKED, null, NOW);
     }
 
     // ---- force release --------------------------------------------------------------------------------------

@@ -43,6 +43,20 @@ class OutboxCustomerNotifierTest {
     }
 
     @Test
+    void queuesTheRevocationTextsWithTheAgencyTheBranchAndTheDate() {
+        UUID request = UUID.randomUUID();
+        var notifier = new OutboxCustomerNotifier(sms);
+
+        notifier.guaranteeRevoked(request, "09121234567", "Sky Travel", "Valiasr", "1405/09/02");
+        notifier.revocationRejected(request, "09121234567", "Sky Travel", "Valiasr", "1405/09/02");
+
+        verify(sms).enqueue(new EnqueueSmsCommand("09121234567", SmsTemplate.GUARANTEE_REVOKED,
+                List.of("Sky Travel", "Valiasr", "1405/09/02"), request));
+        verify(sms).enqueue(new EnqueueSmsCommand("09121234567", SmsTemplate.REVOCATION_REJECTED,
+                List.of("Sky Travel", "Valiasr", "1405/09/02"), request));
+    }
+
+    @Test
     void queuesTheCancellationTextWithTheAgencyNameAndTheJalaliDate() {
         UUID request = UUID.randomUUID();
 

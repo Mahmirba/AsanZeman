@@ -56,7 +56,10 @@ public class BranchQueryService implements BranchQueryUseCase {
     }
 
     @Override
-    public List<RejectionReason> rejectionReasons() {
-        return reviews.issuanceReasons();
+    public List<RejectionReason> rejectionReasons(String kind) {
+        if (!"ISSUANCE".equals(kind) && !"REVOCATION".equals(kind)) {
+            throw new InvalidRequestDataException("the kind of request is ISSUANCE or REVOCATION");
+        }
+        return reviews.reasons(kind);
     }
 }

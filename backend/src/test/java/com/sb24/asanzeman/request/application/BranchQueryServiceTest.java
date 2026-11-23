@@ -126,10 +126,20 @@ class BranchQueryServiceTest {
     }
 
     @Test
+    void theRevocationReasonsAreAListOfTheirOwnAndAnythingElseIsRefused() {
+        var reasons = List.of(new RejectionReason(UUID.randomUUID(), "The guarantee is still needed"));
+        when(reviews.reasons("REVOCATION")).thenReturn(reasons);
+
+        assertThat(service.rejectionReasons("REVOCATION")).isEqualTo(reasons);
+        assertThatThrownBy(() -> service.rejectionReasons("NONSENSE")).isInstanceOf(InvalidRequestDataException.class);
+        assertThatThrownBy(() -> service.rejectionReasons(null)).isInstanceOf(InvalidRequestDataException.class);
+    }
+
+    @Test
     void theRejectionReasonsComeFromTheAdminsList() {
         var reasons = List.of(new RejectionReason(UUID.randomUUID(), "Documents are incomplete"));
-        when(reviews.issuanceReasons()).thenReturn(reasons);
+        when(reviews.reasons("ISSUANCE")).thenReturn(reasons);
 
-        assertThat(service.rejectionReasons()).isEqualTo(reasons);
+        assertThat(service.rejectionReasons("ISSUANCE")).isEqualTo(reasons);
     }
 }

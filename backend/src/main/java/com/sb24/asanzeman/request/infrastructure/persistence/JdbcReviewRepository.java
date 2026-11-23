@@ -1,5 +1,6 @@
 package com.sb24.asanzeman.request.infrastructure.persistence;
 
+import com.sb24.asanzeman.request.domain.model.RejectionReason;
 import com.sb24.asanzeman.request.domain.model.Request;
 import com.sb24.asanzeman.request.domain.model.RequestStatus;
 import com.sb24.asanzeman.request.domain.model.Review;
@@ -20,9 +21,9 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * The ownership lock and the branch's records on {@code AZS_BUSINESS.request} through plain JDBC (4.1). The row is read
- * with {@code FOR UPDATE NOWAIT} by the request repository, so two users taking the same request cannot both win; the
- * lock columns then say who owns it between calls.
+ * The ownership lock, the revocation link and the branch's records on {@code AZS_BUSINESS.request} through plain JDBC
+ * (4.1, 4.2). The row is read with {@code FOR UPDATE NOWAIT} by the request repository, so two users taking the same
+ * request cannot both win; the lock columns then say who owns it between calls.
  */
 @Component
 public class JdbcReviewRepository implements ReviewRepositoryPort {
@@ -40,11 +41,18 @@ public class JdbcReviewRepository implements ReviewRepositoryPort {
     public Optional<Review> findForUpdate(UUID requestId) {
         Optional<Request> request = requests.findByIdForUpdate(requestId);
         return request.map(r -> jdbc.sql("""
-                SELECT q.locked_by, q.locked_by_name, q.locked_at, q.last_activity_at, b.parent_branch
+                SELECT q.locked_by, q.locked_by_name, q.locked_at, q.last_activity_at, q.parent_request_id,
+                       b.parent_branch,
+                       (SELECT COUNT(*) FROM azs_business.request c
+                         WHERE c.parent_request_id = q.id AND c.request_type = 'REVOCATION'
+                           AND c.status IN ('PENDING_BRANCH_REVIEW', 'UNDER_REVIEW', 'UNDER_ACTION')) AS open_revocations
                   FROM azs_business.request q JOIN azs_business.branch b ON b.branch_code = q.branch_code
                  WHERE q.id = :id
                 """).param("id", RawUuid.toBytes(requestId), Types.VARBINARY)
-                .query((rs, row) -> new Review(r, lock(rs), rs.getString("parent_branch"))).single());
+                .query((rs, row) -> new Review(r, lock(rs), rs.getString("parent_branch"),
+                        rs.getBytes("parent_request_id") == null ? null
+                                : RawUuid.fromBytes(rs.getBytes("parent_request_id")),
+                        rs.getInt("open_revocations") > 0)).single());
     }
 
     private static ReviewLock lock(java.sql.ResultSet rs) throws java.sql.SQLException {
@@ -74,6 +82,18 @@ public class JdbcReviewRepository implements ReviewRepositoryPort {
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
+    public void insertRevocation(Request revocation, UUID parentId, ReviewLock lock) {
+        requests.insert(revocation);
+        jdbc.sql("UPDATE azs_business.request SET parent_request_id = :parent WHERE id = :id")
+                .param("parent", RawUuid.toBytes(parentId), Types.VARBINARY)
+                .param("id", RawUuid.toBytes(revocation.id()), Types.VARBINARY).update();
+        if (lock != null) {
+            save(revocation.id(), revocation.status(), lock, lock.lockedAt());
+        }
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
     public void recordRejection(UUID requestId, UUID reasonId, String comment) {
         jdbc.sql("UPDATE azs_business.request SET rejection_reason_id = :reason, rejection_comment = :comment "
                 + "WHERE id = :id")
@@ -98,17 +118,19 @@ public class JdbcReviewRepository implements ReviewRepositoryPort {
     }
 
     @Override
-    public List<com.sb24.asanzeman.request.domain.model.RejectionReason> issuanceReasons() {
+    public List<RejectionReason> reasons(String kind) {
         return jdbc.sql("SELECT id, text FROM azs_business.rejection_reason "
-                + "WHERE kind = 'ISSUANCE' AND active = 1 ORDER BY sort_order, text")
-                .query((rs, row) -> new com.sb24.asanzeman.request.domain.model.RejectionReason(
-                        RawUuid.fromBytes(rs.getBytes("id")), rs.getString("text"))).list();
+                + "WHERE kind = :kind AND active = 1 ORDER BY sort_order, text")
+                .param("kind", kind, Types.VARCHAR)
+                .query((rs, row) -> new RejectionReason(RawUuid.fromBytes(rs.getBytes("id")), rs.getString("text")))
+                .list();
     }
 
     @Override
-    public boolean issuanceReasonExists(UUID reasonId) {
+    public boolean reasonExists(UUID reasonId, String kind) {
         return jdbc.sql("SELECT COUNT(*) FROM azs_business.rejection_reason "
-                + "WHERE id = :id AND kind = 'ISSUANCE' AND active = 1")
-                .param("id", RawUuid.toBytes(reasonId), Types.VARBINARY).query(Integer.class).single() > 0;
+                + "WHERE id = :id AND kind = :kind AND active = 1")
+                .param("id", RawUuid.toBytes(reasonId), Types.VARBINARY).param("kind", kind, Types.VARCHAR)
+                .query(Integer.class).single() > 0;
     }
 }
