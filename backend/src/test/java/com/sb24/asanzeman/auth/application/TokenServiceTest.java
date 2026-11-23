@@ -97,6 +97,25 @@ class TokenServiceTest {
     }
 
     @Test
+    void aCustomerGetsOneSessionTheLengthOfTheCapWithNoRefreshToken() {
+        UUID family = UUID.randomUUID();
+        Instant end = NOW.plus(Duration.ofMinutes(30));
+        Session customer = new Session(UUID.randomUUID(), "1000000011", Role.CUSTOMER, null);
+        when(issuer.issue(eq(customer), eq(family), anyString(), eq(NOW), eq(end))).thenReturn("jwt");
+
+        IssuedTokens tokens = service.start(customer, family, end, CLIENT);
+
+        assertThat(tokens.accessToken()).isEqualTo("jwt");
+        assertThat(tokens.accessTokenExpiresAt()).isEqualTo(end); // longer than the 15-minute access time
+        assertThat(tokens.refreshToken()).isNull();
+        verify(store, never()).save(any());
+        ArgumentCaptor<AuditEntry> entry = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(audit).record(entry.capture());
+        assertThat(entry.getValue()).extracting(AuditEntry::action, AuditEntry::userRole)
+                .containsExactly("LOGIN", "CUSTOMER");
+    }
+
+    @Test
     void aCappedSessionKeepsItsFamilyAndEndsAtTheCapWithTheAccessTokenInsideIt() {
         UUID family = UUID.randomUUID();
         Instant cap = NOW.plusSeconds(300);

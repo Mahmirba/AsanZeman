@@ -213,6 +213,31 @@ class JdbcRequestQueryTest {
     }
 
     @Test
+    void aCustomerSeesOnlyTheirOwnRequestsNewestFirstAcrossAgencies() {
+        Request older = save(agency, 1, "1000000011", "555", "Ali", T0, List.of());
+        Request newer = save(other, 2, "1000000011", "555", "Ali", T0.plusSeconds(60), List.of());
+        save(agency, 3, "1000000028", "556", "Sara", T0.plusSeconds(120), List.of());
+
+        assertThat(query.forCustomer("1000000011")).extracting(RequestSummary::id)
+                .containsExactly(newer.id(), older.id());
+        assertThat(query.forCustomer("1000000044")).isEmpty();
+    }
+
+    @Test
+    void aCustomerGetsDetailsWithCompanionsOfTheirOwnRequestOnly() {
+        var a = new Companion("A", "0012345679", LocalDate.of(2015, 1, 1), "P1");
+        Request mine = save(agency, 1, "1000000011", "555", "Ali", T0, List.of(a));
+        Request theirs = save(agency, 2, "1000000028", "556", "Sara", T0, List.of());
+
+        var details = query.detailsForCustomer("1000000011", mine.id()).orElseThrow();
+
+        assertThat(details.summary().id()).isEqualTo(mine.id());
+        assertThat(details.companions()).containsExactly(a);
+        assertThat(query.detailsForCustomer("1000000011", theirs.id())).isEmpty();
+        assertThat(query.detailsForCustomer("1000000011", UUID.randomUUID())).isEmpty();
+    }
+
+    @Test
     void theLikeEscapingMakesPercentUnderscoreAndBackslashPlainText() {
         assertThat(JdbcRequestQuery.escapeLike("50%_a\\b")).isEqualTo("50\\%\\_a\\\\b");
     }

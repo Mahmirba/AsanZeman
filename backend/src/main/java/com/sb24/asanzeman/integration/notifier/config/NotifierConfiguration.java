@@ -16,6 +16,6 @@ public class NotifierConfiguration {
     NotifierClient notifierClient(NotifierProperties p, MeterRegistry meters) {
         TlsSkipReporting.report("notifier", p.tls().skipVerify(), meters);
         return new NotifierClient(HttpClients.restClient(p.connectTimeout(), p.readTimeout(), p.tls().skipVerify()),
-                p.baseUrl(), p.user(), p.pass(), p.clientName());
+                p.baseUrl(), p.user(), p.pass(), p.clientName(), p.otpArgs());
     }
 }

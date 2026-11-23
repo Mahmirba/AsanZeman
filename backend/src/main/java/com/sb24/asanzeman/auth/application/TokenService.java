@@ -4,6 +4,7 @@ import com.sb24.asanzeman.auth.domain.model.ClientInfo;
 import com.sb24.asanzeman.auth.domain.model.InvalidSessionException;
 import com.sb24.asanzeman.auth.domain.model.IssuedTokens;
 import com.sb24.asanzeman.auth.domain.model.RefreshTokenRecord;
+import com.sb24.asanzeman.auth.domain.model.Role;
 import com.sb24.asanzeman.auth.domain.model.Session;
 import com.sb24.asanzeman.auth.domain.port.in.LogoutUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.RefreshSessionUseCase;
@@ -67,9 +68,16 @@ public class TokenService implements StartSessionUseCase, RefreshSessionUseCase,
         if (latestEnd != null && latestEnd.isBefore(end)) {
             end = latestEnd;
         }
-        IssuedTokens tokens = issue(session, family, now, end);
+        IssuedTokens tokens = session.role() == Role.CUSTOMER ? issueSingle(session, family, now, end)
+                : issue(session, family, now, end);
         audit.record(entry(session, family, "LOGIN", null, client));
         return tokens;
+    }
+
+    /** D7: a customer gets one session and no refresh token, so its access token lasts the whole session. */
+    private IssuedTokens issueSingle(Session session, UUID family, Instant now, Instant sessionEnd) {
+        String accessToken = issuer.issue(session, family, UUID.randomUUID().toString(), now, sessionEnd);
+        return new IssuedTokens(accessToken, sessionEnd, null, sessionEnd);
     }
 
     @Override

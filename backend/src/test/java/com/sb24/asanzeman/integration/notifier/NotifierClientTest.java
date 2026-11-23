@@ -32,7 +32,8 @@ class NotifierClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new NotifierClient(builder.build(), "https://notifier.test", "svc", "secret", "AZS");
+        client = new NotifierClient(builder.build(), "https://notifier.test", "svc", "secret", "AZS",
+                java.util.List.of("Asan Zeman"));
     }
 
     @Test
@@ -88,6 +89,78 @@ class NotifierClientTest {
         server.expect(requestTo(URL)).andRespond(withException(new IOException("timeout")));
 
         assertThatThrownBy(() -> client.sendSimpleSms("0989121234567", "hello"))
+                .isInstanceOf(TemporarilyUnavailableException.class);
+    }
+
+    private static final String SEND_OTP = "https://notifier.test/api/v1/Sms/SendOtp";
+    private static final String VALIDATE = "https://notifier.test/api/v1/Sms/OtpValidate";
+
+    @Test
+    void sendOtpAsksTheSmsCentreForACodeAndReturnsItsId() {
+        server.expect(requestTo(SEND_OTP)).andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("""
+                        {"user":"svc","pass":"secret","ClientName":"AZS","number":"09121234567",
+                         "args":["Asan Zeman"],"lang":"fa"}""", true))
+                .andRespond(withSuccess("""
+                        {"retval":[{"number":"09121234567","smsId":"S-1","sId":"otp-42"}]}""",
+                        MediaType.APPLICATION_JSON));
+
+        assertThat(client.sendOtp("09121234567")).isEqualTo("otp-42");
+        server.verify();
+    }
+
+    @Test
+    void sendOtpWithoutAnSIdIsTechnical() {
+        server.expect(requestTo(SEND_OTP)).andRespond(withSuccess("{\"retval\":[{\"smsId\":\"S-1\"}]}",
+                MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.sendOtp("09121234567")).isInstanceOf(TemporarilyUnavailableException.class);
+    }
+
+    @Test
+    void sendOtpWith403IsACredentialsProblem() {
+        server.expect(requestTo(SEND_OTP)).andRespond(withStatus(HttpStatus.FORBIDDEN).body("contact support"));
+
+        assertThatThrownBy(() -> client.sendOtp("09121234567")).isInstanceOf(NotifierCredentialsException.class);
+    }
+
+    @Test
+    void validateOtpSendsTheCodeAndTheIdAndReadsIsValid() {
+        server.expect(requestTo(VALIDATE)).andExpect(method(HttpMethod.POST))
+                .andExpect(content().json("""
+                        {"user":"svc","pass":"secret","ClientName":"AZS","OtpCode":"1234","OtpId":"otp-42"}""", true))
+                .andRespond(withSuccess("{\"isValid\":true}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.validateOtp("otp-42", "1234")).isTrue();
+        server.verify();
+    }
+
+    @Test
+    void validateOtpFalseMeansAWrongCode() {
+        server.expect(requestTo(VALIDATE)).andRespond(withSuccess("{\"isValid\":false}", MediaType.APPLICATION_JSON));
+
+        assertThat(client.validateOtp("otp-42", "0000")).isFalse();
+    }
+
+    @Test
+    void validateOtp410MeansAWrongOrUsedCode() {
+        server.expect(requestTo(VALIDATE)).andRespond(withStatus(HttpStatus.GONE));
+
+        assertThat(client.validateOtp("otp-42", "0000")).isFalse();
+    }
+
+    @Test
+    void validateOtpWith400IsRejected() {
+        server.expect(requestTo(VALIDATE)).andRespond(withStatus(HttpStatus.BAD_REQUEST).body("bad id"));
+
+        assertThatThrownBy(() -> client.validateOtp("x", "1234")).isInstanceOf(NotifierRejectedException.class);
+    }
+
+    @Test
+    void validateOtpAnsweredWithoutJsonIsTechnical() {
+        server.expect(requestTo(VALIDATE)).andRespond(withSuccess("<html>proxy</html>", MediaType.TEXT_HTML));
+
+        assertThatThrownBy(() -> client.validateOtp("otp-42", "1234"))
                 .isInstanceOf(TemporarilyUnavailableException.class);
     }
 

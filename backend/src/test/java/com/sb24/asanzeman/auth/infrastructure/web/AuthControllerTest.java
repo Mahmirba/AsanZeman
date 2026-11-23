@@ -17,13 +17,17 @@ import com.sb24.asanzeman.auth.domain.model.AgencyNotRegisteredException;
 import com.sb24.asanzeman.auth.domain.model.InvalidSessionException;
 import com.sb24.asanzeman.auth.domain.model.IssuedTokens;
 import com.sb24.asanzeman.auth.domain.port.in.AgencyLoginUseCase;
+import com.sb24.asanzeman.auth.domain.model.CustomerChallenge;
+import com.sb24.asanzeman.auth.domain.model.OtpWrongException;
 import com.sb24.asanzeman.auth.domain.port.in.BankLoginUseCase;
+import com.sb24.asanzeman.auth.domain.port.in.CustomerLoginUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.LogoutUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.RefreshSessionUseCase;
 import com.sb24.asanzeman.shared.model.TemporarilyUnavailableException;
 import com.sb24.asanzeman.shared.web.ProblemDetailExceptionHandler;
 import com.sb24.asanzeman.support.MutableClock;
 import java.time.Instant;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,6 +49,7 @@ class AuthControllerTest {
 
     private BankLoginUseCase bankLogin;
     private AgencyLoginUseCase agencyLogin;
+    private CustomerLoginUseCase customerLogin;
     private RefreshSessionUseCase refresh;
     private LogoutUseCase logout;
     private MockMvc mvc;
@@ -53,13 +58,15 @@ class AuthControllerTest {
     void setUp() {
         bankLogin = mock(BankLoginUseCase.class);
         agencyLogin = mock(AgencyLoginUseCase.class);
+        customerLogin = mock(CustomerLoginUseCase.class);
         refresh = mock(RefreshSessionUseCase.class);
         logout = mock(LogoutUseCase.class);
         var messages = new ResourceBundleMessageSource();
         messages.setBasename("messages");
         messages.setDefaultEncoding("UTF-8");
         mvc = MockMvcBuilders
-                .standaloneSetup(new AuthController(bankLogin, agencyLogin, refresh, logout, new MutableClock(NOW)))
+                .standaloneSetup(new AuthController(bankLogin, agencyLogin, customerLogin, refresh, logout,
+                        new MutableClock(NOW)))
                 .setControllerAdvice(new ProblemDetailExceptionHandler(messages))
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver()).build();
     }
@@ -193,6 +200,64 @@ class AuthControllerTest {
                         .content("{\"username\":\"agency\",\"password\":\"pw\",\"arcaptchaToken\":\"c\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("auth.agency.not-registered"));
+    }
+
+    @Test
+    void customerLoginSendsTheCodeAndReturnsTheChallenge() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(customerLogin.login("1000000011", "pw", "captcha")).thenReturn(new CustomerChallenge(id, 120));
+
+        mvc.perform(post("/api/auth/customer/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"1000000011\",\"password\":\"pw\",\"arcaptchaToken\":\"captcha\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.challengeId").value(id.toString()))
+                .andExpect(jsonPath("$.expiresInSeconds").value(120));
+    }
+
+    @Test
+    void aCustomerLoginWithMissingFieldsIs400() throws Exception {
+        mvc.perform(post("/api/auth/customer/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"1000000011\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.violations.password").exists());
+    }
+
+    @Test
+    void verifyingTheCodeReturnsASessionWithoutARefreshToken() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(customerLogin.verifyOtp(eq(id), eq("1234"), eq(new ClientInfo("10.0.0.5", "Firefox"))))
+                .thenReturn(new IssuedTokens("jwt", NOW.plusSeconds(1800), null, NOW.plusSeconds(1800)));
+
+        mvc.perform(post("/api/auth/customer/otp/verify").contentType(MediaType.APPLICATION_JSON)
+                        .header("User-Agent", "Firefox").with(request -> {
+                            request.setRemoteAddr("10.0.0.5");
+                            return request;
+                        })
+                        .content("{\"challengeId\":\"" + id + "\",\"code\":\"1234\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").value("jwt"))
+                .andExpect(jsonPath("$.expiresIn").value(1800))
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
+                .andExpect(jsonPath("$.refreshExpiresIn").value(0));
+    }
+
+    @Test
+    void aWrongCodeIs400WithAPersianProblem() throws Exception {
+        when(customerLogin.verifyOtp(any(), any(), any())).thenThrow(new OtpWrongException());
+
+        mvc.perform(post("/api/auth/customer/otp/verify").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"challengeId\":\"" + UUID.randomUUID() + "\",\"code\":\"0000\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("auth.otp.wrong"))
+                .andExpect(jsonPath("$.detail").value("کد تأیید وارد شده صحیح نیست."));
+    }
+
+    @Test
+    void aVerifyWithoutACodeIs400() throws Exception {
+        mvc.perform(post("/api/auth/customer/otp/verify").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"challengeId\":\"" + UUID.randomUUID() + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.violations.code").exists());
     }
 
     @Test

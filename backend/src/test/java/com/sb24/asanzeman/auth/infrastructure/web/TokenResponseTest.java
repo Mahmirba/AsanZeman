@@ -20,6 +20,14 @@ class TokenResponseTest {
     }
 
     @Test
+    void aSessionWithoutARefreshTokenHasNoRefreshLifetime() {
+        var response = TokenResponse.of(new IssuedTokens("a", NOW.plusSeconds(1800), null, NOW.plusSeconds(1800)),
+                new MutableClock(NOW));
+
+        assertThat(response).isEqualTo(new TokenResponse("a", "Bearer", 1800, null, 0));
+    }
+
+    @Test
     void aLifetimeThatAlreadyEndedIsZeroNotNegative() {
         var response = TokenResponse.of(new IssuedTokens("a", NOW.minusSeconds(5), "r", NOW.minusSeconds(1)),
                 new MutableClock(NOW));

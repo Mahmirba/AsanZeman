@@ -1,8 +1,10 @@
 package com.sb24.asanzeman.auth.infrastructure.web;
 
 import com.sb24.asanzeman.auth.domain.model.ClientInfo;
+import com.sb24.asanzeman.auth.domain.model.CustomerChallenge;
 import com.sb24.asanzeman.auth.domain.port.in.AgencyLoginUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.BankLoginUseCase;
+import com.sb24.asanzeman.auth.domain.port.in.CustomerLoginUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.LogoutUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.RefreshSessionUseCase;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,14 +30,16 @@ public class AuthController {
 
     private final BankLoginUseCase bankLogin;
     private final AgencyLoginUseCase agencyLogin;
+    private final CustomerLoginUseCase customerLogin;
     private final RefreshSessionUseCase refresh;
     private final LogoutUseCase logout;
     private final Clock clock;
 
-    public AuthController(BankLoginUseCase bankLogin, AgencyLoginUseCase agencyLogin, RefreshSessionUseCase refresh,
-            LogoutUseCase logout, Clock clock) {
+    public AuthController(BankLoginUseCase bankLogin, AgencyLoginUseCase agencyLogin,
+            CustomerLoginUseCase customerLogin, RefreshSessionUseCase refresh, LogoutUseCase logout, Clock clock) {
         this.bankLogin = bankLogin;
         this.agencyLogin = agencyLogin;
+        this.customerLogin = customerLogin;
         this.refresh = refresh;
         this.logout = logout;
         this.clock = clock;
@@ -51,6 +55,16 @@ public class AuthController {
     public TokenResponse agencyLogin(@Valid @RequestBody AgencyLoginRequest body, HttpServletRequest request) {
         return TokenResponse.of(
                 agencyLogin.login(body.username(), body.password(), body.arcaptchaToken(), client(request)), clock);
+    }
+
+    @PostMapping("/customer/login")
+    public CustomerChallenge customerLogin(@Valid @RequestBody CustomerLoginRequest body) {
+        return customerLogin.login(body.username(), body.password(), body.arcaptchaToken());
+    }
+
+    @PostMapping("/customer/otp/verify")
+    public TokenResponse customerOtpVerify(@Valid @RequestBody OtpVerifyRequest body, HttpServletRequest request) {
+        return TokenResponse.of(customerLogin.verifyOtp(body.challengeId(), body.code(), client(request)), clock);
     }
 
     @PostMapping("/refresh")

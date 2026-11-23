@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.sb24.asanzeman.auth.application.BankLoginSettings;
+import com.sb24.asanzeman.auth.application.OtpSettings;
 import com.sb24.asanzeman.auth.application.TokenSettings;
 import com.sb24.asanzeman.auth.domain.model.Role;
 import com.sb24.asanzeman.auth.domain.model.Session;
@@ -41,6 +42,8 @@ class AuthConfigurationTest {
                     assertThat(context.getBean(TokenSettings.class))
                             .isEqualTo(new TokenSettings(Duration.ofMinutes(15), Duration.ofHours(8)));
                     assertThat(context.getBean(BankLoginSettings.class).accountSuffix()).isEqualTo("@sb24.ir");
+                    assertThat(context.getBean(OtpSettings.class)).isEqualTo(new OtpSettings(Duration.ofSeconds(120),
+                            3, Duration.ofMinutes(15), Duration.ofMinutes(30))); // the defaults of azs.otp.*
                     String token = context.getBean(AccessTokenIssuerPort.class).issue(
                             new Session(UUID.randomUUID(), "ali", Role.BRANCH, "0123"), UUID.randomUUID(), "jti-1", Instant.now(),
                             Instant.now().plusSeconds(60));

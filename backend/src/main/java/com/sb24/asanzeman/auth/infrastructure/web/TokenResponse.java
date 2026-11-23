@@ -15,7 +15,8 @@ public record TokenResponse(String accessToken, String tokenType, long expiresIn
     static TokenResponse of(IssuedTokens tokens, Clock clock) {
         Instant now = clock.instant();
         return new TokenResponse(tokens.accessToken(), "Bearer", secondsUntil(now, tokens.accessTokenExpiresAt()),
-                tokens.refreshToken(), secondsUntil(now, tokens.refreshTokenExpiresAt()));
+                tokens.refreshToken(),
+                tokens.refreshToken() == null ? 0 : secondsUntil(now, tokens.refreshTokenExpiresAt()));
     }
 
     private static long secondsUntil(Instant now, Instant end) {

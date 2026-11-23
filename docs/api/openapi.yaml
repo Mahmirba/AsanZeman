@@ -67,8 +67,92 @@ paths:
         "401": { $ref: "#/components/responses/Problem" }
         "403": { $ref: "#/components/responses/Problem" }
         "503": { $ref: "#/components/responses/Problem" }
-  /auth/customer/login: { post: { tags: [auth], summary: "ARcaptcha -> Yaghut loginStatic -> SendOtp", responses: { "200": { description: challengeId } } } }
-  /auth/customer/otp/verify: { post: { tags: [auth], summary: "OtpValidate -> 30-minute session", responses: { "200": { description: token } } } }
+  /auth/customer/login:
+    post:
+      tags: [auth]
+      summary: "Customer login, step 1: ARcaptcha -> Yaghut loginStatic -> SendOtp (6.3, D53)"
+      description: |
+        The SMS code goes to the mobile Yaghut holds for the customer. 400 `auth.captcha-invalid`; 401
+        `auth.yaghut.invalid-credentials`; 403 `auth.yaghut.suspected-customer` (not a bank customer),
+        `auth.customer.mobile-missing`, `auth.otp.locked`; 503 when Yaghut or the SMS centre is down.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, arcaptchaToken]
+              properties:
+                username: { type: string }
+                password: { type: string }
+                arcaptchaToken: { type: string }
+      responses:
+        "200":
+          description: The code was sent. Send `challengeId` and the code to `/auth/customer/otp/verify`.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challengeId, expiresInSeconds]
+                properties:
+                  challengeId: { type: string, format: uuid }
+                  expiresInSeconds: { type: integer, format: int64, description: How long the code is good }
+        "400": { $ref: "#/components/responses/Problem" }
+        "401": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /auth/customer/otp/verify:
+    post:
+      tags: [auth]
+      summary: "Customer login, step 2: OtpValidate -> one 30-minute session, no refresh token (D7, D34)"
+      description: |
+        A code works once. 400 `auth.otp.expired` (too old, used or unknown) or `auth.otp.wrong`; 403
+        `auth.otp.locked` after 3 wrong codes (15 minutes, counted per customer).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [challengeId, code]
+              properties:
+                challengeId: { type: string, format: uuid }
+                code: { type: string }
+      responses:
+        "200":
+          description: The session. There is no `refreshToken`; `refreshExpiresIn` is 0.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TokenResponse" }
+        "400": { $ref: "#/components/responses/Problem" }
+        "403": { $ref: "#/components/responses/Problem" }
+        "503": { $ref: "#/components/responses/Problem" }
+  /customer/requests:
+    get:
+      tags: [customer]
+      summary: "The requests made for the logged-in customer, newest first (Phase 2 exit)"
+      description: The customer is the token's `sub`, never a parameter. CUSTOMER role only.
+      responses:
+        "200":
+          description: The customer's requests; empty when none.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/RequestSummary" }
+  /customer/requests/{id}:
+    get:
+      tags: [customer]
+      summary: "One request with its companions"
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The request. Another customer's request is a 404.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/RequestDetails" }
+        "404": { $ref: "#/components/responses/Problem" }
   /auth/refresh:
     post:
       tags: [auth]
@@ -396,7 +480,7 @@ components:
         status: { type: string }
     TokenResponse:
       type: object
-      required: [accessToken, tokenType, expiresIn, refreshToken, refreshExpiresIn]
+      required: [accessToken, tokenType, expiresIn, refreshExpiresIn]
       properties:
         accessToken: { type: string, description: RS256 JWT }
         tokenType: { type: string, enum: [Bearer] }
