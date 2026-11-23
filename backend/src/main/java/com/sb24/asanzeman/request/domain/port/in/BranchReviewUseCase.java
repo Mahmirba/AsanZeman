@@ -34,6 +34,12 @@ public interface BranchReviewUseCase {
     /** «انصراف از درخواست» (in review) or «لغو اقدام» (in action): back to the queue. */
     ReviewResult abandon(BranchCommand command);
 
+    /**
+     * «تایید درخواست ابطال»: the holder revoked the guarantee in Farangin and confirms it. The revocation request is
+     * completed and the issuance request it belongs to is revoked, in the same transaction; the customer gets an SMS.
+     */
+    ReviewResult completeRevocation(BranchCommand command);
+
     /** An admin frees a request whoever holds it; the reason is required and audited. */
     ReviewResult forceRelease(BranchCommand command, String reason);
 

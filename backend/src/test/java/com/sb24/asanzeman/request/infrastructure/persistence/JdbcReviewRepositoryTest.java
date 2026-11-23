@@ -95,6 +95,60 @@ class JdbcReviewRepositoryTest {
         assertThat(column(id, "version")).isEqualTo("2");
     }
 
+    private com.sb24.asanzeman.request.domain.model.Request revocationOf(UUID issuance, RequestStatus status, int counter) {
+        var issued = requests.findById(issuance).orElseThrow();
+        return issued.requestRevocation(UUID.randomUUID(), TrackingCode.of("0123", "0042", JalaliDate.of(1405, 9, 2),
+                counter), status, "Sky Travel", T0);
+    }
+
+    @Test
+    void aRevocationInTheQueueIsLinkedToItsIssuanceAndHasNoOwner() {
+        UUID issuance = request(1, RequestStatus.ISSUED);
+        var revocation = revocationOf(issuance, RequestStatus.PENDING_BRANCH_REVIEW, 2);
+
+        reviews.insertRevocation(revocation, issuance, null);
+
+        var review = reviews.findForUpdate(revocation.id()).orElseThrow();
+        assertThat(review.request().type()).isEqualTo(com.sb24.asanzeman.request.domain.model.RequestType.REVOCATION);
+        assertThat(review.parentId()).isEqualTo(issuance);
+        assertThat(review.lock()).isNull();
+        assertThat(review.revocationOpen()).isFalse(); // the flag is for an issuance request
+        assertThat(reviews.findForUpdate(issuance).orElseThrow().revocationOpen()).isTrue();
+        assertThat(reviews.findForUpdate(issuance).orElseThrow().parentId()).isNull();
+    }
+
+    @Test
+    void aRevocationOfARequestSomeoneIsWorkingOnIsAlreadyHeldByThem() {
+        UUID issuance = request(1, RequestStatus.PENDING_BRANCH_REVIEW);
+        reviews.save(issuance, RequestStatus.UNDER_ACTION, new ReviewLock(holder, "ali.b", T0, T0), T0);
+        var revocation = revocationOf(issuance, RequestStatus.UNDER_REVIEW, 2);
+        var lock = new ReviewLock(holder, "ali.b", T0.plusSeconds(5), T0.plusSeconds(5));
+
+        reviews.insertRevocation(revocation, issuance, lock);
+
+        var review = reviews.findForUpdate(revocation.id()).orElseThrow();
+        assertThat(review.request().status()).isEqualTo(RequestStatus.UNDER_REVIEW);
+        assertThat(review.lock()).isEqualTo(lock);
+        assertThat(reviews.findForUpdate(issuance).orElseThrow().lock().holderId()).isEqualTo(holder);
+    }
+
+    @Test
+    void aRevocationIsOpenOnlyWhileItIsNotFinished() {
+        UUID issuance = request(1, RequestStatus.ISSUED);
+        var revocation = revocationOf(issuance, RequestStatus.PENDING_BRANCH_REVIEW, 2);
+        reviews.insertRevocation(revocation, issuance, null);
+        assertThat(reviews.findForUpdate(issuance).orElseThrow().revocationOpen()).isTrue();
+
+        for (RequestStatus finished : List.of(RequestStatus.REJECTED, RequestStatus.COMPLETED)) {
+            reviews.save(revocation.id(), finished, null, T0);
+            assertThat(reviews.findForUpdate(issuance).orElseThrow().revocationOpen()).isFalse();
+        }
+        for (RequestStatus open : List.of(RequestStatus.UNDER_REVIEW, RequestStatus.UNDER_ACTION)) {
+            reviews.save(revocation.id(), open, new ReviewLock(holder, "a", T0, T0), T0);
+            assertThat(reviews.findForUpdate(issuance).orElseThrow().revocationOpen()).isTrue();
+        }
+    }
+
     @Test
     void theRejectionAndTheGuaranteeNumberAreRecorded() {
         UUID reject = request(1, RequestStatus.UNDER_REVIEW);
@@ -116,10 +170,12 @@ class JdbcReviewRepositoryTest {
         UUID inactive = reason("ISSUANCE", 0);
         UUID revocation = reason("REVOCATION", 1);
 
-        assertThat(reviews.issuanceReasonExists(active)).isTrue();
-        assertThat(reviews.issuanceReasonExists(inactive)).isFalse();
-        assertThat(reviews.issuanceReasonExists(revocation)).isFalse();
-        assertThat(reviews.issuanceReasonExists(UUID.randomUUID())).isFalse();
+        assertThat(reviews.reasonExists(active, "ISSUANCE")).isTrue();
+        assertThat(reviews.reasonExists(inactive, "ISSUANCE")).isFalse();
+        assertThat(reviews.reasonExists(revocation, "ISSUANCE")).isFalse();
+        assertThat(reviews.reasonExists(revocation, "REVOCATION")).isTrue();
+        assertThat(reviews.reasonExists(active, "REVOCATION")).isFalse();
+        assertThat(reviews.reasonExists(UUID.randomUUID(), "ISSUANCE")).isFalse();
     }
 
     @Test
@@ -129,7 +185,7 @@ class JdbcReviewRepositoryTest {
         reason("ISSUANCE", 0, 0, "Switched off");
         reason("REVOCATION", 1, 0, "Revocation only");
 
-        assertThat(reviews.issuanceReasons()).extracting(com.sb24.asanzeman.request.domain.model.RejectionReason::text)
+        assertThat(reviews.reasons("ISSUANCE")).extracting(com.sb24.asanzeman.request.domain.model.RejectionReason::text)
                 .containsExactly("First", "Second");
     }
 

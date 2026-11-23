@@ -12,3 +12,9 @@ INSERT INTO azs_business.rejection_reason (kind, text, sort_order)
 SELECT 'ISSUANCE', 'The customer does not meet the bank policy', 2 FROM dual
  WHERE NOT EXISTS (SELECT 1 FROM azs_business.rejection_reason WHERE kind = 'ISSUANCE' AND text = 'The customer does not meet the bank policy');
 COMMIT;
+
+-- Reasons a branch may reject a revocation request with.
+INSERT INTO azs_business.rejection_reason (kind, text, sort_order)
+SELECT 'REVOCATION', 'The guarantee is still in use', 1 FROM dual
+ WHERE NOT EXISTS (SELECT 1 FROM azs_business.rejection_reason WHERE kind = 'REVOCATION' AND text = 'The guarantee is still in use');
+COMMIT;

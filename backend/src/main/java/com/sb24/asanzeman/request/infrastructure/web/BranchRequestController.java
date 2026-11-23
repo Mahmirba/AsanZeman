@@ -63,8 +63,8 @@ public class BranchRequestController {
     }
 
     @GetMapping("/rejection-reasons")
-    public List<BranchResponses.Reason> rejectionReasons() {
-        return queries.rejectionReasons().stream().map(BranchResponses.Reason::from).toList();
+    public List<BranchResponses.Reason> rejectionReasons(@RequestParam(defaultValue = "ISSUANCE") String kind) {
+        return queries.rejectionReasons(kind.toUpperCase()).stream().map(BranchResponses.Reason::from).toList();
     }
 
     /** «اقدام». */
@@ -101,6 +101,13 @@ public class BranchRequestController {
     public BranchResponses.Result abandon(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
             HttpServletRequest http) {
         return BranchResponses.Result.from(reviews.abandon(command(jwt, id, http)), messages);
+    }
+
+    /** «تایید درخواست ابطال»: the guarantee was revoked in Farangin; the issuance request becomes REVOKED. */
+    @PostMapping("/requests/{id}/complete-revocation")
+    public BranchResponses.Result completeRevocation(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+            HttpServletRequest http) {
+        return BranchResponses.Result.from(reviews.completeRevocation(command(jwt, id, http)), messages);
     }
 
     /** An admin frees a request whoever holds it. */

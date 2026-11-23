@@ -106,10 +106,13 @@ class ReviewTest {
     }
 
     @Test
-    void aRevocationRequestIsNotTakenThroughTheIssuanceFlow() {
+    void aRevocationRequestIsTakenThroughTheSameFlow() {
         var review = new Review(request(RequestType.REVOCATION, RequestStatus.PENDING_BRANCH_REVIEW), null, "0456");
 
-        assertThatThrownBy(() -> review.take(ALI, T0)).isInstanceOf(RequestNotReviewableException.class);
+        Review taken = review.take(ALI, T0);
+
+        assertThat(taken.request().status()).isEqualTo(RequestStatus.UNDER_REVIEW);
+        assertThat(taken.lock().holderId()).isEqualTo(ALI.id());
     }
 
     // ---- approve, reject, issue -----------------------------------------------------------------------------
@@ -220,8 +223,10 @@ class ReviewTest {
     void releasingARequestThatNobodyIsWorkingOnIsRefused() {
         assertThatThrownBy(() -> request(RequestType.ISSUANCE, RequestStatus.ISSUED).releasedToBranch())
                 .isInstanceOf(RequestNotReviewableException.class);
-        assertThatThrownBy(() -> request(RequestType.REVOCATION, RequestStatus.UNDER_REVIEW).releasedToBranch())
+        assertThatThrownBy(() -> request(RequestType.REVOCATION, RequestStatus.PENDING_BRANCH_REVIEW).releasedToBranch())
                 .isInstanceOf(RequestNotReviewableException.class);
+        assertThat(request(RequestType.REVOCATION, RequestStatus.UNDER_REVIEW).releasedToBranch().status())
+                .isEqualTo(RequestStatus.PENDING_BRANCH_REVIEW);
     }
 
     // ---- the small types ------------------------------------------------------------------------------------

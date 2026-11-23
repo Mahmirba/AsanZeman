@@ -157,9 +157,18 @@ class BranchRequestControllerTest {
     }
 
     @Test
+    void theRevocationReasonsAreListedWhenAskedFor() throws Exception {
+        UUID id = UUID.randomUUID();
+        when(queries.rejectionReasons("REVOCATION")).thenReturn(List.of(new RejectionReason(id, "Still needed")));
+
+        mvc.perform(get("/api/branch/rejection-reasons").param("kind", "revocation")).andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].text").value("Still needed"));
+    }
+
+    @Test
     void theRejectionReasonsAreListed() throws Exception {
         UUID id = UUID.randomUUID();
-        when(queries.rejectionReasons()).thenReturn(List.of(new RejectionReason(id, "Documents are incomplete")));
+        when(queries.rejectionReasons("ISSUANCE")).thenReturn(List.of(new RejectionReason(id, "Documents are incomplete")));
 
         mvc.perform(get("/api/branch/rejection-reasons")).andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(id.toString()))
@@ -219,9 +228,11 @@ class BranchRequestControllerTest {
         when(reviews.reject(any(), eq(reason), eq("missing page"))).thenReturn(held());
         when(reviews.issue(any(), eq("GT-1"))).thenReturn(held());
         when(reviews.forceRelease(any(), eq("on leave"))).thenReturn(held());
+        when(reviews.completeRevocation(any())).thenReturn(held());
 
         mvc.perform(post("/api/branch/requests/" + REQUEST + "/approve")).andExpect(status().isOk());
         mvc.perform(post("/api/branch/requests/" + REQUEST + "/abandon")).andExpect(status().isOk());
+        mvc.perform(post("/api/branch/requests/" + REQUEST + "/complete-revocation")).andExpect(status().isOk());
         mvc.perform(post("/api/branch/requests/" + REQUEST + "/reject").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"reasonId\":\"" + reason + "\",\"comment\":\"missing page\"}")).andExpect(status().isOk());
         mvc.perform(post("/api/branch/requests/" + REQUEST + "/issue").contentType(MediaType.APPLICATION_JSON)

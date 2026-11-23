@@ -31,9 +31,20 @@ public interface ReviewRepositoryPort {
     /** The requests in review that nobody has touched since {@code before}. */
     List<UUID> idleReviews(Instant before);
 
-    /** @return whether an active issuance rejection reason has this id */
-    boolean issuanceReasonExists(UUID reasonId);
+    /**
+     * @param kind {@code ISSUANCE} or {@code REVOCATION}: the two lists the admin keeps (SRS)
+     * @return whether an active rejection reason of that kind has this id
+     */
+    boolean reasonExists(UUID reasonId, String kind);
 
-    /** The admin's active reasons for rejecting an issuance request, in their order. */
-    List<com.sb24.asanzeman.request.domain.model.RejectionReason> issuanceReasons();
+    /** The admin's active reasons of that kind, in their order. */
+    List<com.sb24.asanzeman.request.domain.model.RejectionReason> reasons(String kind);
+
+    /**
+     * Stores the revocation request of an issuance request (4.2): linked to it, and already held by {@code lock}'s
+     * user when the issuance request is mid-work (D17).
+     *
+     * @param lock the holder, or {@code null} to leave it in the branch's queue
+     */
+    void insertRevocation(com.sb24.asanzeman.request.domain.model.Request revocation, UUID parentId, ReviewLock lock);
 }

@@ -5,6 +5,7 @@ import com.sb24.asanzeman.request.domain.model.InvalidRequestDataException;
 import com.sb24.asanzeman.request.domain.model.Request;
 import com.sb24.asanzeman.request.domain.model.RequestBusyException;
 import com.sb24.asanzeman.request.domain.model.RequestNotFoundException;
+import com.sb24.asanzeman.request.domain.model.RequestType;
 import com.sb24.asanzeman.request.domain.model.Review;
 import com.sb24.asanzeman.request.domain.port.in.BranchCommand;
 import com.sb24.asanzeman.request.domain.port.in.BranchReviewUseCase;
@@ -18,7 +19,6 @@ import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
 import com.sb24.asanzeman.shared.model.JalaliDate;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 import java.util.function.BiFunction;
 import org.slf4j.Logger;
@@ -27,13 +27,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * The branch's work on a request (4.1). Each action runs in one short transaction: the row is read with
+ * The branch's work on a request (4.1, 4.2). Each action runs in one short transaction: the row is read with
  * {@code FOR UPDATE NOWAIT}, the domain checks the branch rule, the status and the ownership, the result is saved and
  * audited, and the transaction ends, so the row lock is gone and only the ownership columns remain. Two users taking the
  * same request at the same instant cannot both win: one gets the row, the other a 409.
  *
- * <p>The customer's SMS for a rejection or an issue goes into the outbox in the same transaction, so it is sent only
- * if the change commits.
+ * <p>Issuance and revocation requests go through the same steps. A rejection takes its reason from the list for that kind;
+ * completing a revocation also revokes the issuance request it belongs to, in the same transaction. The customer's SMS
+ * goes into the outbox in the same transaction, so it is sent only if the change commits.
  */
 @Service
 @Transactional
@@ -79,14 +80,23 @@ public class BranchReviewService implements BranchReviewUseCase {
             throw new InvalidRequestDataException("the rejection comment is required, at most " + COMMENT_MAX
                     + " characters");
         }
-        if (reasonId == null || !reviews.issuanceReasonExists(reasonId)) {
+        Review before = load(command);
+        boolean revocation = before.request().type() == RequestType.REVOCATION;
+        // the reason comes from the list of this kind of request; if it is wrong the transaction ends with nothing saved
+        if (reasonId == null || !reviews.reasonExists(reasonId, revocation ? "REVOCATION" : "ISSUANCE")) {
             throw new InvalidRequestDataException("the rejection reason is not one of the active reasons");
         }
-        Applied applied = apply(command, "REJECT", (review, now) -> review.reject(command.user()), text);
+        Applied applied = commit(command, before, revocation ? "REJECT_REVOCATION" : "REJECT",
+                before.reject(command.user()), text);
         reviews.recordRejection(command.requestId(), reasonId, text);
         Request request = applied.after().request();
-        notifier.requestRejected(request.id(), request.customer().mobile(), agencyName(request),
-                branchName(request), today());
+        if (revocation) {
+            notifier.revocationRejected(request.id(), request.customer().mobile(), agencyName(request),
+                    branchName(request), today());
+        } else {
+            notifier.requestRejected(request.id(), request.customer().mobile(), agencyName(request),
+                    branchName(request), today());
+        }
         return applied.result();
     }
 
@@ -98,6 +108,27 @@ public class BranchReviewService implements BranchReviewUseCase {
         Request request = applied.after().request();
         notifier.guaranteeIssued(request.id(), request.customer().mobile(), agencyName(request), branchName(request),
                 today());
+        return applied.result();
+    }
+
+    @Override
+    public ReviewResult completeRevocation(BranchCommand command) {
+        Applied applied = apply(command, "COMPLETE_REVOCATION",
+                (review, now) -> review.completeRevocation(command.user()), null);
+        UUID issuanceId = applied.before().parentId();
+        if (issuanceId == null) {
+            throw new RequestNotFoundException(); // a revocation always belongs to an issuance request
+        }
+        // the issuance request is revoked in the same transaction, whatever state it was in (4.2)
+        Review issuance = reviews.findForUpdate(issuanceId).orElseThrow(RequestNotFoundException::new);
+        Review revoked = issuance.revoked();
+        Instant now = clock.instant();
+        reviews.save(issuanceId, revoked.request().status(), null, now);
+        record(command, issuanceId, "REVOKED", issuance.request().status().name(), revoked.request().status().name(),
+                "by revocation " + command.requestId());
+        Request request = revoked.request();
+        notifier.guaranteeRevoked(request.id(), request.customer().mobile(), agencyName(request),
+                branchName(request), today());
         return applied.result();
     }
 
@@ -148,17 +179,27 @@ public class BranchReviewService implements BranchReviewUseCase {
         }
     }
 
+    private Review load(BranchCommand command) {
+        return reviews.findForUpdate(command.requestId()).orElseThrow(RequestNotFoundException::new);
+    }
+
     private Applied apply(BranchCommand command, String action, BiFunction<Review, Instant, Review> step,
             String reason) {
-        Review before = reviews.findForUpdate(command.requestId()).orElseThrow(RequestNotFoundException::new);
-        Instant now = clock.instant();
-        Review after = step.apply(before, now);
-        reviews.save(command.requestId(), after.request().status(), after.lock(), now);
-        var user = command.user();
-        audit.record(new AuditEntry(user.id(), user.name(), user.admin() ? "ADMIN" : "BRANCH", ENTITY,
-                command.requestId(), action, before.request().status().name(), after.request().status().name(), reason,
-                command.clientIp(), command.userAgent(), null));
+        Review before = load(command);
+        return commit(command, before, action, step.apply(before, clock.instant()), reason);
+    }
+
+    private Applied commit(BranchCommand command, Review before, String action, Review after, String reason) {
+        reviews.save(command.requestId(), after.request().status(), after.lock(), clock.instant());
+        record(command, command.requestId(), action, before.request().status().name(),
+                after.request().status().name(), reason);
         return new Applied(before, after);
+    }
+
+    private void record(BranchCommand command, UUID requestId, String action, String from, String to, String reason) {
+        var user = command.user();
+        audit.record(new AuditEntry(user.id(), user.name(), user.admin() ? "ADMIN" : "BRANCH", ENTITY, requestId,
+                action, from, to, reason, command.clientIp(), command.userAgent(), null));
     }
 
     private String agencyName(Request request) {
