@@ -54,9 +54,11 @@ class StageRunnerTest {
     @Test
     void aNegativeStopsTheOthersAndTheyAreMarkedCancelled() {
         var stopped = new AtomicBoolean();
+        var slowIsRunning = new CountDownLatch(1);
         var outcomes = runner.run(List.of(
-                FakeHandler.answering(InquiryType.BLACKLIST, InquiryOutcome.negative(InquiryType.BLACKLIST, "m")),
-                FakeHandler.neverAnswering(InquiryType.SAMAT, stopped)), CONTEXT, LONG);
+                FakeHandler.answeringWhenRunning(InquiryType.BLACKLIST,
+                        InquiryOutcome.negative(InquiryType.BLACKLIST, "m"), slowIsRunning),
+                FakeHandler.neverAnswering(InquiryType.SAMAT, stopped, slowIsRunning)), CONTEXT, LONG);
 
         assertThat(outcomes.get(0).result()).isEqualTo(InquiryResult.NEGATIVE);
         assertThat(outcomes.get(1)).isEqualTo(InquiryOutcome.failed(InquiryType.SAMAT, FailureKind.CANCELLED));

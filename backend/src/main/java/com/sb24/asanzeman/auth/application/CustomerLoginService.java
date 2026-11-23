@@ -92,7 +92,7 @@ public class CustomerLoginService implements CustomerLoginUseCase {
         UUID family = UUID.randomUUID();
         yaghutSessions.save(family, account.sessionId(), account.sessionExpiresAt());
         UUID id = UUID.randomUUID();
-        challenges.save(new OtpChallenge(id, nationalCode, otpId, family, now, false));
+        challenges.save(new OtpChallenge(id, nationalCode, mobile, otpId, family, now, false));
         return new CustomerChallenge(id, settings.validity().toSeconds());
     }
 
@@ -107,7 +107,7 @@ public class CustomerLoginService implements CustomerLoginUseCase {
         if (!challenge.sentAt().plus(settings.validity()).isAfter(now)) {
             throw new OtpExpiredException();
         }
-        if (!gateway.validate(challenge.otpId(), code)) {
+        if (!gateway.validate(challenge.mobile(), challenge.otpId(), code)) {
             boolean locked = challenges.recordWrong(challenge.nationalCode(), now, settings.maxWrongAttempts(),
                     settings.lockout());
             throw locked ? new OtpLockedException() : new OtpWrongException();

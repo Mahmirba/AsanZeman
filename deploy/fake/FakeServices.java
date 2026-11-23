@@ -17,11 +17,14 @@ import java.util.regex.Pattern;
  *
  * Yaghut   POST /yaghut/user/loginStatic   any user logs in as agency cif 9001; password "wrong" is refused
  *          POST /yaghut/branches           two branches
- *          POST /yaghut/customerDetailInfo 1000000011 adult, 1000000036 minor, 1000000044 company, others unknown
+ *          POST /yaghut/customerDetailInfo 036 minor, 044 company, any other 10000000xx an adult, others no
  * Notifier POST /notifier/api/v1/sms/SendSimpleSms   prints the SMS and answers with an smsId
  *          POST /notifier/api/v1/Sms/SendOtp          prints the code (always 1234) and answers with an sId
  *          POST /notifier/api/v1/Sms/OtpValidate      1234 is valid, anything else is 410
  * A Yaghut user name that is a 10-digit national code logs in as that customer.
+ *
+ * Gateway  POST /gateway/connect/token     a bearer token; every inquiry answers 401 without it
+ * Inquiries under /inquiry, the paths of the bank's services; the national code picks the answer (FakeInquiries)
  */
 public class FakeServices {
 
@@ -36,8 +39,11 @@ public class FakeServices {
         server.createContext("/notifier/api/v1/sms/SendSimpleSms", FakeServices::sms);
         server.createContext("/notifier/api/v1/Sms/SendOtp", FakeServices::otpSend);
         server.createContext("/notifier/api/v1/Sms/OtpValidate", FakeServices::otpValidate);
+        FakeInquiries.register(server);
+        // a slow answer (the Sepad persona) must not hold up every other call
+        server.setExecutor(java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor());
         server.start();
-        System.out.println("Fake Yaghut and Notifier on http://localhost:" + port);
+        System.out.println("Fake Yaghut, Notifier, gateway token and the nine inquiries on http://localhost:" + port);
     }
 
     private static void login(HttpExchange x) throws IOException {
@@ -73,13 +79,13 @@ public class FakeServices {
             born = "2015-03-02";
         } else if ("1000000044".equals(code)) {
             type = "LEGAL";
-        } else if (!"1000000011".equals(code)) {
+        } else if (code == null || !code.matches("1000000\\d{3}")) {
             reply(x, 200, "{\"success\":false,\"exception\":\"InvalidCustomerWSException\","
                     + "\"exception_message\":\"not a customer\"}", null);
             return;
         }
         reply(x, 200, "{\"success\":true,\"result\":{\"cif\":\"555" + code.substring(8) + "\",\"code\":\"" + code
-                + "\",\"firstName\":\"Ali\",\"lastName\":\"Rezaei\",\"fullName\":\"Ali Rezaei\","
+                + "\",\"firstName\":\"Ali\",\"lastName\":\"Rezaei\","
                 + "\"fatherName\":\"Reza\",\"birthDate\":\"" + born + "\",\"mobile\":\"09121234567\","
                 + "\"personalityType\":\"" + type + "\",\"gender\":\"MALE\"}}", null);
     }
@@ -103,16 +109,16 @@ public class FakeServices {
         reply(x, ok ? 200 : 410, ok ? "{\"isValid\":true}" : "{\"isValid\":false}", null);
     }
 
-    private static String field(String json, String name) {
+    static String field(String json, String name) {
         Matcher m = Pattern.compile("\"" + name + "\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"").matcher(json);
         return m.find() ? m.group(1) : null;
     }
 
-    private static String read(HttpExchange x) throws IOException {
+    static String read(HttpExchange x) throws IOException {
         return new String(x.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
     }
 
-    private static void reply(HttpExchange x, int status, String json, String cookie) throws IOException {
+    static void reply(HttpExchange x, int status, String json, String cookie) throws IOException {
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
         x.getResponseHeaders().set("Content-Type", "application/json;charset=UTF-8");
         if (cookie != null) {

@@ -57,6 +57,23 @@ public record Request(
         };
     }
 
+    /** The customer's inquiries run while an issuance request is still at the agency's step (5.1). */
+    public boolean canBeInquired() {
+        return type == RequestType.ISSUANCE && status == RequestStatus.REGISTERED_AT_AGENCY;
+    }
+
+    /**
+     * A negative inquiry rejects the request (D3, 5.1).
+     *
+     * @throws RequestNotInquirableException the request is no longer waiting for its inquiries
+     */
+    public Request rejectedByInquiry() {
+        if (!canBeInquired()) {
+            throw new RequestNotInquirableException();
+        }
+        return withStatus(RequestStatus.REJECTED);
+    }
+
     private Request withStatus(RequestStatus newStatus) {
         return new Request(id, trackingCode, type, newStatus, agencyId, branchCode, amount, dueDate, customer,
                 companions, registeredBy, registeredAt);

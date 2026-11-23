@@ -96,9 +96,22 @@ public class YaghutClient {
     public YaghutCustomer customerDetailInfo(YaghutSession session, String nationalCode) {
         Map<String, Object> r = result(post("/customerDetailInfo", Map.of("code", nationalCode), session));
         return new YaghutCustomer(text(r, "cif"), text(r, "code"), text(r, "firstName"), text(r, "lastName"),
-                text(r, "fullName"), text(r, "fatherName"), birthDate(text(r, "birthDate")), text(r, "mobile"),
+                fullName(r), text(r, "fatherName"), birthDate(text(r, "birthDate")), text(r, "mobile"),
                 text(r, "ssn"), text(r, "certificateSerial"), text(r, "certificateSeries"),
                 text(r, "personalityType"), text(r, "gender"));
+    }
+
+    /**
+     * Yaghut gives {@code firstName} and {@code lastName} (and {@code title}), not a full name: the full name is the
+     * two put together, or the {@code title} when there is no first or last name (a company).
+     */
+    private static String fullName(Map<String, Object> customer) {
+        String name = ((text(customer, "firstName") == null ? "" : text(customer, "firstName")) + " "
+                + (text(customer, "lastName") == null ? "" : text(customer, "lastName"))).trim();
+        if (!name.isEmpty()) {
+            return name;
+        }
+        return text(customer, "title");
     }
 
     private static java.time.LocalDate birthDate(String value) {

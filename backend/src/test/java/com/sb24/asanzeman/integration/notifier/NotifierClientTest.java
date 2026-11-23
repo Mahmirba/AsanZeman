@@ -128,10 +128,11 @@ class NotifierClientTest {
     void validateOtpSendsTheCodeAndTheIdAndReadsIsValid() {
         server.expect(requestTo(VALIDATE)).andExpect(method(HttpMethod.POST))
                 .andExpect(content().json("""
-                        {"user":"svc","pass":"secret","ClientName":"AZS","OtpCode":"1234","OtpId":"otp-42"}""", true))
+                        {"user":"svc","pass":"secret","ClientName":"AZS","number":"09121234567","OtpCode":"1234",
+                         "OtpId":"otp-42","lang":"fa"}""", true))
                 .andRespond(withSuccess("{\"isValid\":true}", MediaType.APPLICATION_JSON));
 
-        assertThat(client.validateOtp("otp-42", "1234")).isTrue();
+        assertThat(client.validateOtp("09121234567", "otp-42", "1234")).isTrue();
         server.verify();
     }
 
@@ -139,28 +140,28 @@ class NotifierClientTest {
     void validateOtpFalseMeansAWrongCode() {
         server.expect(requestTo(VALIDATE)).andRespond(withSuccess("{\"isValid\":false}", MediaType.APPLICATION_JSON));
 
-        assertThat(client.validateOtp("otp-42", "0000")).isFalse();
+        assertThat(client.validateOtp("09121234567", "otp-42", "0000")).isFalse();
     }
 
     @Test
     void validateOtp410MeansAWrongOrUsedCode() {
         server.expect(requestTo(VALIDATE)).andRespond(withStatus(HttpStatus.GONE));
 
-        assertThat(client.validateOtp("otp-42", "0000")).isFalse();
+        assertThat(client.validateOtp("09121234567", "otp-42", "0000")).isFalse();
     }
 
     @Test
     void validateOtpWith400IsRejected() {
         server.expect(requestTo(VALIDATE)).andRespond(withStatus(HttpStatus.BAD_REQUEST).body("bad id"));
 
-        assertThatThrownBy(() -> client.validateOtp("x", "1234")).isInstanceOf(NotifierRejectedException.class);
+        assertThatThrownBy(() -> client.validateOtp("09121234567", "x", "1234")).isInstanceOf(NotifierRejectedException.class);
     }
 
     @Test
     void validateOtpAnsweredWithoutJsonIsTechnical() {
         server.expect(requestTo(VALIDATE)).andRespond(withSuccess("<html>proxy</html>", MediaType.TEXT_HTML));
 
-        assertThatThrownBy(() -> client.validateOtp("otp-42", "1234"))
+        assertThatThrownBy(() -> client.validateOtp("09121234567", "otp-42", "1234"))
                 .isInstanceOf(TemporarilyUnavailableException.class);
     }
 

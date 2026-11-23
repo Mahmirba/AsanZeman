@@ -140,6 +140,43 @@ paths:
               schema:
                 type: array
                 items: { $ref: "#/components/schemas/RequestSummary" }
+  /customer/requests/{requestId}/inquiries:
+    post:
+      tags: [customer]
+      summary: "Start the customer's inquiries in the background (5.1)"
+      description: |
+        Returns 202 at once with the run; poll it with the GET below. A second start while a run is in progress returns
+        that run, so a double click never fails. A passed inquiry is reused for an hour. 404 for a request that is not
+        the customer's; 409 `request.not-inquirable` (not waiting for its inquiries) or `inquiry.cooldown` (a blocked
+        run ended too recently; the message says how many seconds are left).
+      parameters:
+        - { name: requestId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "202":
+          description: The run, still RUNNING (or the run already in progress).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InquiryRun" }
+        "404": { $ref: "#/components/responses/Problem" }
+        "409": { $ref: "#/components/responses/Problem" }
+  /customer/requests/{requestId}/inquiries/{runId}:
+    get:
+      tags: [customer]
+      summary: "Progress and result of a run"
+      description: |
+        `status` is RUNNING, FINISHED or STALE. Once FINISHED, `decision` is PROCEED (go on to the collateral), BLOCKED
+        (some inquiry has no usable answer: try again later, nobody is rejected) or REJECT (the request is now
+        REJECTED, and `message` is the SRS text). `inquiries` lists each inquiry's result once the run has finished.
+      parameters:
+        - { name: requestId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: runId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: The run.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/InquiryRun" }
+        "404": { $ref: "#/components/responses/Problem" }
   /customer/requests/{id}:
     get:
       tags: [customer]
@@ -354,9 +391,6 @@ paths:
                   mobile: { type: string }
         "400": { $ref: "#/components/responses/Problem" }
         "401": { $ref: "#/components/responses/Problem" }
-  /customer/requests/{id}: { get: { tags: [customer], responses: { "200": { description: request for completion } } } }
-  /customer/requests/{id}/inquiries: { post: { tags: [customer], summary: "Start the two-stage inquiry run (202 + runId)", responses: { "202": { description: runId } } } }
-  /customer/requests/{id}/inquiries/{runId}: { get: { tags: [customer], responses: { "200": { description: per-inquiry status } } } }
   /customer/requests/{id}/deposits: { get: { tags: [customer], summary: "Eligible deposits from Yaghut (customer session)", responses: { "200": { description: deposits } } } }
   /customer/requests/{id}/collateral: { post: { tags: [customer], responses: { "200": { description: allocation summary } } } }
   /customer/requests/{id}/submit: { post: { tags: [customer], responses: { "200": { description: submitted } } } }
@@ -478,6 +512,25 @@ components:
         requestId: { type: string, format: uuid }
         outcome: { type: string, enum: [CANCELLED, REVOCATION_REQUESTED] }
         status: { type: string }
+    InquiryRun:
+      type: object
+      required: [runId, status, inquiries]
+      properties:
+        runId: { type: string, format: uuid }
+        status: { type: string, enum: [RUNNING, FINISHED, STALE] }
+        decision: { type: string, enum: [PROCEED, BLOCKED, REJECT], description: Set once the run has finished }
+        message: { type: string, description: The Persian text to show for a REJECT or a BLOCKED run }
+        inquiries:
+          type: array
+          items:
+            type: object
+            required: [type, result]
+            properties:
+              type:
+                type: string
+                enum: [SABT_AHVAL, SHAHKAR, SEPAD, BLACKLIST, SAMA_CHEQUE, SAMAT, BOARD_RELATION, IMPORT_COMMITMENT, EXPORT_COMMITMENT]
+              result: { type: string, enum: [PASSED, NEGATIVE, FAILED, SKIPPED] }
+              failure: { type: string, enum: [TIMEOUT, UNAVAILABLE, CIRCUIT_OPEN, BAD_RESPONSE, CANCELLED] }
     TokenResponse:
       type: object
       required: [accessToken, tokenType, expiresIn, refreshExpiresIn]

@@ -284,7 +284,7 @@ class YaghutClientTest {
                 .andExpect(content().json("{\"code\":\"0012345678\"}", true))
                 .andRespond(json("""
                         {"result": {"cif": "555", "code": "0012345678", "firstName": "Ali", "lastName": "Rezaei",
-                         "fullName": "Ali Rezaei", "fatherName": "Reza", "birthDate": "1990-05-17T00:00:00IRST",
+                         "fatherName": "Reza", "birthDate": "1990-05-17T00:00:00IRST",
                          "mobile": "09121234567", "ssn": "123", "certificateSerial": "S", "certificateSeries": "T",
                          "personalityType": "ACTUAL", "gender": "MALE"}}"""));
 
@@ -292,6 +292,19 @@ class YaghutClientTest {
 
         assertThat(customer).isEqualTo(new YaghutCustomer("555", "0012345678", "Ali", "Rezaei", "Ali Rezaei", "Reza",
                 java.time.LocalDate.of(1990, 5, 17), "09121234567", "123", "S", "T", "ACTUAL", "MALE"));
+    }
+
+    @Test
+    void theFullNameIsFirstAndLastNameTogetherOrTheTitleWhenThereAreNeither() {
+        server.expect(requestTo(CUSTOMER_URL)).andRespond(json("{\"result\": {\"lastName\": \"Rezaei\"}}"));
+        server.expect(requestTo(CUSTOMER_URL)).andRespond(json("{\"result\": {\"firstName\": \"Ali\"}}"));
+        server.expect(requestTo(CUSTOMER_URL)).andRespond(json("{\"result\": {\"title\": \"Sky Air Co\"}}"));
+
+        var session = new YaghutSession("S1", null);
+
+        assertThat(client.customerDetailInfo(session, "1").fullName()).isEqualTo("Rezaei");
+        assertThat(client.customerDetailInfo(session, "1").fullName()).isEqualTo("Ali");
+        assertThat(client.customerDetailInfo(session, "1").fullName()).isEqualTo("Sky Air Co");
     }
 
     @Test

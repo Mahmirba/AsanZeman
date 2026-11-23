@@ -178,7 +178,7 @@ class CustomerLoginServiceTest {
     // ---- step 2 ---------------------------------------------------------------------------------------------
 
     private OtpChallenge challenge(Instant sentAt, boolean verified) {
-        return new OtpChallenge(UUID.randomUUID(), CODE, "otp-1", UUID.randomUUID(), sentAt, verified);
+        return new OtpChallenge(UUID.randomUUID(), CODE, "09121234567", "otp-1", UUID.randomUUID(), sentAt, verified);
     }
 
     @Test
@@ -186,7 +186,7 @@ class CustomerLoginServiceTest {
         OtpChallenge c = challenge(NOW.minusSeconds(30), false);
         IssuedTokens tokens = new IssuedTokens("jwt", NOW.plusSeconds(1800), null, NOW.plusSeconds(1800));
         when(challenges.find(c.id())).thenReturn(Optional.of(c));
-        when(gateway.validate("otp-1", "1234")).thenReturn(true);
+        when(gateway.validate("09121234567", "otp-1", "1234")).thenReturn(true);
         when(challenges.markVerified(c.id())).thenReturn(true);
         var session = ArgumentCaptor.forClass(Session.class);
         when(sessions.start(session.capture(), eq(c.familyId()),
@@ -205,7 +205,7 @@ class CustomerLoginServiceTest {
     void theSessionNeverOutlastsTheYaghutSessionItsCallsDependOn() {
         OtpChallenge c = challenge(NOW, false);
         when(challenges.find(c.id())).thenReturn(Optional.of(c));
-        when(gateway.validate("otp-1", "1234")).thenReturn(true);
+        when(gateway.validate("09121234567", "otp-1", "1234")).thenReturn(true);
         when(challenges.markVerified(c.id())).thenReturn(true);
         when(yaghutSessions.find(c.familyId()))
                 .thenReturn(Optional.of(new YaghutUserSession("JS-1", NOW.plusSeconds(600))));
@@ -219,7 +219,7 @@ class CustomerLoginServiceTest {
     void aLongerYaghutSessionDoesNotStretchTheCustomerSession() {
         OtpChallenge c = challenge(NOW, false);
         when(challenges.find(c.id())).thenReturn(Optional.of(c));
-        when(gateway.validate("otp-1", "1234")).thenReturn(true);
+        when(gateway.validate("09121234567", "otp-1", "1234")).thenReturn(true);
         when(challenges.markVerified(c.id())).thenReturn(true);
         when(yaghutSessions.find(c.familyId()))
                 .thenReturn(Optional.of(new YaghutUserSession("JS-1", NOW.plusSeconds(7200))));
@@ -241,7 +241,7 @@ class CustomerLoginServiceTest {
     void theSameCustomerAlwaysGetsTheSameSubjectId() {
         OtpChallenge c = challenge(NOW, false);
         when(challenges.find(c.id())).thenReturn(Optional.of(c));
-        when(gateway.validate("otp-1", "1234")).thenReturn(true);
+        when(gateway.validate("09121234567", "otp-1", "1234")).thenReturn(true);
         when(challenges.markVerified(c.id())).thenReturn(true);
         var session = ArgumentCaptor.forClass(Session.class);
 
@@ -283,7 +283,7 @@ class CustomerLoginServiceTest {
     void aCodeJustInsideItsValidityStillWorks() {
         OtpChallenge c = challenge(NOW.minusSeconds(119), false);
         when(challenges.find(c.id())).thenReturn(Optional.of(c));
-        when(gateway.validate("otp-1", "1234")).thenReturn(true);
+        when(gateway.validate("09121234567", "otp-1", "1234")).thenReturn(true);
         when(challenges.markVerified(c.id())).thenReturn(true);
 
         service.verifyOtp(c.id(), "1234", CLIENT);
@@ -305,7 +305,7 @@ class CustomerLoginServiceTest {
     void aWrongCodeIsCountedAndTheCustomerMayTryAgain() {
         OtpChallenge c = challenge(NOW, false);
         when(challenges.find(c.id())).thenReturn(Optional.of(c));
-        when(gateway.validate("otp-1", "0000")).thenReturn(false);
+        when(gateway.validate("09121234567", "otp-1", "0000")).thenReturn(false);
         when(challenges.recordWrong(CODE, NOW, 3, Duration.ofMinutes(15))).thenReturn(false);
 
         assertThatThrownBy(() -> service.verifyOtp(c.id(), "0000", CLIENT)).isInstanceOf(OtpWrongException.class);
@@ -317,7 +317,7 @@ class CustomerLoginServiceTest {
     void theWrongCodeThatReachesTheLimitLocksTheCustomer() {
         OtpChallenge c = challenge(NOW, false);
         when(challenges.find(c.id())).thenReturn(Optional.of(c));
-        when(gateway.validate("otp-1", "0000")).thenReturn(false);
+        when(gateway.validate("09121234567", "otp-1", "0000")).thenReturn(false);
         when(challenges.recordWrong(CODE, NOW, 3, Duration.ofMinutes(15))).thenReturn(true);
 
         assertThatThrownBy(() -> service.verifyOtp(c.id(), "0000", CLIENT)).isInstanceOf(OtpLockedException.class);
@@ -327,7 +327,7 @@ class CustomerLoginServiceTest {
     void aCodeUsedByAParallelRequestFirstIsExpired() {
         OtpChallenge c = challenge(NOW, false);
         when(challenges.find(c.id())).thenReturn(Optional.of(c));
-        when(gateway.validate("otp-1", "1234")).thenReturn(true);
+        when(gateway.validate("09121234567", "otp-1", "1234")).thenReturn(true);
         when(challenges.markVerified(c.id())).thenReturn(false);
 
         assertThatThrownBy(() -> service.verifyOtp(c.id(), "1234", CLIENT)).isInstanceOf(OtpExpiredException.class);

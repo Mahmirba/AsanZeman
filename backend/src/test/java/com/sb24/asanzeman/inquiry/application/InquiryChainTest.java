@@ -179,6 +179,36 @@ class InquiryChainTest {
     }
 
     @Test
+    void anInquiryThatPassedLatelyIsNotAskedAgainAndSabteAhvalsReusedDataFeedsStageTwo() {
+        var seen = new CopyOnWriteArrayList<CivilData>();
+        var spy = FakeHandler.answering(SHAHKAR, context -> {
+            seen.add(context.civil());
+            return InquiryOutcome.passed(SHAHKAR);
+        });
+        var reusable = java.util.Map.of(SABT_AHVAL, sabtPassed(), BLACKLIST, InquiryOutcome.passed(BLACKLIST));
+
+        var verdict = chain(InquiryOutcome.failed(SABT_AHVAL, FailureKind.TIMEOUT), spy, pass(SEPAD),
+                pass(BLACKLIST), pass(SAMAT)).run(START, reusable);
+
+        assertThat(verdict.decision()).isEqualTo(Decision.PROCEED);
+        assertThat(asked).containsExactlyInAnyOrder(SHAHKAR, SEPAD, SAMAT); // not Sabte Ahval, not Blacklist
+        assertThat(seen).containsExactly(MAN);
+        assertThat(verdict.outcomes()).hasSize(5);
+    }
+
+    @Test
+    void aRetryAsksOnlyWhatFailedBeforeAndStillBlocksIfItFailsAgain() {
+        var reusable = java.util.Map.of(SABT_AHVAL, sabtPassed(), SHAHKAR, InquiryOutcome.passed(SHAHKAR),
+                SEPAD, InquiryOutcome.passed(SEPAD), BLACKLIST, InquiryOutcome.passed(BLACKLIST));
+
+        var verdict = chain(sabtPassed(), pass(SHAHKAR), pass(SEPAD), pass(BLACKLIST),
+                FakeHandler.answering(SAMAT, InquiryOutcome.failed(SAMAT, FailureKind.TIMEOUT))).run(START, reusable);
+
+        assertThat(verdict.decision()).isEqualTo(Decision.BLOCKED);
+        assertThat(asked).containsExactly(SAMAT);
+    }
+
+    @Test
     void aConfiguredInquiryWithoutAHandlerStopsTheStartup() {
         assertThatThrownBy(() -> new InquiryChain(List.of(pass(SABT_AHVAL)), new StageRunner(), SETTINGS))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("SHAHKAR");

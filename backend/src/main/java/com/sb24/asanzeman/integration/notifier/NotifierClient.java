@@ -81,9 +81,9 @@ public class NotifierClient {
      *
      * @return {@code false} for a wrong or used code (HTTP 410 or {@code isValid: false})
      */
-    public boolean validateOtp(String otpId, String code) {
+    public boolean validateOtp(String number, String otpId, String code) {
         Reply reply = post(OTP_VALIDATE, Map.of("user", user, "pass", pass, "ClientName", clientName,
-                "OtpCode", code, "OtpId", otpId));
+                "number", number, "OtpCode", code, "OtpId", otpId, "lang", "fa"));
         if (reply.status() == 410) {
             return false;
         }
