@@ -45,6 +45,12 @@ public class JdbcYaghutSessionStore implements YaghutSessionStorePort {
     }
 
     @Override
+    public int deleteExpiredBefore(Instant before) {
+        return jdbc.sql("DELETE FROM azs_auth.yaghut_session WHERE COALESCE(expires_at, created_at) < :before")
+                .param("before", DbTime.toDb(before), Types.TIMESTAMP).update();
+    }
+
+    @Override
     public void delete(UUID familyId) {
         jdbc.sql("DELETE FROM azs_auth.yaghut_session WHERE family_id = :familyId")
                 .param("familyId", RawUuid.toBytes(familyId), Types.VARBINARY).update();

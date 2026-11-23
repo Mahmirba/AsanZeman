@@ -17,4 +17,7 @@ public interface YaghutSessionStorePort {
     Optional<YaghutUserSession> find(UUID familyId);
 
     void delete(UUID familyId);
+
+    /** Deletes the sessions that ended before {@code before}; one with no known end counts from when it was made. @return how many */
+    int deleteExpiredBefore(Instant before);
 }

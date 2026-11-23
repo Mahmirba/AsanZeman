@@ -6,6 +6,8 @@ import static org.mockito.Mockito.when;
 
 import com.sb24.asanzeman.auth.domain.port.out.JwtBlacklistPort;
 import com.sb24.asanzeman.auth.domain.port.out.OtpChallengeStorePort;
+import com.sb24.asanzeman.auth.domain.port.out.RefreshTokenStorePort;
+import com.sb24.asanzeman.auth.domain.port.out.YaghutSessionStorePort;
 import com.sb24.asanzeman.support.MutableClock;
 import java.time.Duration;
 import java.time.Instant;
@@ -19,22 +21,32 @@ import org.springframework.transaction.annotation.Transactional;
 class PurgeAuthDataServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-11-23T10:00:00Z");
+    private static final Instant A_DAY_AGO = NOW.minus(Duration.ofDays(1));
 
     @Mock
     private JwtBlacklistPort blacklist;
     @Mock
     private OtpChallengeStorePort otp;
+    @Mock
+    private RefreshTokenStorePort refreshTokens;
+    @Mock
+    private YaghutSessionStorePort yaghutSessions;
 
     @Test
-    void deletesBlacklistEntriesExpiredFiveMinutesAgoAndCodesOlderThanADay() {
+    void deletesWhatHasEndedAndCountsIt() {
         when(blacklist.deleteExpired(NOW.minus(Duration.ofMinutes(5)))).thenReturn(4);
-        when(otp.deleteSentBefore(NOW.minus(Duration.ofDays(1)))).thenReturn(3);
+        when(otp.deleteSentBefore(A_DAY_AGO)).thenReturn(3);
+        when(refreshTokens.deleteExpiredBefore(A_DAY_AGO)).thenReturn(2);
+        when(yaghutSessions.deleteExpiredBefore(A_DAY_AGO)).thenReturn(1);
 
-        int deleted = new PurgeAuthDataService(blacklist, otp, new MutableClock(NOW)).purge();
+        int deleted = new PurgeAuthDataService(blacklist, otp, refreshTokens, yaghutSessions, new MutableClock(NOW))
+                .purge();
 
-        assertThat(deleted).isEqualTo(7);
+        assertThat(deleted).isEqualTo(10);
         verify(blacklist).deleteExpired(NOW.minus(Duration.ofMinutes(5)));
-        verify(otp).deleteSentBefore(NOW.minus(Duration.ofDays(1)));
+        verify(otp).deleteSentBefore(A_DAY_AGO);
+        verify(refreshTokens).deleteExpiredBefore(A_DAY_AGO);
+        verify(yaghutSessions).deleteExpiredBefore(A_DAY_AGO);
     }
 
     @Test

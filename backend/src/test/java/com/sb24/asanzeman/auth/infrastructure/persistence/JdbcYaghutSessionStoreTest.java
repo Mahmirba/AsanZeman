@@ -66,6 +66,23 @@ class JdbcYaghutSessionStoreTest {
     }
 
     @Test
+    void onlyTheSessionsThatEndedBeforeTheLimitAreDeleted() {
+        UUID ended = UUID.randomUUID();
+        UUID running = UUID.randomUUID();
+        UUID unknownEnd = UUID.randomUUID();
+        store.save(ended, "j-1", Instant.parse("2026-11-16T10:00:00Z"));
+        store.save(running, "j-2", Instant.parse("2026-11-18T10:00:00Z"));
+        store.save(unknownEnd, "j-3", null);
+
+        assertThat(store.deleteExpiredBefore(Instant.parse("2026-11-17T10:00:00Z"))).isEqualTo(1);
+
+        assertThat(store.find(ended)).isEmpty();
+        assertThat(store.find(running)).isPresent();
+        assertThat(store.find(unknownEnd)).isPresent(); // counted from when it was made, which is now
+        assertThat(store.deleteExpiredBefore(Instant.now().plusSeconds(3600))).isEqualTo(2);
+    }
+
+    @Test
     void deleteRemovesOnlyThatSession() {
         UUID a = UUID.randomUUID();
         UUID b = UUID.randomUUID();

@@ -35,6 +35,21 @@ class JdbcRefreshTokenStoreTest {
     }
 
     @Test
+    void onlyTheTokensThatExpiredBeforeTheLimitAreDeleted() {
+        RefreshTokenRecord expired = new RefreshTokenRecord(UUID.randomUUID(), UUID.randomUUID(),
+                new Session(UUID.randomUUID(), "ali", Role.BRANCH, "0123"), "h-old", NOW.minusSeconds(100), null, null);
+        RefreshTokenRecord valid = token(UUID.randomUUID(), "h-new");
+        store.save(expired);
+        store.save(valid);
+
+        assertThat(store.deleteExpiredBefore(NOW)).isEqualTo(1);
+
+        assertThat(store.findByHash("h-old")).isEmpty();
+        assertThat(store.findByHash("h-new")).isPresent();
+        assertThat(store.deleteExpiredBefore(NOW)).isZero();
+    }
+
+    @Test
     void aSavedTokenIsFoundByItsHashWithEveryField() {
         RefreshTokenRecord saved = token(UUID.randomUUID(), "hash-1");
         store.save(saved);
