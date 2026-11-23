@@ -286,7 +286,7 @@ class BranchReviewServiceTest {
         foundRevocation(revocation, UUID.randomUUID());
         when(reviews.reasonExists(REASON, "REVOCATION")).thenReturn(true);
         when(agencies.find(revocation.agencyId())).thenReturn(
-                Optional.of(new AgencyInfo(revocation.agencyId(), "0042", "Sky Travel", true)));
+                Optional.of(new AgencyInfo(revocation.agencyId(), "0042", "Sky Travel", true, "09129990000")));
         when(branches.nameOf("0123")).thenReturn(Optional.of("Valiasr"));
 
         ReviewResult result = service.reject(command(ALI, revocation), REASON, "still in use");
@@ -323,7 +323,7 @@ class BranchReviewServiceTest {
                 List.of(), "Sky Travel", NOW);
         when(reviews.findForUpdate(issuanceId)).thenReturn(Optional.of(new Review(issued, null, "0123")));
         when(agencies.find(issued.agencyId())).thenReturn(
-                Optional.of(new AgencyInfo(issued.agencyId(), "0042", "Sky Travel", true)));
+                Optional.of(new AgencyInfo(issued.agencyId(), "0042", "Sky Travel", true, "09129990000")));
         when(branches.nameOf("0123")).thenReturn(Optional.of("Valiasr"));
 
         ReviewResult result = service.completeRevocation(command(ALI, revocation));
@@ -334,6 +334,8 @@ class BranchReviewServiceTest {
         verify(reviews).save(issuanceId, RequestStatus.REVOKED, null, NOW);
         verify(notifier).guaranteeRevoked(issuanceId, issued.customer().mobile(), "Sky Travel", "Valiasr",
                 "1405/09/02");
+        verify(notifier).agencyRevocationCompleted(revocation.id(), "09129990000",
+                revocation.trackingCode().value(), "Valiasr", "1405/09/02");
         var entries = ArgumentCaptor.forClass(AuditEntry.class);
         verify(audit, org.mockito.Mockito.times(2)).record(entries.capture());
         assertThat(entries.getAllValues()).extracting(AuditEntry::action, AuditEntry::entityId, AuditEntry::newValue)

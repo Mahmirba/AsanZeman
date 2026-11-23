@@ -97,6 +97,7 @@ CREATE TABLE azs_business.agency (
     code   VARCHAR(4)     NOT NULL,
     name   VARCHAR(200)   NOT NULL,
     active NUMBER(1)      DEFAULT 1 NOT NULL,
+    mobile VARCHAR(11),
     CONSTRAINT pk_agency PRIMARY KEY (id),
     CONSTRAINT ux_agency_cif UNIQUE (cif)
 );

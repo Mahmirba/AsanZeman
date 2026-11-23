@@ -1,6 +1,7 @@
 package com.sb24.asanzeman.request.infrastructure.external;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.sb24.asanzeman.notification.domain.port.in.EnqueueSmsCommand;
 import com.sb24.asanzeman.notification.domain.port.in.EnqueueSmsUseCase;
@@ -54,6 +55,23 @@ class OutboxCustomerNotifierTest {
                 List.of("Sky Travel", "Valiasr", "1405/09/02"), request));
         verify(sms).enqueue(new EnqueueSmsCommand("09121234567", SmsTemplate.REVOCATION_REJECTED,
                 List.of("Sky Travel", "Valiasr", "1405/09/02"), request));
+    }
+
+    @Test
+    void tellsTheAgencyHowItsRevocationEndedAndSkipsAnAgencyWithoutAMobile() {
+        UUID request = UUID.randomUUID();
+        var notifier = new OutboxCustomerNotifier(sms);
+
+        notifier.agencyRevocationCompleted(request, "09129990000", "012300420509020021", "Valiasr", "1405/09/02");
+        notifier.agencyRevocationRejected(request, "09129990000", "012300420509020021", "Valiasr", "1405/09/02");
+        notifier.agencyRevocationCompleted(request, null, "012300420509020021", "Valiasr", "1405/09/02");
+        notifier.agencyRevocationRejected(request, " ", "012300420509020021", "Valiasr", "1405/09/02");
+
+        verify(sms).enqueue(new EnqueueSmsCommand("09129990000", SmsTemplate.AGENCY_REVOCATION_COMPLETED,
+                List.of("012300420509020021", "Valiasr", "1405/09/02"), request));
+        verify(sms).enqueue(new EnqueueSmsCommand("09129990000", SmsTemplate.AGENCY_REVOCATION_REJECTED,
+                List.of("012300420509020021", "Valiasr", "1405/09/02"), request));
+        verifyNoMoreInteractions(sms);
     }
 
     @Test

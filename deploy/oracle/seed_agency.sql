@@ -18,3 +18,7 @@ INSERT INTO azs_business.rejection_reason (kind, text, sort_order)
 SELECT 'REVOCATION', 'The guarantee is still in use', 1 FROM dual
  WHERE NOT EXISTS (SELECT 1 FROM azs_business.rejection_reason WHERE kind = 'REVOCATION' AND text = 'The guarantee is still in use');
 COMMIT;
+
+-- The agency's mobile, for the SMS about its revocation requests (optional).
+UPDATE azs_business.agency SET mobile = '09129990000' WHERE code = '0042' AND mobile IS NULL;
+COMMIT;

@@ -93,6 +93,8 @@ public class BranchReviewService implements BranchReviewUseCase {
         if (revocation) {
             notifier.revocationRejected(request.id(), request.customer().mobile(), agencyName(request),
                     branchName(request), today());
+            notifier.agencyRevocationRejected(request.id(), agencyMobile(request), request.trackingCode().value(),
+                    branchName(request), today());
         } else {
             notifier.requestRejected(request.id(), request.customer().mobile(), agencyName(request),
                     branchName(request), today());
@@ -129,6 +131,9 @@ public class BranchReviewService implements BranchReviewUseCase {
         Request request = revoked.request();
         notifier.guaranteeRevoked(request.id(), request.customer().mobile(), agencyName(request),
                 branchName(request), today());
+        Request revocation = applied.after().request();
+        notifier.agencyRevocationCompleted(revocation.id(), agencyMobile(revocation), revocation.trackingCode().value(),
+                branchName(revocation), today());
         return applied.result();
     }
 
@@ -204,6 +209,10 @@ public class BranchReviewService implements BranchReviewUseCase {
 
     private String agencyName(Request request) {
         return agencies.find(request.agencyId()).map(a -> a.name()).orElse("");
+    }
+
+    private String agencyMobile(Request request) {
+        return agencies.find(request.agencyId()).map(a -> a.mobile()).orElse(null);
     }
 
     private String branchName(Request request) {
