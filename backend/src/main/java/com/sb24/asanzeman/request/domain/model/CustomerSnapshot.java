@@ -2,6 +2,7 @@ package com.sb24.asanzeman.request.domain.model;
 
 import com.sb24.asanzeman.shared.model.TemporarilyUnavailableException;
 import java.time.LocalDate;
+import java.time.Period;
 
 /**
  * The customer's details as Yaghut {@code customerDetailInfo} gave them when the agency registered the request
@@ -48,6 +49,6 @@ public record CustomerSnapshot(String cif, String code, String firstName, String
 
     /** @return whole years of age on {@code today}; {@code birthDate} must be known */
     public int ageOn(LocalDate today) {
-        return java.time.Period.between(birthDate, today).getYears();
+        return Period.between(birthDate, today).getYears();
     }
 }

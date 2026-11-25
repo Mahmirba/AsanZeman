@@ -2,7 +2,11 @@ package com.sb24.asanzeman.request.infrastructure.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.sb24.asanzeman.request.domain.model.GuaranteeNumberTakenException;
+import com.sb24.asanzeman.request.domain.model.RejectionReason;
+import com.sb24.asanzeman.request.domain.model.Request;
 import com.sb24.asanzeman.request.domain.model.RequestStatus;
+import com.sb24.asanzeman.request.domain.model.RequestType;
 import com.sb24.asanzeman.request.domain.model.ReviewLock;
 import com.sb24.asanzeman.request.domain.model.TrackingCode;
 import com.sb24.asanzeman.shared.model.JalaliDate;
@@ -12,6 +16,7 @@ import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -41,7 +46,7 @@ class JdbcReviewRepositoryTest {
     private UUID request(int counter, RequestStatus status) {
         var r = RequestRepositoryFixtures.request(agency, TrackingCode.of("0123", "0042", JalaliDate.of(1405, 9, 2),
                 counter), List.of(), T0);
-        var saved = new com.sb24.asanzeman.request.domain.model.Request(r.id(), r.trackingCode(), r.type(), status,
+        var saved = new Request(r.id(), r.trackingCode(), r.type(), status,
                 agency, "0123", r.amount(), r.dueDate(), r.customer(), r.companions(), r.registeredBy(),
                 r.registeredAt());
         requests.insert(saved);
@@ -95,7 +100,7 @@ class JdbcReviewRepositoryTest {
         assertThat(column(id, "version")).isEqualTo("2");
     }
 
-    private com.sb24.asanzeman.request.domain.model.Request revocationOf(UUID issuance, RequestStatus status, int counter) {
+    private Request revocationOf(UUID issuance, RequestStatus status, int counter) {
         var issued = requests.findById(issuance).orElseThrow();
         return issued.requestRevocation(UUID.randomUUID(), TrackingCode.of("0123", "0042", JalaliDate.of(1405, 9, 2),
                 counter), status, "Sky Travel", T0);
@@ -109,7 +114,7 @@ class JdbcReviewRepositoryTest {
         reviews.insertRevocation(revocation, issuance, null);
 
         var review = reviews.findForUpdate(revocation.id()).orElseThrow();
-        assertThat(review.request().type()).isEqualTo(com.sb24.asanzeman.request.domain.model.RequestType.REVOCATION);
+        assertThat(review.request().type()).isEqualTo(RequestType.REVOCATION);
         assertThat(review.parentId()).isEqualTo(issuance);
         assertThat(review.lock()).isNull();
         assertThat(review.revocationOpen()).isFalse(); // the flag is for an issuance request
@@ -170,8 +175,8 @@ class JdbcReviewRepositoryTest {
         UUID second = request(2, RequestStatus.UNDER_ACTION);
         reviews.recordIssue(first, "GT-001", T0);
 
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> reviews.recordIssue(second, "GT-001", T0))
-                .isInstanceOf(com.sb24.asanzeman.request.domain.model.GuaranteeNumberTakenException.class);
+        Assertions.assertThatThrownBy(() -> reviews.recordIssue(second, "GT-001", T0))
+                .isInstanceOf(GuaranteeNumberTakenException.class);
         assertThat(jdbc.sql("SELECT COUNT(*) FROM azs_business.request WHERE id = :id AND guarantee_number IS NULL")
                 .param("id", RawUuid.toBytes(second), Types.VARBINARY).query(Integer.class).single()).isEqualTo(1);
         reviews.recordIssue(second, "GT-002", T0); // another number is fine
@@ -198,7 +203,7 @@ class JdbcReviewRepositoryTest {
         reason("ISSUANCE", 0, 0, "Switched off");
         reason("REVOCATION", 1, 0, "Revocation only");
 
-        assertThat(reviews.reasons("ISSUANCE")).extracting(com.sb24.asanzeman.request.domain.model.RejectionReason::text)
+        assertThat(reviews.reasons("ISSUANCE")).extracting(RejectionReason::text)
                 .containsExactly("First", "Second");
     }
 

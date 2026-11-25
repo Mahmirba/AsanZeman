@@ -10,7 +10,9 @@ import com.sb24.asanzeman.shared.persistence.DbTime;
 import com.sb24.asanzeman.shared.persistence.RawUuid;
 import java.sql.Types;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DuplicateKeyException;
@@ -77,8 +79,8 @@ public class JdbcAdminReference implements AdminReferencePort {
         }
     }
 
-    private static java.util.Map<String, Object> agencyParams(AgencyData data) {
-        var params = new java.util.HashMap<String, Object>();
+    private static Map<String, Object> agencyParams(AgencyData data) {
+        var params = new HashMap<String, Object>();
         params.put("cif", data.cif());
         params.put("code", data.code());
         params.put("name", data.name());

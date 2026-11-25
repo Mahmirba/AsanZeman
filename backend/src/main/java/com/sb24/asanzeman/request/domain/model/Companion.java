@@ -1,5 +1,6 @@
 package com.sb24.asanzeman.request.domain.model;
 
+import com.sb24.asanzeman.shared.model.NationalCode;
 import java.time.LocalDate;
 
 /**
@@ -17,7 +18,7 @@ public record Companion(String fullName, String nationalCode, LocalDate birthDat
         if (fullName == null || fullName.isEmpty() || fullName.length() > MAX_NAME) {
             throw new InvalidRequestDataException("companion name must be 1 to " + MAX_NAME + " characters");
         }
-        if (!com.sb24.asanzeman.shared.model.NationalCode.isValid(nationalCode)) {
+        if (!NationalCode.isValid(nationalCode)) {
             throw new InvalidRequestDataException("companion national code is not valid");
         }
         if (birthDate == null) {

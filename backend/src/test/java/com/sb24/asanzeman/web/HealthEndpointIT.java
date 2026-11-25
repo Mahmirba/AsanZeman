@@ -3,6 +3,7 @@ package com.sb24.asanzeman.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sb24.asanzeman.support.OracleTestContainer;
+import com.sb24.asanzeman.support.TestKeys;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -24,7 +25,7 @@ class HealthEndpointIT {
         registry.add("spring.datasource.url", OracleTestContainer::jdbcUrl);
         registry.add("spring.datasource.username", () -> "azs_app");
         registry.add("spring.datasource.password", () -> "test");
-        com.sb24.asanzeman.support.TestKeys.register(registry);
+        TestKeys.register(registry);
     }
 
     @Autowired

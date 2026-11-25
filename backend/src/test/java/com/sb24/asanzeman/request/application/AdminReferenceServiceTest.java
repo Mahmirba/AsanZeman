@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.sb24.asanzeman.auth.domain.port.in.RevokeSessionsUseCase;
 import com.sb24.asanzeman.request.domain.model.AdminAgency;
 import com.sb24.asanzeman.request.domain.model.AdminItemNotFoundException;
 import com.sb24.asanzeman.request.domain.model.AdminReason;
@@ -29,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,7 +47,7 @@ class AdminReferenceServiceTest {
     @Mock
     private RecordAuditUseCase audit;
     @Mock
-    private com.sb24.asanzeman.auth.domain.port.in.RevokeSessionsUseCase sessions;
+    private RevokeSessionsUseCase sessions;
 
     private AdminReferenceService service;
 
@@ -85,7 +87,7 @@ class AdminReferenceServiceTest {
 
     @Test
     void aTakenAgencyIsRefusedAndNotAudited() {
-        org.mockito.Mockito.doThrow(new AgencyDuplicateException()).when(reference)
+        Mockito.doThrow(new AgencyDuplicateException()).when(reference)
                 .insertAgency(any(), eq(AGENCY), any(), any());
 
         assertThatThrownBy(() -> service.createAgency(ADMIN, AGENCY)).isInstanceOf(AgencyDuplicateException.class);
@@ -121,7 +123,7 @@ class AdminReferenceServiceTest {
         when(reference.findAgency(id)).thenReturn(Optional.of(new AdminAgency(id, off)));
         service.updateAgency(ADMIN, id, off); // already off: nothing new to end
         service.updateAgency(ADMIN, id, on); // switched back on: nothing to end
-        verify(sessions, org.mockito.Mockito.times(1)).revokeAllOf(id);
+        verify(sessions, Mockito.times(1)).revokeAllOf(id);
     }
 
     @Test

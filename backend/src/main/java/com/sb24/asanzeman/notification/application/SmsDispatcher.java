@@ -7,6 +7,7 @@ import com.sb24.asanzeman.notification.domain.port.in.DispatchSmsUseCase;
 import com.sb24.asanzeman.notification.domain.port.out.SmsGatewayPort;
 import com.sb24.asanzeman.notification.domain.port.out.SmsOutboxPort;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;
@@ -68,7 +69,7 @@ public class SmsDispatcher implements DispatchSmsUseCase {
         }
     }
 
-    private Instant later(java.time.Duration delay) {
+    private Instant later(Duration delay) {
         return clock.instant().plus(delay);
     }
 

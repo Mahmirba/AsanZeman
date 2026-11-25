@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -40,7 +41,7 @@ class GatewayBearerInterceptorTest {
     void addsTheBearerToken() {
         when(tokens.token()).thenReturn("t1");
         server.expect(requestTo(URL)).andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer t1"))
-                .andRespond(withSuccess("ok", org.springframework.http.MediaType.TEXT_PLAIN));
+                .andRespond(withSuccess("ok", MediaType.TEXT_PLAIN));
 
         assertThat(client.get().uri(URL).retrieve().body(String.class)).isEqualTo("ok");
 
@@ -54,7 +55,7 @@ class GatewayBearerInterceptorTest {
         server.expect(requestTo(URL)).andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer old"))
                 .andRespond(withStatus(HttpStatus.UNAUTHORIZED));
         server.expect(requestTo(URL)).andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer new"))
-                .andRespond(withSuccess("ok", org.springframework.http.MediaType.TEXT_PLAIN));
+                .andRespond(withSuccess("ok", MediaType.TEXT_PLAIN));
 
         assertThat(client.get().uri(URL).retrieve().body(String.class)).isEqualTo("ok");
 

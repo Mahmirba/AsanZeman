@@ -8,6 +8,7 @@ import com.sb24.asanzeman.shared.model.Rials;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -81,12 +82,12 @@ class RequestCancelTest {
 
     @Test
     void pagesAndDetailsCopyTheirLists() {
-        var items = new java.util.ArrayList<>(List.of("a"));
+        var items = new ArrayList<>(List.of("a"));
         var page = new PageResult<>(items, 1, 0, 20);
         items.clear();
 
         assertThat(page.items()).containsExactly("a");
-        var companions = new java.util.ArrayList<>(List.of(RequestTest.companion()));
+        var companions = new ArrayList<>(List.of(RequestTest.companion()));
         var summary = new RequestSummary(UUID.randomUUID(), "1", RequestType.ISSUANCE,
                 RequestStatus.REGISTERED_AT_AGENCY, "1000000011", null, "Ali", 1, "0123", "Main",
                 LocalDate.of(2027, 1, 20), Instant.now(), "Sky", null);

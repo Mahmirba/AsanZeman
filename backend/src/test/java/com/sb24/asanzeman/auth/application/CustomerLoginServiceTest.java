@@ -36,6 +36,7 @@ import com.sb24.asanzeman.auth.domain.port.out.YaghutSessionStorePort;
 import com.sb24.asanzeman.shared.model.DomainException;
 import com.sb24.asanzeman.shared.model.TemporarilyUnavailableException;
 import com.sb24.asanzeman.support.MutableClock;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -45,6 +46,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,8 +75,8 @@ class CustomerLoginServiceTest {
 
     private CustomerLoginService service;
 
-    private final io.micrometer.core.instrument.simple.SimpleMeterRegistry metrics =
-            new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+    private final SimpleMeterRegistry metrics =
+            new SimpleMeterRegistry();
 
     @BeforeEach
     void setUp() {
@@ -111,7 +113,7 @@ class CustomerLoginServiceTest {
 
     @Test
     void aFailedCaptchaStopsBeforeYaghut() {
-        org.mockito.Mockito.doThrow(new CaptchaFailedException()).when(captcha).verify(Panel.CUSTOMER, "bad");
+        Mockito.doThrow(new CaptchaFailedException()).when(captcha).verify(Panel.CUSTOMER, "bad");
 
         assertThatThrownBy(() -> service.login("ali", "pw", "bad")).isInstanceOf(CaptchaFailedException.class);
         verifyNoInteractions(yaghut, gateway);
@@ -253,7 +255,7 @@ class CustomerLoginServiceTest {
         service.verifyOtp(c.id(), "1234", CLIENT);
         service.verifyOtp(c.id(), "1234", CLIENT);
 
-        verify(sessions, org.mockito.Mockito.times(2)).start(session.capture(), any(), any(), any());
+        verify(sessions, Mockito.times(2)).start(session.capture(), any(), any(), any());
         assertThat(session.getAllValues().get(0).subjectId()).isEqualTo(session.getAllValues().get(1).subjectId());
     }
 

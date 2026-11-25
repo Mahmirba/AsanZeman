@@ -10,12 +10,15 @@ import com.sb24.asanzeman.request.domain.port.out.RequestRepositoryPort;
 import com.sb24.asanzeman.request.domain.port.out.ReviewRepositoryPort;
 import com.sb24.asanzeman.shared.persistence.DbTime;
 import com.sb24.asanzeman.shared.persistence.RawUuid;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -56,7 +59,7 @@ public class JdbcReviewRepository implements ReviewRepositoryPort {
                         rs.getInt("open_revocations") > 0)).single());
     }
 
-    private static ReviewLock lock(java.sql.ResultSet rs) throws java.sql.SQLException {
+    private static ReviewLock lock(ResultSet rs) throws SQLException {
         byte[] holder = rs.getBytes("locked_by");
         return holder == null ? null : new ReviewLock(RawUuid.fromBytes(holder), rs.getString("locked_by_name"),
                 DbTime.fromDb(rs.getObject("locked_at", LocalDateTime.class)),
@@ -109,7 +112,7 @@ public class JdbcReviewRepository implements ReviewRepositoryPort {
             jdbc.sql("UPDATE azs_business.request SET guarantee_number = :number, issued_at = :at WHERE id = :id")
                 .param("number", guaranteeNumber, Types.VARCHAR).param("at", DbTime.toDb(at), Types.TIMESTAMP)
                 .param("id", RawUuid.toBytes(requestId), Types.VARBINARY).update();
-        } catch (org.springframework.dao.DuplicateKeyException e) {
+        } catch (DuplicateKeyException e) {
             throw new GuaranteeNumberTakenException(); // the unique index: another request has this number
         }
     }

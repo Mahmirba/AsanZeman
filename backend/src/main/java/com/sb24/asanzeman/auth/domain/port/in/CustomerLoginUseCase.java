@@ -3,6 +3,7 @@ package com.sb24.asanzeman.auth.domain.port.in;
 import com.sb24.asanzeman.auth.domain.model.ClientInfo;
 import com.sb24.asanzeman.auth.domain.model.CustomerChallenge;
 import com.sb24.asanzeman.auth.domain.model.IssuedTokens;
+import java.util.UUID;
 
 /**
  * Customer login in two steps (6.3): ARcaptcha, Yaghut {@code loginStatic} and an SMS code, then the code's check and a
@@ -30,5 +31,5 @@ public interface CustomerLoginUseCase {
      * @throws com.sb24.asanzeman.auth.domain.model.OtpLockedException   403
      * @throws com.sb24.asanzeman.shared.model.TemporarilyUnavailableException 503
      */
-    IssuedTokens verifyOtp(java.util.UUID challengeId, String code, ClientInfo client);
+    IssuedTokens verifyOtp(UUID challengeId, String code, ClientInfo client);
 }

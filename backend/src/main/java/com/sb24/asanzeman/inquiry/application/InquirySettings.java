@@ -2,6 +2,7 @@ package com.sb24.asanzeman.inquiry.application;
 
 import com.sb24.asanzeman.inquiry.domain.model.InquiryType;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -15,8 +16,8 @@ public record InquirySettings(List<List<InquiryType>> stages, List<Duration> dea
      * {@code SABT_AHVAL;SHAHKAR,SEPAD,BLACKLIST}.
      */
     public static InquirySettings parse(String stages, List<Duration> deadlines) {
-        List<List<InquiryType>> parsed = java.util.Arrays.stream(stages.split(";"))
-                .map(stage -> java.util.Arrays.stream(stage.split(",")).map(String::trim)
+        List<List<InquiryType>> parsed = Arrays.stream(stages.split(";"))
+                .map(stage -> Arrays.stream(stage.split(",")).map(String::trim)
                         .map(name -> {
                             try {
                                 return InquiryType.valueOf(name);

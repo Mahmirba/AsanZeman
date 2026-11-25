@@ -3,6 +3,7 @@ package com.sb24.asanzeman.request.infrastructure.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sb24.asanzeman.request.domain.model.Companion;
+import com.sb24.asanzeman.request.domain.model.CustomerSnapshot;
 import com.sb24.asanzeman.request.domain.model.PageResult;
 import com.sb24.asanzeman.request.domain.model.Request;
 import com.sb24.asanzeman.request.domain.model.RequestSearchCriteria;
@@ -55,7 +56,7 @@ class JdbcRequestQueryTest {
         var c = base.customer();
         Request r = new Request(base.id(), base.trackingCode(), base.type(), base.status(), agencyId,
                 base.branchCode(), base.amount(), base.dueDate(),
-                new com.sb24.asanzeman.request.domain.model.CustomerSnapshot(cif, customerCode, null, null, name,
+                new CustomerSnapshot(cif, customerCode, null, null, name,
                         c.fatherName(), c.birthDate(), c.mobile(), null, null, null, "ACTUAL", null),
                 companions, "Sky Travel", at);
         repository.insert(r);

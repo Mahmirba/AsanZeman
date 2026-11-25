@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -94,8 +95,8 @@ class BranchSyncServiceTest {
 
         assertThat(service.hasBranches()).isTrue();
         assertThat(service.hasBranches()).isFalse();
-        verify(branches, org.mockito.Mockito.times(2)).any();
+        verify(branches, Mockito.times(2)).any();
         verifyNoInteractions(source);
-        org.mockito.Mockito.verify(audit, org.mockito.Mockito.never()).record(any());
+        Mockito.verify(audit, Mockito.never()).record(any());
     }
 }

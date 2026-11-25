@@ -3,9 +3,12 @@ package com.sb24.asanzeman.inquiry.domain.model;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.sb24.asanzeman.shared.model.DomainException;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class InquiryModelTest {
@@ -65,8 +68,8 @@ class InquiryModelTest {
 
     @Test
     void aStartedRunIsRunningWithNoDecisionYet() {
-        var id = java.util.UUID.randomUUID();
-        var run = InquiryRun.started(id, java.util.UUID.randomUUID(), java.time.Instant.parse("2026-11-23T10:00:00Z"));
+        var id = UUID.randomUUID();
+        var run = InquiryRun.started(id, UUID.randomUUID(), Instant.parse("2026-11-23T10:00:00Z"));
 
         assertThat(run.status()).isEqualTo(RunStatus.RUNNING);
         assertThat(run.decision()).isNull();
@@ -77,8 +80,8 @@ class InquiryModelTest {
     @Test
     void aRunViewKeepsItsOwnCopyOfTheOutcomes() {
         var outcomes = new ArrayList<>(List.of(InquiryOutcome.passed(InquiryType.SHAHKAR)));
-        var view = new InquiryRunView(InquiryRun.started(java.util.UUID.randomUUID(), java.util.UUID.randomUUID(),
-                java.time.Instant.now()), outcomes);
+        var view = new InquiryRunView(InquiryRun.started(UUID.randomUUID(), UUID.randomUUID(),
+                Instant.now()), outcomes);
 
         outcomes.clear();
 
@@ -88,10 +91,10 @@ class InquiryModelTest {
     @Test
     void theRunRefusalsHaveTheRightStatusKinds() {
         assertThat(new InquiryCooldownException(30).kind())
-                .isEqualTo(com.sb24.asanzeman.shared.model.DomainException.Kind.CONFLICT);
+                .isEqualTo(DomainException.Kind.CONFLICT);
         assertThat(new InquiryCooldownException(30).args()).containsExactly(30L);
         assertThat(new InquiryRunNotFoundException().kind())
-                .isEqualTo(com.sb24.asanzeman.shared.model.DomainException.Kind.NOT_FOUND);
+                .isEqualTo(DomainException.Kind.NOT_FOUND);
     }
 
     @Test

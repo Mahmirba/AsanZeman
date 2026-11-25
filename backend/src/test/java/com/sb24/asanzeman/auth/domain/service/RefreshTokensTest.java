@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.HashSet;
 import java.util.Set;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class RefreshTokensTest {
@@ -34,7 +35,7 @@ class RefreshTokensTest {
 
     @Test
     void aMissingDigestAlgorithmFailsLoudly() {
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> RefreshTokens.digest("abc", "NO-SUCH-ALGORITHM"))
+        Assertions.assertThatThrownBy(() -> RefreshTokens.digest("abc", "NO-SUCH-ALGORITHM"))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("NO-SUCH-ALGORITHM");
     }
 

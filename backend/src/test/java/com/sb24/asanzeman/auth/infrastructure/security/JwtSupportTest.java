@@ -73,8 +73,8 @@ class JwtSupportTest {
 
     @Test
     void anAgencySessionCarriesThePersonWhoLoggedInForIt() {
-        var agency = new com.sb24.asanzeman.auth.domain.model.Session(UUID.randomUUID(), "Sky Travel",
-                com.sb24.asanzeman.auth.domain.model.Role.AGENCY, null, "ali.sky");
+        var agency = new Session(UUID.randomUUID(), "Sky Travel",
+                Role.AGENCY, null, "ali.sky");
         Instant now = Instant.now();
 
         Jwt jwt = decoder.decode(issuer.issue(agency, UUID.randomUUID(), "jti-usr", now, now.plusSeconds(60)));

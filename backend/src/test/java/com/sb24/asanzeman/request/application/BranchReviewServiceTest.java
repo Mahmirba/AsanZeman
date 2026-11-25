@@ -9,6 +9,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.sb24.asanzeman.inquiry.domain.model.Gender;
+import com.sb24.asanzeman.inquiry.domain.port.in.InquiryRunUseCase;
 import com.sb24.asanzeman.request.domain.model.AgencyInfo;
 import com.sb24.asanzeman.request.domain.model.BranchUser;
 import com.sb24.asanzeman.request.domain.model.InvalidRequestDataException;
@@ -23,6 +25,7 @@ import com.sb24.asanzeman.request.domain.model.RequestTest;
 import com.sb24.asanzeman.request.domain.model.RequestType;
 import com.sb24.asanzeman.request.domain.model.Review;
 import com.sb24.asanzeman.request.domain.model.ReviewLock;
+import com.sb24.asanzeman.request.domain.model.TrackingCode;
 import com.sb24.asanzeman.request.domain.port.in.BranchCommand;
 import com.sb24.asanzeman.request.domain.port.in.ReviewResult;
 import com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort;
@@ -31,6 +34,7 @@ import com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort;
 import com.sb24.asanzeman.request.domain.port.out.ReviewRepositoryPort;
 import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
 import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
+import com.sb24.asanzeman.shared.model.JalaliDate;
 import com.sb24.asanzeman.shared.model.Rials;
 import com.sb24.asanzeman.support.MutableClock;
 import java.time.Duration;
@@ -39,11 +43,14 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -61,7 +68,7 @@ class BranchReviewServiceTest {
     @Mock
     private CustomerNotifierPort notifier;
     @Mock
-    private com.sb24.asanzeman.inquiry.domain.port.in.InquiryRunUseCase inquiries;
+    private InquiryRunUseCase inquiries;
     @Mock
     private AgencyRegistryPort agencies;
     @Mock
@@ -107,9 +114,9 @@ class BranchReviewServiceTest {
         assertThat(result.heldBy()).isEqualTo("ali.b");
         assertThat(result.heldSince()).isEqualTo(NOW);
         var lock = ArgumentCaptor.forClass(ReviewLock.class);
-        verify(reviews).save(org.mockito.ArgumentMatchers.eq(request.id()),
-                org.mockito.ArgumentMatchers.eq(RequestStatus.UNDER_REVIEW), lock.capture(),
-                org.mockito.ArgumentMatchers.eq(NOW));
+        verify(reviews).save(ArgumentMatchers.eq(request.id()),
+                ArgumentMatchers.eq(RequestStatus.UNDER_REVIEW), lock.capture(),
+                ArgumentMatchers.eq(NOW));
         assertThat(lock.getValue().holderId()).isEqualTo(ALI.id());
         var entry = ArgumentCaptor.forClass(AuditEntry.class);
         verify(audit).record(entry.capture());
@@ -273,7 +280,7 @@ class BranchReviewServiceTest {
     void theCustomerIsAddressedByTheRegistryGenderWhenItIsKnown() {
         Request request = request(RequestStatus.UNDER_ACTION);
         found(request, ALI);
-        when(inquiries.genderOf(request.id())).thenReturn(Optional.of(com.sb24.asanzeman.inquiry.domain.model.Gender.MALE));
+        when(inquiries.genderOf(request.id())).thenReturn(Optional.of(Gender.MALE));
         when(branches.nameOf(anyString())).thenReturn(Optional.of("Valiasr"));
 
         service.issue(command(ALI, request), "GT-1");
@@ -288,7 +295,7 @@ class BranchReviewServiceTest {
         Request revocation = revocation(RequestStatus.UNDER_REVIEW);
         foundRevocation(revocation, issuanceId);
         when(reviews.reasonExists(REASON, "REVOCATION")).thenReturn(true);
-        when(inquiries.genderOf(issuanceId)).thenReturn(Optional.of(com.sb24.asanzeman.inquiry.domain.model.Gender.FEMALE));
+        when(inquiries.genderOf(issuanceId)).thenReturn(Optional.of(Gender.FEMALE));
         when(branches.nameOf(anyString())).thenReturn(Optional.of("Valiasr"));
 
         service.reject(command(ALI, revocation), REASON, "still in use");
@@ -301,8 +308,8 @@ class BranchReviewServiceTest {
 
     private Request revocation(RequestStatus status) {
         return request(RequestStatus.ISSUED).requestRevocation(UUID.randomUUID(),
-                com.sb24.asanzeman.request.domain.model.TrackingCode.of("0123", "0042",
-                        com.sb24.asanzeman.shared.model.JalaliDate.of(1405, 9, 2), 9), status, "Sky Travel", NOW);
+                TrackingCode.of("0123", "0042",
+                        JalaliDate.of(1405, 9, 2), 9), status, "Sky Travel", NOW);
     }
 
     private Review foundRevocation(Request revocation, UUID parentId) {
@@ -369,10 +376,10 @@ class BranchReviewServiceTest {
         verify(notifier).agencyRevocationCompleted(revocation.id(), "09129990000",
                 revocation.trackingCode().value(), "Valiasr", "1405/09/02");
         var entries = ArgumentCaptor.forClass(AuditEntry.class);
-        verify(audit, org.mockito.Mockito.times(2)).record(entries.capture());
+        verify(audit, Mockito.times(2)).record(entries.capture());
         assertThat(entries.getAllValues()).extracting(AuditEntry::action, AuditEntry::entityId, AuditEntry::newValue)
-                .containsExactly(org.assertj.core.groups.Tuple.tuple("COMPLETE_REVOCATION", revocation.id(), "COMPLETED"),
-                        org.assertj.core.groups.Tuple.tuple("REVOKED", issuanceId, "REVOKED"));
+                .containsExactly(Tuple.tuple("COMPLETE_REVOCATION", revocation.id(), "COMPLETED"),
+                        Tuple.tuple("REVOKED", issuanceId, "REVOKED"));
     }
 
     @Test
@@ -457,7 +464,7 @@ class BranchReviewServiceTest {
 
         assertThat(released).isEqualTo(1);
         verify(reviews).save(idle.id(), RequestStatus.PENDING_BRANCH_REVIEW, null, NOW);
-        verify(reviews, never()).save(org.mockito.ArgumentMatchers.eq(fresh.id()), any(), any(), any());
+        verify(reviews, never()).save(ArgumentMatchers.eq(fresh.id()), any(), any(), any());
         var entry = ArgumentCaptor.forClass(AuditEntry.class);
         verify(audit).record(entry.capture());
         assertThat(entry.getValue()).extracting(AuditEntry::action, AuditEntry::userRole)

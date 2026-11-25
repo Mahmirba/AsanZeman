@@ -5,13 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.sb24.asanzeman.request.application.RegistrationSettings;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class RequestConfigurationTest {
 
     private final ApplicationContextRunner runner = new ApplicationContextRunner()
             .withInitializer(ctx -> ctx.getBeanFactory()
-                    .setConversionService(org.springframework.boot.convert.ApplicationConversionService.getSharedInstance()))
+                    .setConversionService(ApplicationConversionService.getSharedInstance()))
             .withUserConfiguration(RequestConfiguration.class);
 
     @Test

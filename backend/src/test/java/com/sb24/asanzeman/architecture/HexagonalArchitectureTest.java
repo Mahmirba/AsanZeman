@@ -7,6 +7,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import jakarta.persistence.Entity;
 
 /**
  * ADR-017 / D49: the hexagon inside every module.
@@ -68,6 +69,6 @@ class HexagonalArchitectureTest {
     @ArchTest
     static final ArchRule noJpaAnnotationsOutsidePersistence = noClasses()
             .that().resideOutsideOfPackage("..infrastructure.persistence..")
-            .should().beAnnotatedWith(jakarta.persistence.Entity.class)
+            .should().beAnnotatedWith(Entity.class)
             .as("JPA entities live in infrastructure.persistence and are mapped to domain models").allowEmptyShould(true);
 }

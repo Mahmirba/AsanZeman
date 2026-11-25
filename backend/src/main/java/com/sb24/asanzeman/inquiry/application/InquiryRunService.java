@@ -1,12 +1,13 @@
 package com.sb24.asanzeman.inquiry.application;
 
+import com.sb24.asanzeman.inquiry.domain.model.Gender;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryContext;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryCooldownException;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryOutcome;
-import com.sb24.asanzeman.inquiry.domain.model.InquiryType;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryRun;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryRunNotFoundException;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryRunView;
+import com.sb24.asanzeman.inquiry.domain.model.InquiryType;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryVerdict;
 import com.sb24.asanzeman.inquiry.domain.model.RunStatus;
 import com.sb24.asanzeman.inquiry.domain.port.in.InquiryRunFinished;
@@ -19,6 +20,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import org.slf4j.Logger;
@@ -74,10 +76,10 @@ public class InquiryRunService implements InquiryRunUseCase {
     }
 
     @Override
-    public java.util.Optional<com.sb24.asanzeman.inquiry.domain.model.Gender> genderOf(UUID requestId) {
+    public Optional<Gender> genderOf(UUID requestId) {
         InquiryOutcome answer = runs.passedSince(requestId, Instant.EPOCH).get(InquiryType.SABT_AHVAL);
-        return answer == null || answer.civil() == null ? java.util.Optional.empty()
-                : java.util.Optional.of(answer.civil().gender());
+        return answer == null || answer.civil() == null ? Optional.empty()
+                : Optional.of(answer.civil().gender());
     }
 
     @Override
@@ -119,7 +121,7 @@ public class InquiryRunService implements InquiryRunUseCase {
         }
         // the duration of UC-09 for the dashboard, by how the run ended
         metrics.timer("azs.inquiry.run", "decision", verdict.decision().name())
-                .record(java.time.Duration.between(run.startedAt(), finished));
+                .record(Duration.between(run.startedAt(), finished));
         InquiryOutcome rejection = verdict.rejection();
         events.publish(new InquiryRunFinished(run.requestId(), run.id(), verdict.decision(),
                 rejection == null ? null : rejection.messageKey()));

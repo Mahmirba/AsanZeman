@@ -31,9 +31,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @ExtendWith(MockitoExtension.class)
 class ExpireIncompleteRequestsServiceTest {
@@ -50,7 +52,7 @@ class ExpireIncompleteRequestsServiceTest {
     @Mock
     private RecordAuditUseCase audit;
     @Mock
-    private org.springframework.transaction.PlatformTransactionManager transactions;
+    private PlatformTransactionManager transactions;
 
     private ExpireIncompleteRequestsService service;
 
@@ -132,11 +134,11 @@ class ExpireIncompleteRequestsServiceTest {
         when(requests.findByIdForUpdate(fine.id())).thenReturn(Optional.of(fine));
         when(agencies.find(any())).thenReturn(Optional.empty());
         doThrow(new IllegalStateException("outbox down")).when(notifier)
-                .requestExpired(org.mockito.ArgumentMatchers.eq(broken.id()), any(), any(), any());
+                .requestExpired(ArgumentMatchers.eq(broken.id()), any(), any(), any());
 
         assertThat(service.expireIncomplete()).isEqualTo(1);
 
-        verify(notifier).requestExpired(org.mockito.ArgumentMatchers.eq(fine.id()), any(), any(), any());
+        verify(notifier).requestExpired(ArgumentMatchers.eq(fine.id()), any(), any(), any());
     }
 
     @Test
@@ -150,7 +152,7 @@ class ExpireIncompleteRequestsServiceTest {
 
         service.expireIncomplete();
 
-        verify(transactions, org.mockito.Mockito.times(2)).getTransaction(any());
-        verify(transactions, org.mockito.Mockito.times(2)).commit(any());
+        verify(transactions, Mockito.times(2)).getTransaction(any());
+        verify(transactions, Mockito.times(2)).commit(any());
     }
 }

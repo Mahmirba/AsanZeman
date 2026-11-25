@@ -28,6 +28,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -128,7 +129,7 @@ class AdminReferenceControllerTest {
                 .content("{\"cif\":\"9001\",\"code\":\"42\",\"name\":\"Sky\"}")).andExpect(status().isBadRequest());
         mvc.perform(post("/api/admin/rejection-reasons").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"kind\":\"OTHER\",\"text\":\"t\"}")).andExpect(status().isBadRequest());
-        org.mockito.Mockito.verifyNoInteractions(admin);
+        Mockito.verifyNoInteractions(admin);
     }
 
     @Test

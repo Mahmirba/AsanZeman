@@ -39,6 +39,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -117,7 +118,7 @@ class BankLoginServiceTest {
 
     @Test
     void aFailedCaptchaStopsBeforeAaaIsAsked() {
-        org.mockito.Mockito.doThrow(new CaptchaFailedException()).when(captcha).verify(Panel.BANK, "captcha-token");
+        Mockito.doThrow(new CaptchaFailedException()).when(captcha).verify(Panel.BANK, "captcha-token");
 
         assertThatThrownBy(this::login).isInstanceOf(CaptchaFailedException.class);
 

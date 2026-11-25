@@ -1,5 +1,10 @@
 package com.sb24.asanzeman.inquiry.application;
 
+import static com.sb24.asanzeman.inquiry.domain.model.InquiryType.BLACKLIST;
+import static com.sb24.asanzeman.inquiry.domain.model.InquiryType.SABT_AHVAL;
+import static com.sb24.asanzeman.inquiry.domain.model.InquiryType.SAMAT;
+import static com.sb24.asanzeman.inquiry.domain.model.InquiryType.SEPAD;
+import static com.sb24.asanzeman.inquiry.domain.model.InquiryType.SHAHKAR;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -10,21 +15,17 @@ import com.sb24.asanzeman.inquiry.domain.model.InquiryContext;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryOutcome;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryResult;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryType;
-import com.sb24.asanzeman.inquiry.domain.model.InquiryVerdict;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryVerdict.Decision;
+import com.sb24.asanzeman.inquiry.domain.model.InquiryVerdict;
 import com.sb24.asanzeman.inquiry.domain.port.out.InquiryHandler;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
-
-import static com.sb24.asanzeman.inquiry.domain.model.InquiryType.BLACKLIST;
-import static com.sb24.asanzeman.inquiry.domain.model.InquiryType.SABT_AHVAL;
-import static com.sb24.asanzeman.inquiry.domain.model.InquiryType.SAMAT;
-import static com.sb24.asanzeman.inquiry.domain.model.InquiryType.SEPAD;
-import static com.sb24.asanzeman.inquiry.domain.model.InquiryType.SHAHKAR;
 
 /** The two stages of D26 with the real StageRunner and fake inquiries. */
 class InquiryChainTest {
@@ -76,7 +77,7 @@ class InquiryChainTest {
     }
 
     private static List<InquiryResult> results(InquiryVerdict verdict, InquiryType... types) {
-        return java.util.Arrays.stream(types).map(t -> verdict.outcomes().stream()
+        return Arrays.stream(types).map(t -> verdict.outcomes().stream()
                 .filter(o -> o.type() == t).findFirst().orElseThrow().result()).toList();
     }
 
@@ -185,7 +186,7 @@ class InquiryChainTest {
             seen.add(context.civil());
             return InquiryOutcome.passed(SHAHKAR);
         });
-        var reusable = java.util.Map.of(SABT_AHVAL, sabtPassed(), BLACKLIST, InquiryOutcome.passed(BLACKLIST));
+        var reusable = Map.of(SABT_AHVAL, sabtPassed(), BLACKLIST, InquiryOutcome.passed(BLACKLIST));
 
         var verdict = chain(InquiryOutcome.failed(SABT_AHVAL, FailureKind.TIMEOUT), spy, pass(SEPAD),
                 pass(BLACKLIST), pass(SAMAT)).run(START, reusable);
@@ -198,7 +199,7 @@ class InquiryChainTest {
 
     @Test
     void aRetryAsksOnlyWhatFailedBeforeAndStillBlocksIfItFailsAgain() {
-        var reusable = java.util.Map.of(SABT_AHVAL, sabtPassed(), SHAHKAR, InquiryOutcome.passed(SHAHKAR),
+        var reusable = Map.of(SABT_AHVAL, sabtPassed(), SHAHKAR, InquiryOutcome.passed(SHAHKAR),
                 SEPAD, InquiryOutcome.passed(SEPAD), BLACKLIST, InquiryOutcome.passed(BLACKLIST));
 
         var verdict = chain(sabtPassed(), pass(SHAHKAR), pass(SEPAD), pass(BLACKLIST),

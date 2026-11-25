@@ -30,6 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -37,7 +38,9 @@ import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.core.OAuth2AuthorizationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
+import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.test.web.client.response.MockRestResponseCreators;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClient;
 
@@ -163,7 +166,7 @@ class GatewayTokenProviderTest {
     @Test
     void aDroppedConnectionIsRetried() {
         server.expect(requestTo(URL)).andRespond(
-                org.springframework.test.web.client.response.MockRestResponseCreators
+                MockRestResponseCreators
                         .withException(new IOException("connection reset")));
         expectToken("t1", 7200);
 
@@ -174,7 +177,7 @@ class GatewayTokenProviderTest {
 
     @Test
     void givesUpAfterTheRetries() {
-        server.expect(org.springframework.test.web.client.ExpectedCount.times(3), requestTo(URL))
+        server.expect(ExpectedCount.times(3), requestTo(URL))
                 .andRespond(withServerError());
 
         assertThatThrownBy(provider::token).isInstanceOfSatisfying(TemporarilyUnavailableException.class, ex -> {
@@ -240,12 +243,12 @@ class GatewayTokenProviderTest {
     void anEmptyAuthorizationResultIsRetriedThenRefused() {
         var manager = mock(OAuth2AuthorizedClientManager.class);
         var service = mock(OAuth2AuthorizedClientService.class);
-        when(manager.authorize(org.mockito.ArgumentMatchers.any())).thenReturn(null);
+        when(manager.authorize(ArgumentMatchers.any())).thenReturn(null);
         var provider = new GatewayTokenProvider(manager, service, 1, BACKOFF, pauses::add);
 
         assertThatThrownBy(provider::token).isInstanceOf(TemporarilyUnavailableException.class);
 
-        verify(manager, times(2)).authorize(org.mockito.ArgumentMatchers.any());
+        verify(manager, times(2)).authorize(ArgumentMatchers.any());
         assertThat(pauses).containsExactly(BACKOFF);
     }
 
@@ -254,7 +257,7 @@ class GatewayTokenProviderTest {
         var manager = mock(OAuth2AuthorizedClientManager.class);
         var service = mock(OAuth2AuthorizedClientService.class);
         var failure = new OAuth2AuthorizationException(new OAuth2Error("server_error"));
-        when(manager.authorize(org.mockito.ArgumentMatchers.any())).thenThrow(failure);
+        when(manager.authorize(ArgumentMatchers.any())).thenThrow(failure);
         var provider = new GatewayTokenProvider(manager, service, 2, BACKOFF, d -> {
             throw new InterruptedException("stop");
         });
@@ -266,7 +269,7 @@ class GatewayTokenProviderTest {
         } finally {
             Thread.interrupted(); // clear the flag for the other tests
         }
-        verify(manager, times(1)).authorize(org.mockito.ArgumentMatchers.any());
+        verify(manager, times(1)).authorize(ArgumentMatchers.any());
     }
 
     @Test

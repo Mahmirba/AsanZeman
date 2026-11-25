@@ -67,9 +67,9 @@ public class JdbcRefreshTokenStore implements RefreshTokenStorePort {
     }
 
     @Override
-    public int deleteExpiredBefore(java.time.Instant before) {
+    public int deleteExpiredBefore(Instant before) {
         return jdbc.sql("DELETE FROM azs_auth.refresh_tokens WHERE expires_at < :before")
-                .param("before", DbTime.toDb(before), java.sql.Types.TIMESTAMP).update();
+                .param("before", DbTime.toDb(before), Types.TIMESTAMP).update();
     }
 
     @Override

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.sb24.asanzeman.support.MutableClock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -43,7 +44,7 @@ class YaghutSessionTest {
 
     @Test
     void aBranchPageCopiesItsList() {
-        var list = new java.util.ArrayList<>(List.of(
+        var list = new ArrayList<>(List.of(
                 new YaghutBranchPage.Branch("1", "n", "c", "a", "t", "f", "z")));
         var page = new YaghutBranchPage(1, list);
         list.clear();

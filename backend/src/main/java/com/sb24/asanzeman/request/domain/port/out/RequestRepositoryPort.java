@@ -1,6 +1,9 @@
 package com.sb24.asanzeman.request.domain.port.out;
 
 import com.sb24.asanzeman.request.domain.model.Request;
+import com.sb24.asanzeman.request.domain.model.RequestStatus;
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -20,11 +23,11 @@ public interface RequestRepositoryPort {
     Optional<Request> findByIdForUpdate(UUID id);
 
     /** Sets the status of a request whose row this transaction holds. */
-    void updateStatus(UUID id, com.sb24.asanzeman.request.domain.model.RequestStatus status, java.time.Instant at);
+    void updateStatus(UUID id, RequestStatus status, Instant at);
 
     /** The ids of issuance requests still at the agency step that were registered at or before {@code before}, oldest first. */
-    java.util.List<UUID> incompleteSince(java.time.Instant before);
+    List<UUID> incompleteSince(Instant before);
 
     /** @return true when this agency registered a request for this customer at or after {@code since} (D47) */
-    boolean existsSince(UUID agencyId, String customerCode, java.time.Instant since);
+    boolean existsSince(UUID agencyId, String customerCode, Instant since);
 }

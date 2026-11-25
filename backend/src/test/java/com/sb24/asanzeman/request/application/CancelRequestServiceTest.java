@@ -228,7 +228,7 @@ class CancelRequestServiceTest {
 
         verify(notifier).requestCancelled(cancelled.id(), "09121234567", "Sky Travel", "1405/08/30");
         var entries = ArgumentCaptor.forClass(AuditEntry.class);
-        verify(audit, org.mockito.Mockito.times(2)).record(entries.capture());
+        verify(audit, Mockito.times(2)).record(entries.capture());
         assertThat(entries.getAllValues()).extracting(AuditEntry::userName).containsExactly("ali.sky", "ali.sky");
         var revocation = ArgumentCaptor.forClass(Request.class);
         verify(reviews).insertRevocation(revocation.capture(), eq(issued.id()), eq(null));

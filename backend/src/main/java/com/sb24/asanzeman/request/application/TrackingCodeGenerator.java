@@ -5,6 +5,7 @@ import com.sb24.asanzeman.request.domain.port.out.TrackingCounterPort;
 import com.sb24.asanzeman.shared.model.JalaliDate;
 import java.time.Clock;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -24,7 +25,7 @@ public class TrackingCodeGenerator {
         this.clock = clock;
     }
 
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    @Transactional(propagation = Propagation.MANDATORY)
     public TrackingCode next(String branchCode, String agencyCode) {
         JalaliDate day = JalaliDate.ofInstant(clock.instant());
         int counter = counters.next(branchCode, agencyCode, day.toYyMmDd());

@@ -18,6 +18,7 @@ import com.sb24.asanzeman.inquiry.infrastructure.external.SamatHandler;
 import com.sb24.asanzeman.inquiry.infrastructure.external.SepadHandler;
 import com.sb24.asanzeman.inquiry.infrastructure.external.ShahkarHandler;
 import com.sb24.asanzeman.integration.inquiry.config.InquiryClients;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -95,7 +96,7 @@ public class InquiryConfiguration {
 
     @Bean
     InquiryRunService inquiryRunService(InquiryChain chain, InquiryRunRepositoryPort runs, RunEventsPort events,
-            Clock clock, InquiryRunSettings settings, io.micrometer.core.instrument.MeterRegistry metrics) {
+            Clock clock, InquiryRunSettings settings, MeterRegistry metrics) {
         // one virtual thread per run, not a shared bean: nothing else should pick this executor up by type
         return new InquiryRunService(chain, runs, events, Executors.newVirtualThreadPerTaskExecutor(), clock,
                 settings, metrics);

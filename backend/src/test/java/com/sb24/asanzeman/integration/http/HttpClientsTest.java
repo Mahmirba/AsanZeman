@@ -3,8 +3,11 @@ package com.sb24.asanzeman.integration.http;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
+import java.net.Socket;
 import java.time.Duration;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 class HttpClientsTest {
@@ -28,7 +31,7 @@ class HttpClientsTest {
 
     @Test
     void unknownProtocolFailsWithAClearMessage() {
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> HttpClients.trustAllContext("NOT-A-PROTOCOL"))
+        Assertions.assertThatThrownBy(() -> HttpClients.trustAllContext("NOT-A-PROTOCOL"))
                 .isInstanceOf(IllegalStateException.class).hasMessage("cannot create the TLS context");
     }
 
@@ -39,10 +42,10 @@ class HttpClientsTest {
         assertThatCode(() -> {
             trust.checkClientTrusted(null, "RSA");
             trust.checkServerTrusted(null, "RSA");
-            trust.checkClientTrusted(null, "RSA", (java.net.Socket) null);
-            trust.checkServerTrusted(null, "RSA", (java.net.Socket) null);
-            trust.checkClientTrusted(null, "RSA", (javax.net.ssl.SSLEngine) null);
-            trust.checkServerTrusted(null, "RSA", (javax.net.ssl.SSLEngine) null);
+            trust.checkClientTrusted(null, "RSA", (Socket) null);
+            trust.checkServerTrusted(null, "RSA", (Socket) null);
+            trust.checkClientTrusted(null, "RSA", (SSLEngine) null);
+            trust.checkServerTrusted(null, "RSA", (SSLEngine) null);
         }).doesNotThrowAnyException();
         assertThat(trust.getAcceptedIssuers()).isEmpty();
     }

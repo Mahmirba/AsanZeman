@@ -6,6 +6,7 @@ import com.sb24.asanzeman.shared.persistence.DbTime;
 import com.sb24.asanzeman.shared.persistence.RawUuid;
 import java.sql.Types;
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -40,7 +41,7 @@ public class JdbcYaghutSessionStore implements YaghutSessionStorePort {
         return jdbc.sql("SELECT jsession_id, expires_at FROM azs_auth.yaghut_session WHERE family_id = :familyId")
                 .param("familyId", RawUuid.toBytes(familyId), Types.VARBINARY)
                 .query((rs, row) -> new YaghutUserSession(rs.getString("jsession_id"),
-                        DbTime.fromDb(rs.getObject("expires_at", java.time.LocalDateTime.class))))
+                        DbTime.fromDb(rs.getObject("expires_at", LocalDateTime.class))))
                 .optional();
     }
 

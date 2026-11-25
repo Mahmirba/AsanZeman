@@ -3,6 +3,7 @@ package com.sb24.asanzeman.request.infrastructure.persistence;
 import com.sb24.asanzeman.request.domain.model.Companion;
 import com.sb24.asanzeman.request.domain.model.CustomerSnapshot;
 import com.sb24.asanzeman.request.domain.model.Request;
+import com.sb24.asanzeman.request.domain.model.RequestBusyException;
 import com.sb24.asanzeman.request.domain.model.RequestStatus;
 import com.sb24.asanzeman.request.domain.model.RequestType;
 import com.sb24.asanzeman.request.domain.model.TrackingCode;
@@ -11,10 +12,13 @@ import com.sb24.asanzeman.shared.model.Rials;
 import com.sb24.asanzeman.shared.persistence.DbTime;
 import com.sb24.asanzeman.shared.persistence.RawUuid;
 import java.sql.Types;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -112,12 +116,12 @@ public class JdbcRequestRepository implements RequestRepositoryPort {
                                 rs.getString("customer_cert_serial"), rs.getString("customer_cert_series"),
                                 rs.getString("customer_personality"), rs.getString("customer_gender")),
                         companions, rs.getString("registered_by"),
-                        DbTime.fromDb(rs.getObject("registered_at", java.time.LocalDateTime.class))))
+                        DbTime.fromDb(rs.getObject("registered_at", LocalDateTime.class))))
                 .optional();
     }
 
     @Override
-    public java.util.List<UUID> incompleteSince(java.time.Instant before) {
+    public List<UUID> incompleteSince(Instant before) {
         return jdbc.sql("SELECT id FROM azs_business.request WHERE request_type = 'ISSUANCE' "
                 + "AND status = 'REGISTERED_AT_AGENCY' AND registered_at <= :before ORDER BY registered_at")
                 .param("before", DbTime.toDb(before), Types.TIMESTAMP)
@@ -125,7 +129,7 @@ public class JdbcRequestRepository implements RequestRepositoryPort {
     }
 
     @Override
-    public boolean existsSince(UUID agencyId, String customerCode, java.time.Instant since) {
+    public boolean existsSince(UUID agencyId, String customerCode, Instant since) {
         return jdbc.sql("""
                 SELECT COUNT(*) FROM azs_business.request
                  WHERE agency_id = :agency AND customer_code = :code AND registered_at >= :since""")
@@ -141,16 +145,16 @@ public class JdbcRequestRepository implements RequestRepositoryPort {
         try {
             jdbc.sql("SELECT id FROM azs_business.request WHERE id = :id FOR UPDATE NOWAIT")
                     .param("id", RawUuid.toBytes(id), Types.VARBINARY).query((rs, row) -> 1).optional();
-        } catch (org.springframework.dao.PessimisticLockingFailureException e) {
+        } catch (PessimisticLockingFailureException e) {
             // ORA-00054: another transaction holds the row (4.1)
-            throw new com.sb24.asanzeman.request.domain.model.RequestBusyException();
+            throw new RequestBusyException();
         }
         return findById(id);
     }
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
-    public void updateStatus(UUID id, RequestStatus status, java.time.Instant at) {
+    public void updateStatus(UUID id, RequestStatus status, Instant at) {
         jdbc.sql("UPDATE azs_business.request SET status = :status, version = version + 1, updated_at = :at "
                 + "WHERE id = :id")
                 .param("status", status.name(), Types.VARCHAR).param("at", DbTime.toDb(at), Types.TIMESTAMP)

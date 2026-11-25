@@ -2,10 +2,11 @@ package com.sb24.asanzeman.auth.domain.port.out;
 
 import com.sb24.asanzeman.auth.domain.model.Session;
 import java.time.Instant;
+import java.util.UUID;
 
 /** Signs access tokens (RS256 JWT: {@code sub}, {@code role}, {@code branch_code}, {@code iat}, {@code exp}). */
 public interface AccessTokenIssuerPort {
 
     /** @return the signed, compact token */
-    String issue(Session session, java.util.UUID familyId, String jti, Instant issuedAt, Instant expiresAt);
+    String issue(Session session, UUID familyId, String jti, Instant issuedAt, Instant expiresAt);
 }
