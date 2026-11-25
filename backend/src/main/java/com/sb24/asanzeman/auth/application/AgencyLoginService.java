@@ -76,8 +76,8 @@ public class AgencyLoginService implements AgencyLoginUseCase {
         }
         UUID family = UUID.randomUUID();
         yaghutSessions.save(family, account.sessionId(), yaghutEnd);
-        return sessions.start(new Session(agency.id(), subjectName(agency), Role.AGENCY, null), family, yaghutEnd,
-                client);
+        return sessions.start(new Session(agency.id(), subjectName(agency), Role.AGENCY, null, actor(username)), family,
+                yaghutEnd, client);
     }
 
     private Agency agency(YaghutAccount account) {
@@ -89,6 +89,12 @@ public class AgencyLoginService implements AgencyLoginUseCase {
             throw new AgencyNotRegisteredException();
         }
         return agency;
+    }
+
+    /** The Yaghut user name as typed, which Yaghut has just accepted; kept short enough for the token and the table. */
+    private static String actor(String username) {
+        String name = username == null ? "" : username.trim();
+        return name.isEmpty() ? null : name.substring(0, Math.min(name.length(), 100));
     }
 
     private static String subjectName(Agency agency) {

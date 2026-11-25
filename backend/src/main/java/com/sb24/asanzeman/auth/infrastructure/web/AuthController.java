@@ -7,9 +7,11 @@ import com.sb24.asanzeman.auth.domain.port.in.BankLoginUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.CustomerLoginUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.LogoutUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.RefreshSessionUseCase;
+import com.sb24.asanzeman.auth.infrastructure.security.NimbusAccessTokenIssuer;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Clock;
+import java.util.UUID;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -74,9 +76,10 @@ public class AuthController {
 
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void logout(@AuthenticationPrincipal Jwt jwt, @RequestBody(required = false) LogoutRequest body,
-            HttpServletRequest request) {
-        logout.logout(jwt.getId(), jwt.getExpiresAt(), jwt.getSubject(), body == null ? null : body.refreshToken(),
+    public void logout(@AuthenticationPrincipal Jwt jwt, HttpServletRequest request) {
+        // the session comes from the access token itself, so no refresh token of it survives a logout
+        String sid = jwt.getClaimAsString(NimbusAccessTokenIssuer.SESSION_CLAIM);
+        logout.logout(jwt.getId(), jwt.getExpiresAt(), jwt.getSubject(), sid == null ? null : UUID.fromString(sid),
                 client(request));
     }
 

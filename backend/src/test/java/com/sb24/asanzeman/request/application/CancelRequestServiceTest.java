@@ -216,6 +216,26 @@ class CancelRequestServiceTest {
     }
 
     @Test
+    void theAuditNamesThePersonWhoActedForTheAgencyWhileTheSmsKeepsTheAgencyName() {
+        Request cancelled = request(AGENCY, RequestStatus.REGISTERED_AT_AGENCY);
+        Request issued = request(AGENCY, RequestStatus.ISSUED);
+        found(cancelled, null, false);
+        found(issued, null, false);
+        agencyIsActive();
+
+        service.cancel(new CancelRequestCommand(AGENCY, "Sky Travel", cancelled.id(), "10.0.0.5", "Firefox", "ali.sky"));
+        service.cancel(new CancelRequestCommand(AGENCY, "Sky Travel", issued.id(), "10.0.0.5", "Firefox", "ali.sky"));
+
+        verify(notifier).requestCancelled(cancelled.id(), "09121234567", "Sky Travel", "1405/08/30");
+        var entries = ArgumentCaptor.forClass(AuditEntry.class);
+        verify(audit, org.mockito.Mockito.times(2)).record(entries.capture());
+        assertThat(entries.getAllValues()).extracting(AuditEntry::userName).containsExactly("ali.sky", "ali.sky");
+        var revocation = ArgumentCaptor.forClass(Request.class);
+        verify(reviews).insertRevocation(revocation.capture(), eq(issued.id()), eq(null));
+        assertThat(revocation.getValue().registeredBy()).isEqualTo("ali.sky");
+    }
+
+    @Test
     void aSecondRevocationWhileOneIsOpenIsRefused() {
         Request request = request(AGENCY, RequestStatus.ISSUED);
         found(request, null, true);

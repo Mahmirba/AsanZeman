@@ -1,5 +1,6 @@
 package com.sb24.asanzeman.request.application;
 
+import com.sb24.asanzeman.auth.domain.port.in.RevokeSessionsUseCase;
 import com.sb24.asanzeman.request.domain.model.AdminAgency;
 import com.sb24.asanzeman.request.domain.model.AdminItemNotFoundException;
 import com.sb24.asanzeman.request.domain.model.AdminReason;
@@ -17,7 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Agencies and rejection reasons for the admin. Each change and its audit entry are one transaction. The tables are
+ * Agencies and rejection reasons for the admin. Each change and its audit entry are one transaction. Switching an agency off also ends its sessions. The tables are
  * small and read straight from the database, so a change is seen by every instance at once and no cache needs clearing.
  */
 @Service
@@ -30,8 +31,11 @@ public class AdminReferenceService implements AdminReferenceUseCase {
     private final AdminReferencePort reference;
     private final RecordAuditUseCase audit;
     private final Clock clock;
+    private final RevokeSessionsUseCase sessions;
 
-    public AdminReferenceService(AdminReferencePort reference, RecordAuditUseCase audit, Clock clock) {
+    public AdminReferenceService(AdminReferencePort reference, RecordAuditUseCase audit, Clock clock,
+            RevokeSessionsUseCase sessions) {
+        this.sessions = sessions;
         this.reference = reference;
         this.audit = audit;
         this.clock = clock;
@@ -56,6 +60,10 @@ public class AdminReferenceService implements AdminReferenceUseCase {
         AdminAgency before = reference.findAgency(id).orElseThrow(AdminItemNotFoundException::new);
         reference.updateAgency(id, data, actor.name(), clock.instant());
         record(actor, AGENCY, id, "UPDATE", before.data().toString(), data.toString());
+        if (before.data().active() && !data.active()) {
+            // a switched-off agency is logged out of every session at once, not after its 8-hour refresh tokens
+            sessions.revokeAllOf(id);
+        }
         return new AdminAgency(id, data);
     }
 

@@ -44,12 +44,14 @@ class AdminReferenceServiceTest {
     private AdminReferencePort reference;
     @Mock
     private RecordAuditUseCase audit;
+    @Mock
+    private com.sb24.asanzeman.auth.domain.port.in.RevokeSessionsUseCase sessions;
 
     private AdminReferenceService service;
 
     @BeforeEach
     void setUp() {
-        service = new AdminReferenceService(reference, audit, new MutableClock(NOW));
+        service = new AdminReferenceService(reference, audit, new MutableClock(NOW), sessions);
     }
 
     private AuditEntry audited() {
@@ -101,6 +103,25 @@ class AdminReferenceServiceTest {
         verify(reference).updateAgency(id, AGENCY, "root", NOW);
         assertThat(audited()).extracting(AuditEntry::action, AuditEntry::entityId, AuditEntry::oldValue,
                 AuditEntry::newValue).containsExactly("UPDATE", id, before.toString(), AGENCY.toString());
+    }
+
+    @Test
+    void switchingAnAgencyOffEndsItsSessionsButOtherChangesDoNot() {
+        UUID id = UUID.randomUUID();
+        var on = new AgencyData("9001", "0042", "Sky", true, null);
+        var off = new AgencyData("9001", "0042", "Sky", false, null);
+        when(reference.findAgency(id)).thenReturn(Optional.of(new AdminAgency(id, on)));
+
+        service.updateAgency(ADMIN, id, new AgencyData("9001", "0042", "Renamed", true, null));
+        verifyNoInteractions(sessions);
+
+        service.updateAgency(ADMIN, id, off);
+        verify(sessions).revokeAllOf(id);
+
+        when(reference.findAgency(id)).thenReturn(Optional.of(new AdminAgency(id, off)));
+        service.updateAgency(ADMIN, id, off); // already off: nothing new to end
+        service.updateAgency(ADMIN, id, on); // switched back on: nothing to end
+        verify(sessions, org.mockito.Mockito.times(1)).revokeAllOf(id);
     }
 
     @Test

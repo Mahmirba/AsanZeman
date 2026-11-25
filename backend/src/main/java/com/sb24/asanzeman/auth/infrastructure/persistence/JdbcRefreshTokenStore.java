@@ -25,13 +25,13 @@ public class JdbcRefreshTokenStore implements RefreshTokenStorePort {
 
     static final String INSERT = """
             INSERT INTO azs_auth.refresh_tokens (id, family_id, subject_id, subject_name, role, branch_code,
-                                                 token_hash, expires_at, used_at, revoked_at)
-            VALUES (:id, :familyId, :subjectId, :subjectName, :role, :branchCode, :tokenHash, :expiresAt, :usedAt,
-                    :revokedAt)
+                                                 actor_name, token_hash, expires_at, used_at, revoked_at)
+            VALUES (:id, :familyId, :subjectId, :subjectName, :role, :branchCode, :actorName, :tokenHash, :expiresAt,
+                    :usedAt, :revokedAt)
             """;
     static final String SELECT_BY_HASH = """
-            SELECT id, family_id, subject_id, subject_name, role, branch_code, token_hash, expires_at, used_at,
-                   revoked_at
+            SELECT id, family_id, subject_id, subject_name, role, branch_code, actor_name, token_hash, expires_at,
+                   used_at, revoked_at
               FROM azs_auth.refresh_tokens WHERE token_hash = :hash
             """;
     static final String MARK_USED = """
@@ -58,6 +58,7 @@ public class JdbcRefreshTokenStore implements RefreshTokenStorePort {
                 .param("subjectName", s.subjectName(), Types.VARCHAR)
                 .param("role", s.role().name(), Types.VARCHAR)
                 .param("branchCode", s.branchCode(), Types.VARCHAR)
+                .param("actorName", s.actor(), Types.VARCHAR)
                 .param("tokenHash", token.tokenHash(), Types.VARCHAR)
                 .param("expiresAt", DbTime.toDb(token.expiresAt()), Types.TIMESTAMP)
                 .param("usedAt", DbTime.toDb(token.usedAt()), Types.TIMESTAMP)
@@ -89,9 +90,16 @@ public class JdbcRefreshTokenStore implements RefreshTokenStorePort {
                 .param("at", DbTime.toDb(at), Types.TIMESTAMP).update();
     }
 
+    @Override
+    public void revokeAllOf(UUID subjectId, Instant at) {
+        jdbc.sql("UPDATE azs_auth.refresh_tokens SET revoked_at = :at WHERE subject_id = :subject AND revoked_at IS NULL")
+                .param("subject", RawUuid.toBytes(subjectId), Types.VARBINARY)
+                .param("at", DbTime.toDb(at), Types.TIMESTAMP).update();
+    }
+
     private static RefreshTokenRecord map(ResultSet rs) throws SQLException {
         Session session = new Session(RawUuid.fromBytes(rs.getBytes("subject_id")), rs.getString("subject_name"),
-                Role.valueOf(rs.getString("role")), rs.getString("branch_code"));
+                Role.valueOf(rs.getString("role")), rs.getString("branch_code"), rs.getString("actor_name"));
         return new RefreshTokenRecord(RawUuid.fromBytes(rs.getBytes("id")),
                 RawUuid.fromBytes(rs.getBytes("family_id")), session, rs.getString("token_hash"),
                 DbTime.fromDb(rs.getObject("expires_at", LocalDateTime.class)),

@@ -1,5 +1,6 @@
 package com.sb24.asanzeman.request.infrastructure.persistence;
 
+import com.sb24.asanzeman.request.domain.model.GuaranteeNumberTakenException;
 import com.sb24.asanzeman.request.domain.model.RejectionReason;
 import com.sb24.asanzeman.request.domain.model.Request;
 import com.sb24.asanzeman.request.domain.model.RequestStatus;
@@ -104,9 +105,13 @@ public class JdbcReviewRepository implements ReviewRepositoryPort {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void recordIssue(UUID requestId, String guaranteeNumber, Instant at) {
-        jdbc.sql("UPDATE azs_business.request SET guarantee_number = :number, issued_at = :at WHERE id = :id")
+        try {
+            jdbc.sql("UPDATE azs_business.request SET guarantee_number = :number, issued_at = :at WHERE id = :id")
                 .param("number", guaranteeNumber, Types.VARCHAR).param("at", DbTime.toDb(at), Types.TIMESTAMP)
                 .param("id", RawUuid.toBytes(requestId), Types.VARBINARY).update();
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            throw new GuaranteeNumberTakenException(); // the unique index: another request has this number
+        }
     }
 
     @Override

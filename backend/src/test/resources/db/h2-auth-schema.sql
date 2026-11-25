@@ -29,6 +29,7 @@ CREATE TABLE azs_auth.refresh_tokens (
     subject_name VARCHAR(100)   NOT NULL,
     role         VARCHAR(16)    NOT NULL,
     branch_code  VARCHAR(10),
+    actor_name   VARCHAR(100),
     token_hash   VARCHAR(64)    NOT NULL,
     expires_at   TIMESTAMP(6)   NOT NULL,
     used_at      TIMESTAMP(6),
@@ -188,6 +189,7 @@ CREATE TABLE azs_business.request (
     updated_by                VARCHAR(100),
     CONSTRAINT pk_request PRIMARY KEY (id),
     CONSTRAINT ux_request_tracking_code UNIQUE (tracking_code),
+    CONSTRAINT ux_request_guarantee_number UNIQUE (guarantee_number),
     CONSTRAINT fk_request_agency FOREIGN KEY (agency_id) REFERENCES azs_business.agency (id),
     CONSTRAINT fk_request_branch FOREIGN KEY (branch_code) REFERENCES azs_business.branch (branch_code)
 );

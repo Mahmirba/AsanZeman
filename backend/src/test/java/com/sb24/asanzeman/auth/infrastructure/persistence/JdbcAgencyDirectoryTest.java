@@ -16,7 +16,7 @@ class JdbcAgencyDirectoryTest {
 
     private UUID insert(String cif, int active) {
         UUID id = UUID.randomUUID();
-        jdbc.sql("INSERT INTO azs_business.agency (id, cif, code, name, active) VALUES (:id, :cif, '1234', 'Sky', :a)")
+        jdbc.sql("INSERT INTO azs_business.agency (id, cif, code, name, active) VALUES (:id, :cif, :cif, 'Sky', :a)")
                 .param("id", RawUuid.toBytes(id), Types.VARBINARY).param("cif", cif).param("a", active).update();
         return id;
     }
@@ -37,6 +37,16 @@ class JdbcAgencyDirectoryTest {
         insert("9002", 0);
 
         assertThat(directory.findByCif("9002").orElseThrow().active()).isFalse();
+    }
+
+    @Test
+    void findsAnAgencyByItsIdInactiveOnesToo() {
+        UUID active = insert("9003", 1);
+        UUID inactive = insert("9004", 0);
+
+        assertThat(directory.findById(active).orElseThrow().active()).isTrue();
+        assertThat(directory.findById(inactive).orElseThrow().active()).isFalse();
+        assertThat(directory.findById(UUID.randomUUID())).isEmpty();
     }
 
     @Test

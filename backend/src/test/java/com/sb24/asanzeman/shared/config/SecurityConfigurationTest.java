@@ -129,6 +129,23 @@ class SecurityConfigurationTest {
     }
 
     @Test
+    void onlyAnAdminMayReadTheMetricsAndOtherActuatorEndpoints() throws Exception {
+        for (Role role : new Role[] {Role.CUSTOMER, Role.AGENCY, Role.BRANCH}) {
+            mvc.perform(get("/actuator/metrics").header("Authorization", bearer(role)))
+                    .andExpect(status().isForbidden());
+        }
+        mvc.perform(get("/actuator/metrics")).andExpect(status().isUnauthorized());
+        // an admin passes the security rules (the probe app has no actuator, so the answer is a 404)
+        mvc.perform(get("/actuator/metrics").header("Authorization", bearer(Role.ADMIN)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void theHealthProbesStayPublic() throws Exception {
+        mvc.perform(get("/actuator/health")).andExpect(status().isNotFound()); // not 401: the rules let it through
+    }
+
+    @Test
     void theApiDocsAndTheSwaggerPageAreNotPublic() throws Exception {
         mvc.perform(get("/v3/api-docs")).andExpect(status().isUnauthorized());
         mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isUnauthorized());

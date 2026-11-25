@@ -69,7 +69,7 @@ public class AgencyRequestController {
         List<CompanionInput> companions = body.companions() == null ? List.of()
                 : body.companions().stream().map(c -> new CompanionInput(c.fullName(), c.nationalCode(),
                         date(c.birthDate()), c.passportNumber())).toList();
-        return register.register(new RegisterRequestCommand(agency(jwt), session(jwt), jwt.getSubject(),
+        return register.register(new RegisterRequestCommand(agency(jwt), session(jwt), actor(jwt),
                 body.nationalCode(), body.branchCode(), body.amount(), date(body.dueDate()), companions,
                 http.getRemoteAddr(), http.getHeader(HttpHeaders.USER_AGENT)));
     }
@@ -125,11 +125,17 @@ public class AgencyRequestController {
     public CancelRequestResult cancel(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
             HttpServletRequest http) {
         return cancel.cancel(new CancelRequestCommand(agency(jwt), jwt.getSubject(), id, http.getRemoteAddr(),
-                http.getHeader(HttpHeaders.USER_AGENT)));
+                http.getHeader(HttpHeaders.USER_AGENT), actor(jwt)));
     }
 
     static UUID agency(Jwt jwt) {
         return UUID.fromString(jwt.getClaimAsString("uid"));
+    }
+
+    /** The person who logged in for the agency, from the token; the agency name for a token that has none. */
+    static String actor(Jwt jwt) {
+        String actor = jwt.getClaimAsString("usr");
+        return actor == null ? jwt.getSubject() : actor;
     }
 
     static UUID session(Jwt jwt) {

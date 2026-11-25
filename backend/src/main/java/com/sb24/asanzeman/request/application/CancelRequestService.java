@@ -80,7 +80,7 @@ public class CancelRequestService implements CancelRequestUseCase {
         String sentDate = JalaliDate.fromGregorian(now.atZone(TrackingCodeGenerator.TEHRAN).toLocalDate())
                 .toSlashed();
         notifier.requestCancelled(request.id(), request.customer().mobile(), command.agencyName(), sentDate);
-        audit.record(new AuditEntry(command.agencyId(), command.agencyName(), "AGENCY", ENTITY, request.id(),
+        audit.record(new AuditEntry(command.agencyId(), command.actor(), "AGENCY", ENTITY, request.id(),
                 "CANCEL", request.status().name(), cancelled.status().name(), null, command.clientIp(),
                 command.userAgent(), null));
         return new CancelRequestResult(request.id(), CancelOutcome.CANCELLED, cancelled.status());
@@ -98,9 +98,9 @@ public class CancelRequestService implements CancelRequestUseCase {
         ReviewLock lock = holder == null ? null : new ReviewLock(holder.holderId(), holder.holderName(), now, now);
         RequestStatus status = holder == null ? RequestStatus.PENDING_BRANCH_REVIEW : RequestStatus.UNDER_REVIEW;
         Request revocation = issuance.requestRevocation(UUID.randomUUID(),
-                trackingCodes.next(issuance.branchCode(), agency.code()), status, command.agencyName(), now);
+                trackingCodes.next(issuance.branchCode(), agency.code()), status, command.actor(), now);
         reviews.insertRevocation(revocation, issuance.id(), lock);
-        audit.record(new AuditEntry(command.agencyId(), command.agencyName(), "AGENCY", ENTITY, issuance.id(),
+        audit.record(new AuditEntry(command.agencyId(), command.actor(), "AGENCY", ENTITY, issuance.id(),
                 "REQUEST_REVOCATION", issuance.status().name(), issuance.status().name(),
                 "revocation " + revocation.trackingCode().value(), command.clientIp(), command.userAgent(), null));
         return new CancelRequestResult(revocation.id(), CancelOutcome.REVOCATION_REQUESTED, revocation.status());

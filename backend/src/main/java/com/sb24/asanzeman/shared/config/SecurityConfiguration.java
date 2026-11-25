@@ -50,6 +50,8 @@ public class SecurityConfiguration {
                         .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER)))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC).permitAll()
+                        // metrics and the like are for ops: no customer, agency or branch token may read them
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(o -> o
                         .jwt(j -> j.decoder(jwtDecoder).jwtAuthenticationConverter(jwtAuthenticationConverter))

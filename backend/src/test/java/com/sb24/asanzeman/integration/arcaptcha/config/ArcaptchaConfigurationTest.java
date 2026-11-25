@@ -12,6 +12,24 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 class ArcaptchaConfigurationTest {
 
     @Test
+    void switchingTheCaptchaOffNeedsTheLocalMockFlagToo() {
+        var base = new ApplicationContextRunner().withUserConfiguration(ArcaptchaConfiguration.class)
+                .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+                .withPropertyValues("azs.integration.arcaptcha.verify-url=https://captcha.test/verify",
+                        "azs.integration.arcaptcha.verify-enabled=false",
+                        "azs.integration.arcaptcha.bank.site-key=bs", "azs.integration.arcaptcha.bank.secret-key=bk",
+                        "azs.integration.arcaptcha.agency.site-key=as", "azs.integration.arcaptcha.agency.secret-key=ak",
+                        "azs.integration.arcaptcha.customer.site-key=cs", "azs.integration.arcaptcha.customer.secret-key=ck",
+                        "azs.integration.arcaptcha.connect-timeout=2s", "azs.integration.arcaptcha.read-timeout=5s",
+                        "azs.integration.arcaptcha.tls.skip-verify=false");
+
+        base.run(context -> org.assertj.core.api.Assertions.assertThat(context.getStartupFailure())
+                .hasRootCauseInstanceOf(IllegalStateException.class).rootCause().hasMessageContaining("allow-disabled"));
+        base.withPropertyValues("azs.integration.arcaptcha.allow-disabled=true")
+                .run(context -> org.assertj.core.api.Assertions.assertThat(context).hasNotFailed());
+    }
+
+    @Test
     void createsTheClientAndBindsTheKeysOfEachPanel() {
         new ApplicationContextRunner().withUserConfiguration(ArcaptchaConfiguration.class)
                 .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
