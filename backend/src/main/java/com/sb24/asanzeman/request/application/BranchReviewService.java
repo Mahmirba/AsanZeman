@@ -1,6 +1,5 @@
 package com.sb24.asanzeman.request.application;
 
-import com.sb24.asanzeman.inquiry.domain.port.in.InquiryRunUseCase;
 import com.sb24.asanzeman.request.domain.model.GuaranteeNumber;
 import com.sb24.asanzeman.request.domain.model.InvalidRequestDataException;
 import com.sb24.asanzeman.request.domain.model.Request;
@@ -11,14 +10,9 @@ import com.sb24.asanzeman.request.domain.model.Review;
 import com.sb24.asanzeman.request.domain.port.in.BranchCommand;
 import com.sb24.asanzeman.request.domain.port.in.BranchReviewUseCase;
 import com.sb24.asanzeman.request.domain.port.in.ReviewResult;
-import com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort;
-import com.sb24.asanzeman.request.domain.port.out.BranchRepositoryPort;
-import com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort;
 import com.sb24.asanzeman.request.domain.port.out.ReviewRepositoryPort;
-import com.sb24.asanzeman.request.domain.service.Salutation;
 import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
 import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
-import com.sb24.asanzeman.shared.model.JalaliDate;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
@@ -47,22 +41,15 @@ public class BranchReviewService implements BranchReviewUseCase {
     private static final Logger log = LoggerFactory.getLogger(BranchReviewService.class);
 
     private final ReviewRepositoryPort reviews;
-    private final CustomerNotifierPort notifier;
-    private final AgencyRegistryPort agencies;
-    private final BranchRepositoryPort branches;
+    private final BranchSms sms;
     private final RecordAuditUseCase audit;
     private final Clock clock;
     private final ReviewSettings settings;
-    private final InquiryRunUseCase inquiries;
 
-    public BranchReviewService(ReviewRepositoryPort reviews, CustomerNotifierPort notifier, AgencyRegistryPort agencies,
-            BranchRepositoryPort branches, RecordAuditUseCase audit, Clock clock, ReviewSettings settings,
-            InquiryRunUseCase inquiries) {
-        this.inquiries = inquiries;
+    public BranchReviewService(ReviewRepositoryPort reviews, BranchSms sms, RecordAuditUseCase audit, Clock clock,
+            ReviewSettings settings) {
         this.reviews = reviews;
-        this.notifier = notifier;
-        this.agencies = agencies;
-        this.branches = branches;
+        this.sms = sms;
         this.audit = audit;
         this.clock = clock;
         this.settings = settings;
@@ -96,13 +83,9 @@ public class BranchReviewService implements BranchReviewUseCase {
         reviews.recordRejection(command.requestId(), reasonId, text);
         Request request = applied.after().request();
         if (revocation) {
-            notifier.revocationRejected(request.id(), request.customer().mobile(), agencyName(request),
-                    branchName(request), today(), salutation(request, before.parentId()));
-            notifier.agencyRevocationRejected(request.id(), agencyMobile(request), request.trackingCode().value(),
-                    branchName(request), today());
+            sms.revocationRejected(request, before.parentId());
         } else {
-            notifier.requestRejected(request.id(), request.customer().mobile(), agencyName(request),
-                    branchName(request), today(), salutation(request, request.id()));
+            sms.issuanceRejected(request);
         }
         return applied.result();
     }
@@ -112,9 +95,7 @@ public class BranchReviewService implements BranchReviewUseCase {
         GuaranteeNumber number = new GuaranteeNumber(guaranteeNumber);
         Applied applied = apply(command, "ISSUE", (review, now) -> review.issue(command.user()), number.value());
         reviews.recordIssue(command.requestId(), number.value(), clock.instant());
-        Request request = applied.after().request();
-        notifier.guaranteeIssued(request.id(), request.customer().mobile(), agencyName(request), branchName(request),
-                today(), salutation(request, request.id()));
+        sms.issued(applied.after().request());
         return applied.result();
     }
 
@@ -133,12 +114,7 @@ public class BranchReviewService implements BranchReviewUseCase {
         reviews.save(issuanceId, revoked.request().status(), null, now);
         record(command, issuanceId, "REVOKED", issuance.request().status().name(), revoked.request().status().name(),
                 "by revocation " + command.requestId());
-        Request request = revoked.request();
-        notifier.guaranteeRevoked(request.id(), request.customer().mobile(), agencyName(request),
-                branchName(request), today(), salutation(request, request.id()));
-        Request revocation = applied.after().request();
-        notifier.agencyRevocationCompleted(revocation.id(), agencyMobile(revocation), revocation.trackingCode().value(),
-                branchName(revocation), today());
+        sms.revoked(revoked.request(), applied.after().request());
         return applied.result();
     }
 
@@ -210,27 +186,5 @@ public class BranchReviewService implements BranchReviewUseCase {
         var user = command.user();
         audit.record(new AuditEntry(user.id(), user.name(), user.admin() ? "ADMIN" : "BRANCH", ENTITY, requestId,
                 action, from, to, reason, command.clientIp(), command.userAgent(), null));
-    }
-
-    private String agencyName(Request request) {
-        return agencies.find(request.agencyId()).map(a -> a.name()).orElse("");
-    }
-
-    /** The customer's gender is from the issuance request's inquiries; a revocation request has none of its own. */
-    private String salutation(Request request, UUID issuanceId) {
-        String gender = inquiries.genderOf(issuanceId).map(Enum::name).orElse(null);
-        return Salutation.line(gender, request.customer().fullName());
-    }
-
-    private String agencyMobile(Request request) {
-        return agencies.find(request.agencyId()).map(a -> a.mobile()).orElse(null);
-    }
-
-    private String branchName(Request request) {
-        return branches.nameOf(request.branchCode()).orElse(request.branchCode());
-    }
-
-    private String today() {
-        return JalaliDate.ofInstant(clock.instant()).toSlashed();
     }
 }

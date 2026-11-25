@@ -3,15 +3,13 @@ package com.sb24.asanzeman.request.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.sb24.asanzeman.inquiry.domain.model.Gender;
-import com.sb24.asanzeman.inquiry.domain.port.in.InquiryRunUseCase;
-import com.sb24.asanzeman.request.domain.model.AgencyInfo;
 import com.sb24.asanzeman.request.domain.model.BranchUser;
 import com.sb24.asanzeman.request.domain.model.InvalidRequestDataException;
 import com.sb24.asanzeman.request.domain.model.NotYourBranchException;
@@ -28,9 +26,6 @@ import com.sb24.asanzeman.request.domain.model.ReviewLock;
 import com.sb24.asanzeman.request.domain.model.TrackingCode;
 import com.sb24.asanzeman.request.domain.port.in.BranchCommand;
 import com.sb24.asanzeman.request.domain.port.in.ReviewResult;
-import com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort;
-import com.sb24.asanzeman.request.domain.port.out.BranchRepositoryPort;
-import com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort;
 import com.sb24.asanzeman.request.domain.port.out.ReviewRepositoryPort;
 import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
 import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
@@ -66,13 +61,7 @@ class BranchReviewServiceTest {
     @Mock
     private ReviewRepositoryPort reviews;
     @Mock
-    private CustomerNotifierPort notifier;
-    @Mock
-    private InquiryRunUseCase inquiries;
-    @Mock
-    private AgencyRegistryPort agencies;
-    @Mock
-    private BranchRepositoryPort branches;
+    private BranchSms sms;
     @Mock
     private RecordAuditUseCase audit;
 
@@ -80,8 +69,8 @@ class BranchReviewServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new BranchReviewService(reviews, notifier, agencies, branches, audit, new MutableClock(NOW),
-                new ReviewSettings(Duration.ofMinutes(60)), inquiries);
+        service = new BranchReviewService(reviews, sms, audit, new MutableClock(NOW),
+                new ReviewSettings(Duration.ofMinutes(60)));
     }
 
     private static Request request(RequestStatus status) {
@@ -183,17 +172,13 @@ class BranchReviewServiceTest {
         Request request = request(RequestStatus.UNDER_REVIEW);
         found(request, ALI);
         when(reviews.reasonExists(REASON, "ISSUANCE")).thenReturn(true);
-        when(agencies.find(request.agencyId())).thenReturn(
-                Optional.of(new AgencyInfo(request.agencyId(), "0042", "Sky Travel", true)));
-        when(branches.nameOf("0123")).thenReturn(Optional.of("Valiasr"));
 
         ReviewResult result = service.reject(command(ALI, request), REASON, "  documents are incomplete ");
 
         assertThat(result.status()).isEqualTo(RequestStatus.REJECTED);
         assertThat(result.heldBy()).isNull();
         verify(reviews).recordRejection(request.id(), REASON, "documents are incomplete");
-        verify(notifier).requestRejected(request.id(), request.customer().mobile(), "Sky Travel", "Valiasr",
-                "1405/09/02", "");
+        verify(sms).issuanceRejected(argThat(r -> r.id().equals(request.id())));
     }
 
     @Test
@@ -204,7 +189,7 @@ class BranchReviewServiceTest {
             assertThatThrownBy(() -> service.reject(command(ALI, request), REASON, comment))
                     .isInstanceOf(InvalidRequestDataException.class);
         }
-        verifyNoInteractions(reviews, notifier, audit); // a bad comment is refused before the request is even read
+        verifyNoInteractions(reviews, sms, audit); // a bad comment is refused before the request is even read
 
         found(request, ALI);
         when(reviews.reasonExists(REASON, "ISSUANCE")).thenReturn(false);
@@ -216,7 +201,7 @@ class BranchReviewServiceTest {
         // a wrong reason ends the transaction with nothing saved, audited or sent
         verify(reviews, never()).save(any(), any(), any(), any());
         verify(reviews, never()).recordRejection(any(), any(), any());
-        verifyNoInteractions(notifier, audit);
+        verifyNoInteractions(sms, audit);
     }
 
     @Test
@@ -224,11 +209,10 @@ class BranchReviewServiceTest {
         Request request = request(RequestStatus.UNDER_REVIEW);
         found(request, ALI);
         when(reviews.reasonExists(REASON, "ISSUANCE")).thenReturn(true);
-        when(branches.nameOf(anyString())).thenReturn(Optional.empty());
 
         service.reject(command(ALI, request), REASON, "x".repeat(200));
 
-        verify(notifier).requestRejected(request.id(), request.customer().mobile(), "", "0123", "1405/09/02", "");
+        verify(sms).issuanceRejected(argThat(r -> r.id().equals(request.id())));
     }
 
     // ---- issue ----------------------------------------------------------------------------------------------
@@ -237,17 +221,13 @@ class BranchReviewServiceTest {
     void issuingRecordsTheGuaranteeNumberAndTellsTheCustomer() {
         Request request = request(RequestStatus.UNDER_ACTION);
         found(request, ALI);
-        when(agencies.find(request.agencyId())).thenReturn(
-                Optional.of(new AgencyInfo(request.agencyId(), "0042", "Sky Travel", true)));
-        when(branches.nameOf("0123")).thenReturn(Optional.of("Valiasr"));
 
         ReviewResult result = service.issue(command(ALI, request), " GT-001/2026 ");
 
         assertThat(result.status()).isEqualTo(RequestStatus.ISSUED);
         assertThat(result.heldBy()).isNull();
         verify(reviews).recordIssue(request.id(), "GT-001/2026", NOW);
-        verify(notifier).guaranteeIssued(request.id(), request.customer().mobile(), "Sky Travel", "Valiasr",
-                "1405/09/02", "");
+        verify(sms).issued(argThat(r -> r.id().equals(request.id()) && r.status() == RequestStatus.ISSUED));
         var entry = ArgumentCaptor.forClass(AuditEntry.class);
         verify(audit).record(entry.capture());
         assertThat(entry.getValue()).extracting(AuditEntry::action, AuditEntry::reason)
@@ -260,7 +240,7 @@ class BranchReviewServiceTest {
 
         assertThatThrownBy(() -> service.issue(command(ALI, request), "12 34"))
                 .isInstanceOf(InvalidRequestDataException.class);
-        verifyNoInteractions(reviews, notifier, audit);
+        verifyNoInteractions(reviews, sms, audit);
     }
 
     @Test
@@ -270,38 +250,8 @@ class BranchReviewServiceTest {
 
         assertThatThrownBy(() -> service.issue(command(ALI, request), "GT-1"))
                 .isInstanceOf(RequestNotReviewableException.class);
-        verifyNoInteractions(notifier);
+        verifyNoInteractions(sms);
         verify(reviews, never()).recordIssue(any(), any(), any());
-    }
-
-    // ---- the salutation line (6.4) ------------------------------------------------------------------------
-
-    @Test
-    void theCustomerIsAddressedByTheRegistryGenderWhenItIsKnown() {
-        Request request = request(RequestStatus.UNDER_ACTION);
-        found(request, ALI);
-        when(inquiries.genderOf(request.id())).thenReturn(Optional.of(Gender.MALE));
-        when(branches.nameOf(anyString())).thenReturn(Optional.of("Valiasr"));
-
-        service.issue(command(ALI, request), "GT-1");
-
-        verify(notifier).guaranteeIssued(request.id(), request.customer().mobile(), "", "Valiasr", "1405/09/02",
-                "آقا Ali Rezaei\n");
-    }
-
-    @Test
-    void aRevocationIsAddressedByTheGenderOfItsIssuanceRequest() {
-        UUID issuanceId = UUID.randomUUID();
-        Request revocation = revocation(RequestStatus.UNDER_REVIEW);
-        foundRevocation(revocation, issuanceId);
-        when(reviews.reasonExists(REASON, "REVOCATION")).thenReturn(true);
-        when(inquiries.genderOf(issuanceId)).thenReturn(Optional.of(Gender.FEMALE));
-        when(branches.nameOf(anyString())).thenReturn(Optional.of("Valiasr"));
-
-        service.reject(command(ALI, revocation), REASON, "still in use");
-
-        verify(notifier).revocationRejected(revocation.id(), revocation.customer().mobile(), "", "Valiasr",
-                "1405/09/02", "خانم Ali Rezaei\n");
     }
 
     // ---- revocation (4.2) -----------------------------------------------------------------------------------
@@ -322,19 +272,16 @@ class BranchReviewServiceTest {
     @Test
     void aRevocationIsRejectedWithAReasonFromTheRevocationList() {
         Request revocation = revocation(RequestStatus.UNDER_REVIEW);
-        foundRevocation(revocation, UUID.randomUUID());
+        UUID issuanceId = UUID.randomUUID();
+        foundRevocation(revocation, issuanceId);
         when(reviews.reasonExists(REASON, "REVOCATION")).thenReturn(true);
-        when(agencies.find(revocation.agencyId())).thenReturn(
-                Optional.of(new AgencyInfo(revocation.agencyId(), "0042", "Sky Travel", true, "09129990000")));
-        when(branches.nameOf("0123")).thenReturn(Optional.of("Valiasr"));
 
         ReviewResult result = service.reject(command(ALI, revocation), REASON, "still in use");
 
         assertThat(result.status()).isEqualTo(RequestStatus.REJECTED);
         verify(reviews).recordRejection(revocation.id(), REASON, "still in use");
-        verify(notifier).revocationRejected(revocation.id(), revocation.customer().mobile(), "Sky Travel", "Valiasr",
-                "1405/09/02", "");
-        verify(notifier, never()).requestRejected(any(), any(), any(), any(), any(), any());
+        verify(sms).revocationRejected(argThat(r -> r.id().equals(revocation.id())), eq(issuanceId));
+        verify(sms, never()).issuanceRejected(any());
         var entry = ArgumentCaptor.forClass(AuditEntry.class);
         verify(audit).record(entry.capture());
         assertThat(entry.getValue().action()).isEqualTo("REJECT_REVOCATION");
@@ -349,7 +296,7 @@ class BranchReviewServiceTest {
         assertThatThrownBy(() -> service.reject(command(ALI, revocation), REASON, "x"))
                 .isInstanceOf(InvalidRequestDataException.class);
         verify(reviews, never()).save(any(), any(), any(), any());
-        verifyNoInteractions(notifier, audit);
+        verifyNoInteractions(sms, audit);
     }
 
     @Test
@@ -361,9 +308,6 @@ class BranchReviewServiceTest {
                 revocation.agencyId(), "0123", Rials.of(1000), LocalDate.of(2027, 1, 20), revocation.customer(),
                 List.of(), "Sky Travel", NOW);
         when(reviews.findForUpdate(issuanceId)).thenReturn(Optional.of(new Review(issued, null, "0123")));
-        when(agencies.find(issued.agencyId())).thenReturn(
-                Optional.of(new AgencyInfo(issued.agencyId(), "0042", "Sky Travel", true, "09129990000")));
-        when(branches.nameOf("0123")).thenReturn(Optional.of("Valiasr"));
 
         ReviewResult result = service.completeRevocation(command(ALI, revocation));
 
@@ -371,10 +315,8 @@ class BranchReviewServiceTest {
         assertThat(result.heldBy()).isNull();
         verify(reviews).save(revocation.id(), RequestStatus.COMPLETED, null, NOW);
         verify(reviews).save(issuanceId, RequestStatus.REVOKED, null, NOW);
-        verify(notifier).guaranteeRevoked(issuanceId, issued.customer().mobile(), "Sky Travel", "Valiasr",
-                "1405/09/02", "");
-        verify(notifier).agencyRevocationCompleted(revocation.id(), "09129990000",
-                revocation.trackingCode().value(), "Valiasr", "1405/09/02");
+        verify(sms).revoked(argThat(r -> r.id().equals(issuanceId) && r.status() == RequestStatus.REVOKED),
+                argThat(r -> r.id().equals(revocation.id()) && r.status() == RequestStatus.COMPLETED));
         var entries = ArgumentCaptor.forClass(AuditEntry.class);
         verify(audit, Mockito.times(2)).record(entries.capture());
         assertThat(entries.getAllValues()).extracting(AuditEntry::action, AuditEntry::entityId, AuditEntry::newValue)
@@ -392,7 +334,6 @@ class BranchReviewServiceTest {
                 List.of(), "Sky Travel", NOW);
         when(reviews.findForUpdate(issuanceId)).thenReturn(Optional.of(new Review(working,
                 new ReviewLock(ALI.id(), "ali.b", NOW, NOW), "0123", null, true)));
-        when(branches.nameOf(anyString())).thenReturn(Optional.empty());
 
         service.completeRevocation(command(ALI, revocation));
 
