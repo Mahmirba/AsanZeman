@@ -15,6 +15,12 @@ public interface InquiryRunUseCase {
      */
     InquiryRunView start(UUID requestId, InquiryContext context);
 
+    /**
+     * The gender the civil registry (Sabte Ahval) gave for this request, from its newest passed Sabte Ahval answer; empty
+     * when no run has passed it yet (D26).
+     */
+    java.util.Optional<com.sb24.asanzeman.inquiry.domain.model.Gender> genderOf(UUID requestId);
+
     /** @return whether the request's latest run has finished and every inquiry passed: it may go on to the collateral */
     boolean cleared(UUID requestId);
 

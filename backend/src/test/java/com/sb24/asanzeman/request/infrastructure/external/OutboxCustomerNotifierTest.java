@@ -30,31 +30,31 @@ class OutboxCustomerNotifierTest {
     }
 
     @Test
-    void queuesTheRejectionAndTheIssueTextsWithTheAgencyTheBranchAndTheDate() {
+    void queuesTheRejectionAndTheIssueTextsWithTheAgencyTheBranchTheDateAndTheSalutation() {
         UUID request = UUID.randomUUID();
         var notifier = new OutboxCustomerNotifier(sms);
 
-        notifier.requestRejected(request, "09121234567", "Sky Travel", "Valiasr", "1405/09/02");
-        notifier.guaranteeIssued(request, "09121234567", "Sky Travel", "Valiasr", "1405/09/02");
+        notifier.requestRejected(request, "09121234567", "Sky Travel", "Valiasr", "1405/09/02", "Mr Ali\n");
+        notifier.guaranteeIssued(request, "09121234567", "Sky Travel", "Valiasr", "1405/09/02", "");
 
         verify(sms).enqueue(new EnqueueSmsCommand("09121234567", SmsTemplate.REQUEST_REJECTED,
-                List.of("Sky Travel", "Valiasr", "1405/09/02"), request));
+                List.of("Sky Travel", "Valiasr", "1405/09/02", "Mr Ali\n"), request));
         verify(sms).enqueue(new EnqueueSmsCommand("09121234567", SmsTemplate.GUARANTEE_ISSUED,
-                List.of("Sky Travel", "Valiasr", "1405/09/02"), request));
+                List.of("Sky Travel", "Valiasr", "1405/09/02", ""), request));
     }
 
     @Test
-    void queuesTheRevocationTextsWithTheAgencyTheBranchAndTheDate() {
+    void queuesTheRevocationTextsWithTheAgencyTheBranchTheDateAndTheSalutation() {
         UUID request = UUID.randomUUID();
         var notifier = new OutboxCustomerNotifier(sms);
 
-        notifier.guaranteeRevoked(request, "09121234567", "Sky Travel", "Valiasr", "1405/09/02");
-        notifier.revocationRejected(request, "09121234567", "Sky Travel", "Valiasr", "1405/09/02");
+        notifier.guaranteeRevoked(request, "09121234567", "Sky Travel", "Valiasr", "1405/09/02", "Ms Sara\n");
+        notifier.revocationRejected(request, "09121234567", "Sky Travel", "Valiasr", "1405/09/02", "");
 
         verify(sms).enqueue(new EnqueueSmsCommand("09121234567", SmsTemplate.GUARANTEE_REVOKED,
-                List.of("Sky Travel", "Valiasr", "1405/09/02"), request));
+                List.of("Sky Travel", "Valiasr", "1405/09/02", "Ms Sara\n"), request));
         verify(sms).enqueue(new EnqueueSmsCommand("09121234567", SmsTemplate.REVOCATION_REJECTED,
-                List.of("Sky Travel", "Valiasr", "1405/09/02"), request));
+                List.of("Sky Travel", "Valiasr", "1405/09/02", ""), request));
     }
 
     @Test
