@@ -10,7 +10,7 @@ AsanZeman (آسان ضمان) is a bank system for issuing *travel-return guaran
 
 ## Sources of truth, in order
 
-1. `plan.md` — the implementation plan and the **decision log D1–D50**. When anything below, a skill, or a sample project disagrees with it, `plan.md` wins.
+1. `plan.md` — the implementation plan and the **decision log D1–D55**. When anything below, a skill, or a sample project disagrees with it, `plan.md` wins.
 2. `docs/architecture/AsanZeman_Architecture_Document_v1.0.docx` — the architecture document (Persian). Section references like §4-3-4 point here. Diagram sources are in `docs/architecture/diagrams/` and `docs/architecture/sequence/`.
 3. SRS-AZS v1.0 — business rules the architecture doesn't spell out (collateral formulas, rejection messages).
 
