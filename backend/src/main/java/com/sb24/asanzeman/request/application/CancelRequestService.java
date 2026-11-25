@@ -77,8 +77,7 @@ public class CancelRequestService implements CancelRequestUseCase {
         }
         Request cancelled = request.cancelByAgency();
         requests.updateStatus(request.id(), cancelled.status(), now);
-        String sentDate = JalaliDate.fromGregorian(now.atZone(TrackingCodeGenerator.TEHRAN).toLocalDate())
-                .toSlashed();
+        String sentDate = JalaliDate.ofInstant(now).toSlashed();
         notifier.requestCancelled(request.id(), request.customer().mobile(), command.agencyName(), sentDate);
         audit.record(new AuditEntry(command.agencyId(), command.actor(), "AGENCY", ENTITY, request.id(),
                 "CANCEL", request.status().name(), cancelled.status().name(), null, command.clientIp(),

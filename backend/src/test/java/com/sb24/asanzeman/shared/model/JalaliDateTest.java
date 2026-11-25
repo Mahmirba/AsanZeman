@@ -99,4 +99,14 @@ class JalaliDateTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> JalaliDate.parse(null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void anInstantIsDatedInTehranNotInUtc() {
+        // 22:00 UTC on 20 March is 01:30 on 21 March in Tehran (UTC+3:30): the first day of 1403
+        assertThat(JalaliDate.ofInstant(java.time.Instant.parse("2024-03-20T22:00:00Z")))
+                .isEqualTo(JalaliDate.of(1403, 1, 2));
+        assertThat(JalaliDate.ofInstant(java.time.Instant.parse("2024-03-20T10:00:00Z")))
+                .isEqualTo(JalaliDate.of(1403, 1, 1));
+        assertThat(JalaliDate.TEHRAN.getId()).isEqualTo("Asia/Tehran");
+    }
 }

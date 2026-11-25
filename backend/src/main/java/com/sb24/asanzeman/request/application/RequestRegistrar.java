@@ -15,6 +15,7 @@ import com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort;
 import com.sb24.asanzeman.request.domain.port.out.RequestRepositoryPort;
 import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
 import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
+import com.sb24.asanzeman.shared.model.JalaliDate;
 import com.sb24.asanzeman.shared.model.Rials;
 import java.time.Clock;
 import java.time.Instant;
@@ -70,7 +71,7 @@ public class RequestRegistrar {
         if (requests.existsSince(agency.id(), customer.code(), now.minus(settings.duplicateWindow()))) {
             throw new DuplicateRegistrationException();
         }
-        LocalDate today = now.atZone(TrackingCodeGenerator.TEHRAN).toLocalDate();
+        LocalDate today = now.atZone(JalaliDate.TEHRAN).toLocalDate();
         TrackingCode trackingCode = trackingCodes.next(command.branchCode(), agency.code());
         Request request = Request.register(UUID.randomUUID(), trackingCode, agency.id(), command.branchCode(),
                 Rials.of(command.amount()), command.dueDate(), customer, companions, command.registeredBy(), now,

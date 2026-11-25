@@ -86,6 +86,6 @@ public class ExpireIncompleteRequestsService implements ExpireIncompleteRequests
                 null, null));
         String agencyName = agencies.find(request.agencyId()).map(a -> a.name()).orElse("");
         notifier.requestExpired(request.id(), request.customer().mobile(), agencyName,
-                JalaliDate.fromGregorian(now.atZone(TrackingCodeGenerator.TEHRAN).toLocalDate()).toSlashed());
+                JalaliDate.ofInstant(now).toSlashed());
     }
 }

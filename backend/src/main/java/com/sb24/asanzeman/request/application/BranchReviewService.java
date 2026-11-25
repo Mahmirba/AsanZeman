@@ -231,7 +231,6 @@ public class BranchReviewService implements BranchReviewUseCase {
     }
 
     private String today() {
-        return JalaliDate.fromGregorian(clock.instant().atZone(TrackingCodeGenerator.TEHRAN).toLocalDate())
-                .toSlashed();
+        return JalaliDate.ofInstant(clock.instant()).toSlashed();
     }
 }

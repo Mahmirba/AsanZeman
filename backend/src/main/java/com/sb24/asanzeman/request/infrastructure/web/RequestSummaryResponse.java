@@ -4,7 +4,6 @@ import com.sb24.asanzeman.request.domain.model.RequestSummary;
 import com.sb24.asanzeman.shared.model.JalaliDate;
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.context.MessageSource;
@@ -19,8 +18,7 @@ public record RequestSummaryResponse(UUID id, String trackingCode, String type, 
         String branchCode, String branchName, String dueDate, Instant registeredAt, String registeredAtJalali,
         String agencyName, String customerMobile) {
 
-    static final ZoneId TEHRAN = ZoneId.of("Asia/Tehran");
-    static final Locale FARSI = Locale.forLanguageTag("fa");
+        static final Locale FARSI = Locale.forLanguageTag("fa");
 
     static RequestSummaryResponse from(RequestSummary s, MessageSource messages) {
         return new RequestSummaryResponse(s.id(), s.trackingCode(), s.type().name(), label(messages, "type", s.type()),
@@ -36,7 +34,7 @@ public record RequestSummaryResponse(UUID id, String trackingCode, String type, 
 
     /** {@code yyyy/MM/dd HH:mm:ss} in Tehran time. */
     static String jalaliDateTime(Instant instant) {
-        LocalDateTime local = instant.atZone(TEHRAN).toLocalDateTime();
+        LocalDateTime local = instant.atZone(JalaliDate.TEHRAN).toLocalDateTime();
         return JalaliDate.fromGregorian(local.toLocalDate()).toSlashed() + " "
                 + String.format("%02d:%02d:%02d", local.getHour(), local.getMinute(), local.getSecond());
     }

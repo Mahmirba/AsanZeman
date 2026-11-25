@@ -1,6 +1,8 @@
 package com.sb24.asanzeman.shared.model;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 
 /**
  * Solar Hijri (Jalali) calendar date. Used for the tracking code (D12: YYMMDD), SMS texts and the
@@ -17,8 +19,16 @@ public record JalaliDate(int year, int month, int day) implements Comparable<Jal
         }
     }
 
+    /** The bank's time zone: every date the customer or the staff sees is a Tehran date. */
+    public static final ZoneId TEHRAN = ZoneId.of("Asia/Tehran");
+
     public static JalaliDate of(int year, int month, int day) {
         return new JalaliDate(year, month, day);
+    }
+
+    /** The Jalali date it is in Tehran at this moment. */
+    public static JalaliDate ofInstant(Instant at) {
+        return fromGregorian(at.atZone(TEHRAN).toLocalDate());
     }
 
     public static JalaliDate fromGregorian(LocalDate date) {

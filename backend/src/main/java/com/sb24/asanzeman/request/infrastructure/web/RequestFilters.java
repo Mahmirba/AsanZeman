@@ -6,7 +6,6 @@ import com.sb24.asanzeman.request.domain.model.RequestType;
 import com.sb24.asanzeman.shared.model.JalaliDate;
 import com.sb24.asanzeman.shared.model.NationalCode;
 import java.time.Instant;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -18,9 +17,7 @@ import java.util.stream.Collectors;
  */
 final class RequestFilters {
 
-    private static final ZoneId TEHRAN = ZoneId.of("Asia/Tehran");
-
-    private RequestFilters() {
+        private RequestFilters() {
     }
 
     static RequestSearchCriteria of(UUID agencyId, String nationalCode, String customerNumber, List<String> types,
@@ -51,7 +48,7 @@ final class RequestFilters {
             return null;
         }
         try {
-            return JalaliDate.parse(jalali).toGregorian().plusDays(plusDays).atStartOfDay(TEHRAN).toInstant();
+            return JalaliDate.parse(jalali).toGregorian().plusDays(plusDays).atStartOfDay(JalaliDate.TEHRAN).toInstant();
         } catch (IllegalArgumentException e) {
             throw new InvalidRequestDataException("a date must be a real Jalali date, yyyy/MM/dd");
         }
