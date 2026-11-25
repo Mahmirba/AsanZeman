@@ -58,9 +58,12 @@ class InquiryRunServiceTest {
     private final Executor now = Runnable::run; // the "background" runs at once, so the tests need no waiting
     private InquiryRunService service;
 
+    private final io.micrometer.core.instrument.simple.SimpleMeterRegistry metrics =
+            new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+
     @BeforeEach
     void setUp() {
-        service = new InquiryRunService(chain, runs, events, now, new MutableClock(NOW), SETTINGS);
+        service = new InquiryRunService(chain, runs, events, now, new MutableClock(NOW), SETTINGS, metrics);
     }
 
     private static InquiryRun finished(Decision decision, Instant finishedAt) {
@@ -103,6 +106,7 @@ class InquiryRunServiceTest {
 
         verify(events).publish(new InquiryRunFinished(REQUEST, view.run().id(), Decision.REJECT,
                 "inquiry.blacklist.negative"));
+        assertThat(metrics.get("azs.inquiry.run").tag("decision", "REJECT").timer().count()).isEqualTo(1);
     }
 
     @Test
@@ -117,6 +121,7 @@ class InquiryRunServiceTest {
         service.start(REQUEST, CONTEXT);
 
         verify(chain).run(CONTEXT, passed);
+        assertThat(metrics.get("azs.inquiry.run").tag("decision", "BLOCKED").timer().count()).isEqualTo(1);
     }
 
     @Test
@@ -214,6 +219,7 @@ class InquiryRunServiceTest {
         service.start(REQUEST, CONTEXT);
 
         verifyNoInteractions(events);
+        assertThat(metrics.find("azs.inquiry.run").timers()).isEmpty(); // a dropped answer is not a finished run
     }
 
     // ---- reading --------------------------------------------------------------------------------------------

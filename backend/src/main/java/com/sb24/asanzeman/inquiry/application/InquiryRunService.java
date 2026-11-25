@@ -13,6 +13,7 @@ import com.sb24.asanzeman.inquiry.domain.port.in.InquiryRunUseCase;
 import com.sb24.asanzeman.inquiry.domain.port.in.RunInquiriesUseCase;
 import com.sb24.asanzeman.inquiry.domain.port.out.InquiryRunRepositoryPort;
 import com.sb24.asanzeman.inquiry.domain.port.out.RunEventsPort;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -40,9 +41,11 @@ public class InquiryRunService implements InquiryRunUseCase {
     private final Executor background;
     private final Clock clock;
     private final InquiryRunSettings settings;
+    private final MeterRegistry metrics;
 
     public InquiryRunService(RunInquiriesUseCase chain, InquiryRunRepositoryPort runs, RunEventsPort events,
-            Executor background, Clock clock, InquiryRunSettings settings) {
+            Executor background, Clock clock, InquiryRunSettings settings, MeterRegistry metrics) {
+        this.metrics = metrics;
         this.chain = chain;
         this.runs = runs;
         this.events = events;
@@ -101,10 +104,14 @@ public class InquiryRunService implements InquiryRunUseCase {
             log.error("inquiry run {} of request {} broke", run.id(), run.requestId(), e);
             verdict = new InquiryVerdict(InquiryVerdict.Decision.BLOCKED, null, List.of());
         }
-        if (!runs.finish(run.id(), verdict.decision(), verdict.outcomes(), clock.instant())) {
+        Instant finished = clock.instant();
+        if (!runs.finish(run.id(), verdict.decision(), verdict.outcomes(), finished)) {
             log.warn("inquiry run {} was recovered as stale before it finished; its answer is dropped", run.id());
             return;
         }
+        // the duration of UC-09 for the dashboard, by how the run ended
+        metrics.timer("azs.inquiry.run", "decision", verdict.decision().name())
+                .record(java.time.Duration.between(run.startedAt(), finished));
         InquiryOutcome rejection = verdict.rejection();
         events.publish(new InquiryRunFinished(run.requestId(), run.id(), verdict.decision(),
                 rejection == null ? null : rejection.messageKey()));
