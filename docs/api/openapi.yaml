@@ -216,12 +216,7 @@ paths:
     post:
       tags: [auth]
       summary: Log out
-      description: The access token is revoked until it would have expired, and the refresh token's whole session is revoked.
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema: { $ref: "#/components/schemas/LogoutRequest" }
+      description: The access token is revoked until it would have expired, and every refresh token of its session is revoked (the session is the `sid` claim of the access token). There is no request body.
       responses:
         "204": { description: Logged out }
         "401": { $ref: "#/components/responses/Problem" }
@@ -810,10 +805,6 @@ components:
       required: [refreshToken]
       properties:
         refreshToken: { type: string }
-    LogoutRequest:
-      type: object
-      properties:
-        refreshToken: { type: string, description: Optional; revoked together with its session }
     RegisterRequestBody:
       type: object
       required: [nationalCode, branchCode, amount, dueDate]

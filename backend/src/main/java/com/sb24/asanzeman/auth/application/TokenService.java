@@ -102,13 +102,12 @@ public class TokenService implements StartSessionUseCase, RefreshSessionUseCase,
     }
 
     @Override
-    public void logout(String jti, Instant accessTokenExpiresAt, String subject, String refreshToken,
+    public void logout(String jti, Instant accessTokenExpiresAt, String subject, UUID familyId,
             ClientInfo client) {
         Instant now = clock.instant();
         blacklist.revoke(jti, accessTokenExpiresAt, "LOGOUT");
-        if (refreshToken != null && !refreshToken.isBlank()) {
-            store.findByHash(RefreshTokens.hash(refreshToken.trim()))
-                    .ifPresent(stored -> store.revokeFamily(stored.familyId(), now));
+        if (familyId != null) {
+            store.revokeFamily(familyId, now);
         }
         audit.record(new AuditEntry(null, subject, null, ENTITY, null, "LOGOUT", null, null, null, client.ip(),
                 client.userAgent(), null));

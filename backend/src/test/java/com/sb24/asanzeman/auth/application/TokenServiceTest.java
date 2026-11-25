@@ -256,15 +256,14 @@ class TokenServiceTest {
     // ---- logout ------------------------------------------------------------------------------------------------
 
     @Test
-    void logoutBlacklistsTheAccessTokenAndRevokesTheFamily() {
-        RefreshTokenRecord old = stored("t", null, null, NOW.plusSeconds(100));
-        when(store.findByHash(RefreshTokens.hash("t"))).thenReturn(Optional.of(old));
+    void logoutBlacklistsTheAccessTokenAndRevokesTheWholeSession() {
+        UUID family = UUID.randomUUID();
         Instant accessExp = NOW.plusSeconds(600);
 
-        service.logout("jti-1", accessExp, "ali", " t ", CLIENT);
+        service.logout("jti-1", accessExp, "ali", family, CLIENT);
 
         verify(blacklist).revoke("jti-1", accessExp, "LOGOUT");
-        verify(store).revokeFamily(old.familyId(), NOW);
+        verify(store).revokeFamily(family, NOW);
         ArgumentCaptor<AuditEntry> entry = ArgumentCaptor.forClass(AuditEntry.class);
         verify(audit).record(entry.capture());
         assertThat(entry.getValue()).extracting(AuditEntry::action, AuditEntry::userName, AuditEntry::userAgent)
@@ -272,20 +271,8 @@ class TokenServiceTest {
     }
 
     @Test
-    void logoutWithAnUnknownRefreshTokenStillBlacklistsTheAccessToken() {
-        when(store.findByHash(RefreshTokens.hash("unknown"))).thenReturn(Optional.empty());
-
-        service.logout("jti-1", NOW.plusSeconds(600), "ali", "unknown", CLIENT);
-
-        verify(blacklist).revoke(eq("jti-1"), any(), eq("LOGOUT"));
-        verify(store, never()).revokeFamily(any(), any());
-    }
-
-    @ParameterizedTest
-    @NullAndEmptySource
-    @ValueSource(strings = {" "})
-    void logoutWithoutARefreshTokenOnlyBlacklistsTheAccessToken(String refreshToken) {
-        service.logout("jti-1", NOW.plusSeconds(600), "ali", refreshToken, CLIENT);
+    void logoutOfATokenWithoutASessionOnlyBlacklistsTheAccessToken() {
+        service.logout("jti-1", NOW.plusSeconds(600), "ali", null, CLIENT);
 
         verify(blacklist).revoke(eq("jti-1"), any(), eq("LOGOUT"));
         verifyNoInteractions(store);

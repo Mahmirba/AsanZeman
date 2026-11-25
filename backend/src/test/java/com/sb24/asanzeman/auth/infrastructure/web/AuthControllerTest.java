@@ -158,28 +158,28 @@ class AuthControllerTest {
     }
 
     @Test
-    void logoutRevokesTheAccessTokenOfTheCallerAndTheGivenRefreshToken() throws Exception {
+    void logoutRevokesTheAccessTokenAndTheSessionItBelongsTo() throws Exception {
+        UUID session = UUID.randomUUID();
+        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("ali").jti("jti-9").claim("sid", session.toString())
+                .issuedAt(NOW).expiresAt(NOW.plusSeconds(900)).build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+
+        mvc.perform(post("/api/auth/logout")).andExpect(status().isNoContent());
+
+        verify(logout).logout(eq("jti-9"), eq(NOW.plusSeconds(900)), eq("ali"), eq(session), any());
+        assertThat(postFrom().getRemoteAddr()).isNotNull();
+    }
+
+    @Test
+    void aBodyOnLogoutIsIgnoredAndATokenWithoutASessionStillLogsOut() throws Exception {
         Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("ali").jti("jti-9").issuedAt(NOW)
                 .expiresAt(NOW.plusSeconds(900)).build();
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
 
         mvc.perform(post("/api/auth/logout").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"refreshToken\":\"r1\"}"))
-                .andExpect(status().isNoContent());
-
-        verify(logout).logout(eq("jti-9"), eq(NOW.plusSeconds(900)), eq("ali"), eq("r1"), any());
-    }
-
-    @Test
-    void logoutWorksWithoutABody() throws Exception {
-        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("ali").jti("jti-9").issuedAt(NOW)
-                .expiresAt(NOW.plusSeconds(900)).build();
-        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
-
-        mvc.perform(post("/api/auth/logout")).andExpect(status().isNoContent());
+                .content("{\"refreshToken\":\"r1\"}")).andExpect(status().isNoContent());
 
         verify(logout).logout(eq("jti-9"), eq(NOW.plusSeconds(900)), eq("ali"), eq(null), any());
-        assertThat(postFrom().getRemoteAddr()).isNotNull();
     }
 
     @Test
