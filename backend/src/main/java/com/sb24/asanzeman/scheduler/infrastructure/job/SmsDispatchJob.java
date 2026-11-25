@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Sends the SMS outbox (6.4): every few seconds ({@code azs.sms.dispatch-delay}, default 5 s) after the last run
+ * Sends the SMS outbox (6.4): every few seconds ({@code azs.scheduler.sms-dispatch.fixed-delay}, default 5 s) after the last run
  * ends. ShedLock lets one instance send at a time. A failure is logged and never stops the schedule; the messages stay
  * in the outbox and are tried again.
  */
@@ -26,7 +26,7 @@ public class SmsDispatchJob {
         this.dispatch = dispatch;
     }
 
-    @Scheduled(fixedDelayString = "${azs.sms.dispatch-delay:5s}")
+    @Scheduled(fixedDelayString = "${azs.scheduler.sms-dispatch.fixed-delay:5s}")
     @SchedulerLock(name = LOCK, lockAtMostFor = "PT5M", lockAtLeastFor = "PT1S")
     public void run() {
         try {

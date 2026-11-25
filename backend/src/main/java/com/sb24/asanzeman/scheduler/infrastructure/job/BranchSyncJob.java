@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 
 /**
  * 4.4: keeps the {@code branch} table in line with Yaghut. It runs once at startup when the table is empty (requests
- * cannot be registered without branches), then on a schedule (default 02:00 every night, {@code azs.branch.sync.cron}).
+ * cannot be registered without branches), then on a schedule (default 02:00 every night, {@code azs.scheduler.branch-sync.cron}).
  * ShedLock lets one instance run it at a time. A failure never stops the application: it is logged for ops and the
  * next run tries again, and nothing is changed (Yaghut is read completely before anything is written).
  */
@@ -29,7 +29,7 @@ public class BranchSyncJob {
         this.sync = sync;
     }
 
-    @Scheduled(cron = "${azs.branch.sync.cron:0 0 2 * * *}")
+    @Scheduled(cron = "${azs.scheduler.branch-sync.cron:0 0 2 * * *}")
     @SchedulerLock(name = LOCK, lockAtMostFor = "PT30M", lockAtLeastFor = "PT1M")
     public void nightly() {
         run();

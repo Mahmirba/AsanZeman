@@ -47,6 +47,6 @@ class SmsDispatchJobTest {
         var run = SmsDispatchJob.class.getMethod("run");
 
         assertThat(run.getAnnotation(SchedulerLock.class).name()).isEqualTo("sms-dispatch");
-        assertThat(run.getAnnotation(Scheduled.class).fixedDelayString()).contains("azs.sms.dispatch-delay");
+        assertThat(run.getAnnotation(Scheduled.class).fixedDelayString()).contains("azs.scheduler.sms-dispatch.fixed-delay");
     }
 }

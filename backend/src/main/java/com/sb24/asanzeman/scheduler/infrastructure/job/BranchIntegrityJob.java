@@ -11,7 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 4.4: checks the branch table at startup and every night at 02:30, after the sync ({@code azs.branch.integrity.cron}).
+ * 4.4: checks the branch table at startup and every night at 02:30, after the sync ({@code azs.scheduler.branch-integrity.cron}).
  * The problems are raised to ops by the check itself; this job only makes sure a failure of the check never stops the
  * application or the schedule.
  */
@@ -28,7 +28,7 @@ public class BranchIntegrityJob {
         this.integrity = integrity;
     }
 
-    @Scheduled(cron = "${azs.branch.integrity.cron:0 30 2 * * *}")
+    @Scheduled(cron = "${azs.scheduler.branch-integrity.cron:0 30 2 * * *}")
     @SchedulerLock(name = LOCK, lockAtMostFor = "PT10M", lockAtLeastFor = "PT30S")
     public void nightly() {
         run();
