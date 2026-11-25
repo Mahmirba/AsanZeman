@@ -337,6 +337,29 @@ class AgencyRequestControllerTest {
     }
 
     @Test
+    void thePersonInTheTokenIsWhoRegistersAndCancelsWhileTheAgencyNameStaysTheSubject() throws Exception {
+        Jwt jwt = Jwt.withTokenValue("t").header("alg", "RS256").subject("Sky Travel").claim("usr", "ali.sky")
+                .claim("uid", AGENCY.toString()).claim("sid", SESSION.toString()).claim("role", "AGENCY")
+                .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(900)).build();
+        SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
+        when(register.register(any())).thenReturn(REGISTERED);
+        when(cancel.cancel(any())).thenReturn(new com.sb24.asanzeman.request.domain.port.in.CancelRequestResult(
+                ROW.id(), com.sb24.asanzeman.request.domain.model.CancelOutcome.CANCELLED, RequestStatus.CANCELLED));
+
+        send(body("100000000", "1405/11/01", null)).andExpect(status().isCreated());
+        mvc.perform(post("/api/agency/requests/" + ROW.id() + "/cancel")).andExpect(status().isOk());
+
+        ArgumentCaptor<RegisterRequestCommand> registered = ArgumentCaptor.forClass(RegisterRequestCommand.class);
+        verify(register).register(registered.capture());
+        assertThat(registered.getValue().registeredBy()).isEqualTo("ali.sky");
+        ArgumentCaptor<com.sb24.asanzeman.request.domain.port.in.CancelRequestCommand> cancelled =
+                ArgumentCaptor.forClass(com.sb24.asanzeman.request.domain.port.in.CancelRequestCommand.class);
+        verify(cancel).cancel(cancelled.capture());
+        assertThat(cancelled.getValue().agencyName()).isEqualTo("Sky Travel");
+        assertThat(cancelled.getValue().actor()).isEqualTo("ali.sky");
+    }
+
+    @Test
     void cancelRefusalsAreConflictsWithPersianTexts() throws Exception {
         doThrow(new com.sb24.asanzeman.request.domain.model.RevocationNotAvailableException()).when(cancel)
                 .cancel(any());

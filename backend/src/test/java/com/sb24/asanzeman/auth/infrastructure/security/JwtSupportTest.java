@@ -72,6 +72,20 @@ class JwtSupportTest {
     }
 
     @Test
+    void anAgencySessionCarriesThePersonWhoLoggedInForIt() {
+        var agency = new com.sb24.asanzeman.auth.domain.model.Session(UUID.randomUUID(), "Sky Travel",
+                com.sb24.asanzeman.auth.domain.model.Role.AGENCY, null, "ali.sky");
+        Instant now = Instant.now();
+
+        Jwt jwt = decoder.decode(issuer.issue(agency, UUID.randomUUID(), "jti-usr", now, now.plusSeconds(60)));
+
+        assertThat(jwt.<String>getClaim("usr")).isEqualTo("ali.sky");
+        assertThat(jwt.getSubject()).isEqualTo("Sky Travel"); // the agency name stays the subject
+        assertThat(decoder.decode(issuer.issue(BRANCH_USER, UUID.randomUUID(), "jti-nousr", now, now.plusSeconds(60)))
+                .<String>getClaim("usr")).isNull();
+    }
+
+    @Test
     void aSessionWithoutABranchHasNoBranchClaim() {
         var agency = new Session(UUID.randomUUID(), "agency", Role.AGENCY, null);
 

@@ -20,6 +20,8 @@ public class NimbusAccessTokenIssuer implements AccessTokenIssuerPort {
     public static final String USER_ID_CLAIM = "uid";
     /** The session family: finds the server-side data kept with the session, such as the Yaghut session. */
     public static final String SESSION_CLAIM = "sid";
+    /** For an agency session, the Yaghut user who logged in for it. */
+    public static final String ACTOR_CLAIM = "usr";
     public static final String KEY_ID = "azs-jwt-1";
 
     private final JwtEncoder encoder;
@@ -37,6 +39,9 @@ public class NimbusAccessTokenIssuer implements AccessTokenIssuerPort {
                 .claim(ROLE_CLAIM, session.role().name()).claim(SESSION_CLAIM, familyId.toString());
         if (session.branchCode() != null) {
             claims.claim(BRANCH_CLAIM, session.branchCode());
+        }
+        if (session.actor() != null) {
+            claims.claim(ACTOR_CLAIM, session.actor());
         }
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256).keyId(KEY_ID).build();
         return encoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();

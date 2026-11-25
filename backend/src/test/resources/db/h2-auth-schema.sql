@@ -29,6 +29,7 @@ CREATE TABLE azs_auth.refresh_tokens (
     subject_name VARCHAR(100)   NOT NULL,
     role         VARCHAR(16)    NOT NULL,
     branch_code  VARCHAR(10),
+    actor_name   VARCHAR(100),
     token_hash   VARCHAR(64)    NOT NULL,
     expires_at   TIMESTAMP(6)   NOT NULL,
     used_at      TIMESTAMP(6),

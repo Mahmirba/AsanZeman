@@ -64,6 +64,15 @@ class JdbcRefreshTokenStoreTest {
     }
 
     @Test
+    void anAgencySessionKeepsThePersonWhoLoggedInForIt() {
+        var session = new Session(UUID.randomUUID(), "Sky Travel", Role.AGENCY, null, "ali.sky");
+        store.save(new RefreshTokenRecord(UUID.randomUUID(), UUID.randomUUID(), session, "ag", END, null, null));
+
+        assertThat(store.findByHash("ag").orElseThrow().session()).isEqualTo(session);
+        assertThat(store.findByHash("ag").orElseThrow().session().actor()).isEqualTo("ali.sky");
+    }
+
+    @Test
     void aSessionWithoutABranchIsStoredToo() {
         var saved = new RefreshTokenRecord(UUID.randomUUID(), UUID.randomUUID(),
                 new Session(UUID.randomUUID(), "agency", Role.AGENCY, null), "hash-2", END, null, null);

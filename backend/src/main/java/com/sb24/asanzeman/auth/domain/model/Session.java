@@ -10,12 +10,18 @@ import java.util.UUID;
  * @param subjectName the {@code accountName} (D33) or the agency name; shown to others, e.g. as the lock holder
  * @param role        the session's role
  * @param branchCode  the user's branch, {@code null} for roles without one
+ * @param actor       for an agency, the Yaghut user who logged in for it, so the audit log names the person and not only
+ *                    the agency; {@code null} for the other roles
  */
-public record Session(UUID subjectId, String subjectName, Role role, String branchCode) {
+public record Session(UUID subjectId, String subjectName, Role role, String branchCode, String actor) {
 
     public Session {
         if (subjectId == null || subjectName == null || subjectName.isBlank() || role == null) {
             throw new IllegalArgumentException("a session needs a subject id, a name and a role");
         }
+    }
+
+    public Session(UUID subjectId, String subjectName, Role role, String branchCode) {
+        this(subjectId, subjectName, role, branchCode, null);
     }
 }
