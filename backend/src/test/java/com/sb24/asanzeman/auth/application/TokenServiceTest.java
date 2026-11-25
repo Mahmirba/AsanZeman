@@ -55,6 +55,8 @@ class TokenServiceTest {
     @Mock
     private JwtBlacklistPort blacklist;
     @Mock
+    private com.sb24.asanzeman.auth.domain.port.out.AgencyDirectoryPort agencies;
+    @Mock
     private RecordAuditUseCase audit;
 
     private MutableClock clock;
@@ -63,7 +65,7 @@ class TokenServiceTest {
     @BeforeEach
     void setUp() {
         clock = new MutableClock(NOW);
-        service = new TokenService(issuer, store, blacklist, audit, clock, new TokenSettings(ACCESS, REFRESH));
+        service = new TokenService(issuer, store, blacklist, audit, clock, new TokenSettings(ACCESS, REFRESH), agencies);
     }
 
     private RefreshTokenRecord stored(String token, Instant usedAt, Instant revokedAt, Instant expiresAt) {
@@ -213,6 +215,66 @@ class TokenServiceTest {
         assertThat(saved.getValue().tokenHash()).isEqualTo(RefreshTokens.hash(tokens.refreshToken()));
         verify(store, never()).revokeFamily(any(), any());
         verifyNoInteractions(audit);
+    }
+
+    private static final Session AGENCY_SESSION = new Session(UUID.randomUUID(), "sky", Role.AGENCY, null);
+
+    private RefreshTokenRecord agencyToken(String token) {
+        return new RefreshTokenRecord(UUID.randomUUID(), UUID.randomUUID(), AGENCY_SESSION, RefreshTokens.hash(token),
+                NOW.plus(Duration.ofHours(3)), null, null);
+    }
+
+    @Test
+    void anAgencyThatIsStillActiveRefreshesAsUsual() {
+        RefreshTokenRecord old = agencyToken("a");
+        when(store.findByHash(RefreshTokens.hash("a"))).thenReturn(Optional.of(old));
+        when(agencies.findById(AGENCY_SESSION.subjectId())).thenReturn(Optional.of(
+                new com.sb24.asanzeman.auth.domain.model.Agency(AGENCY_SESSION.subjectId(), "9001", "Sky", true)));
+        when(store.markUsed(old.id(), NOW)).thenReturn(true);
+        when(issuer.issue(eq(AGENCY_SESSION), any(UUID.class), anyString(), eq(NOW), any())).thenReturn("jwt");
+
+        assertThat(service.refresh("a", CLIENT).accessToken()).isEqualTo("jwt");
+        verify(store, never()).revokeFamily(any(), any());
+    }
+
+    @Test
+    void anAgencySwitchedOffOrRemovedCannotRefreshAndItsSessionIsRevoked() {
+        RefreshTokenRecord off = agencyToken("off");
+        RefreshTokenRecord gone = agencyToken("gone");
+        when(store.findByHash(RefreshTokens.hash("off"))).thenReturn(Optional.of(off));
+        when(store.findByHash(RefreshTokens.hash("gone"))).thenReturn(Optional.of(gone));
+        when(agencies.findById(AGENCY_SESSION.subjectId())).thenReturn(Optional.of(
+                new com.sb24.asanzeman.auth.domain.model.Agency(AGENCY_SESSION.subjectId(), "9001", "Sky", false)),
+                Optional.empty());
+
+        assertThatThrownBy(() -> service.refresh("off", CLIENT)).isInstanceOf(InvalidSessionException.class);
+        assertThatThrownBy(() -> service.refresh("gone", CLIENT)).isInstanceOf(InvalidSessionException.class);
+
+        verify(store).revokeFamily(off.familyId(), NOW);
+        verify(store).revokeFamily(gone.familyId(), NOW);
+        verify(store, never()).markUsed(any(), any());
+        verify(store, never()).save(any());
+    }
+
+    @Test
+    void aBankUserIsNotCheckedAgainstTheAgencyTable() {
+        RefreshTokenRecord old = stored("b", null, null, NOW.plus(Duration.ofHours(3)));
+        when(store.findByHash(RefreshTokens.hash("b"))).thenReturn(Optional.of(old));
+        when(store.markUsed(old.id(), NOW)).thenReturn(true);
+        when(issuer.issue(eq(SESSION), any(UUID.class), anyString(), eq(NOW), any())).thenReturn("jwt");
+
+        service.refresh("b", CLIENT);
+
+        verifyNoInteractions(agencies);
+    }
+
+    @Test
+    void revokingAllSessionsOfASubjectRevokesEveryRefreshTokenOfIt() {
+        UUID agency = UUID.randomUUID();
+
+        service.revokeAllOf(agency);
+
+        verify(store).revokeAllOf(agency, NOW);
     }
 
     @Test

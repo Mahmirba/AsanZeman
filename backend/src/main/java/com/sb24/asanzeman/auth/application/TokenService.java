@@ -1,5 +1,6 @@
 package com.sb24.asanzeman.auth.application;
 
+import com.sb24.asanzeman.auth.domain.model.Agency;
 import com.sb24.asanzeman.auth.domain.model.ClientInfo;
 import com.sb24.asanzeman.auth.domain.model.InvalidSessionException;
 import com.sb24.asanzeman.auth.domain.model.IssuedTokens;
@@ -8,8 +9,10 @@ import com.sb24.asanzeman.auth.domain.model.Role;
 import com.sb24.asanzeman.auth.domain.model.Session;
 import com.sb24.asanzeman.auth.domain.port.in.LogoutUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.RefreshSessionUseCase;
+import com.sb24.asanzeman.auth.domain.port.in.RevokeSessionsUseCase;
 import com.sb24.asanzeman.auth.domain.port.in.StartSessionUseCase;
 import com.sb24.asanzeman.auth.domain.port.out.AccessTokenIssuerPort;
+import com.sb24.asanzeman.auth.domain.port.out.AgencyDirectoryPort;
 import com.sb24.asanzeman.auth.domain.port.out.JwtBlacklistPort;
 import com.sb24.asanzeman.auth.domain.port.out.RefreshTokenStorePort;
 import com.sb24.asanzeman.auth.domain.service.RefreshTokens;
@@ -35,7 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 @Transactional(noRollbackFor = DomainException.class)
-public class TokenService implements StartSessionUseCase, RefreshSessionUseCase, LogoutUseCase {
+public class TokenService implements StartSessionUseCase, RefreshSessionUseCase, LogoutUseCase,
+        RevokeSessionsUseCase {
 
     static final String ENTITY = "SESSION";
 
@@ -45,9 +49,11 @@ public class TokenService implements StartSessionUseCase, RefreshSessionUseCase,
     private final RecordAuditUseCase audit;
     private final Clock clock;
     private final TokenSettings settings;
+    private final AgencyDirectoryPort agencies;
 
     public TokenService(AccessTokenIssuerPort issuer, RefreshTokenStorePort store, JwtBlacklistPort blacklist,
-            RecordAuditUseCase audit, Clock clock, TokenSettings settings) {
+            RecordAuditUseCase audit, Clock clock, TokenSettings settings, AgencyDirectoryPort agencies) {
+        this.agencies = agencies;
         this.issuer = issuer;
         this.store = store;
         this.blacklist = blacklist;
@@ -91,6 +97,11 @@ public class TokenService implements StartSessionUseCase, RefreshSessionUseCase,
         if (stored.revoked() || stored.expired(now)) {
             throw new InvalidSessionException();
         }
+        if (stored.session().role() == Role.AGENCY && !agencyMayStillLogIn(stored.session().subjectId())) {
+            // the admin switched the agency off, or removed it, since this session began
+            store.revokeFamily(stored.familyId(), now);
+            throw new InvalidSessionException();
+        }
         if (stored.used() || !store.markUsed(stored.id(), now)) {
             // a used token is presented again: someone holds a copy, so the whole family goes
             store.revokeFamily(stored.familyId(), now);
@@ -99,6 +110,15 @@ public class TokenService implements StartSessionUseCase, RefreshSessionUseCase,
             throw new InvalidSessionException();
         }
         return issue(stored.session(), stored.familyId(), now, stored.expiresAt());
+    }
+
+    @Override
+    public void revokeAllOf(UUID subjectId) {
+        store.revokeAllOf(subjectId, clock.instant());
+    }
+
+    private boolean agencyMayStillLogIn(UUID agencyId) {
+        return agencies.findById(agencyId).map(Agency::active).orElse(false);
     }
 
     @Override

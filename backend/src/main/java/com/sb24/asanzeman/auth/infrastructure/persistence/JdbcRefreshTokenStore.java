@@ -89,6 +89,13 @@ public class JdbcRefreshTokenStore implements RefreshTokenStorePort {
                 .param("at", DbTime.toDb(at), Types.TIMESTAMP).update();
     }
 
+    @Override
+    public void revokeAllOf(UUID subjectId, Instant at) {
+        jdbc.sql("UPDATE azs_auth.refresh_tokens SET revoked_at = :at WHERE subject_id = :subject AND revoked_at IS NULL")
+                .param("subject", RawUuid.toBytes(subjectId), Types.VARBINARY)
+                .param("at", DbTime.toDb(at), Types.TIMESTAMP).update();
+    }
+
     private static RefreshTokenRecord map(ResultSet rs) throws SQLException {
         Session session = new Session(RawUuid.fromBytes(rs.getBytes("subject_id")), rs.getString("subject_name"),
                 Role.valueOf(rs.getString("role")), rs.getString("branch_code"));

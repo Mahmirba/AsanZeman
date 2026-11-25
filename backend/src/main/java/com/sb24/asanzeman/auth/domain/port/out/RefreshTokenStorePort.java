@@ -23,6 +23,9 @@ public interface RefreshTokenStorePort {
     /** Revokes every token of the family that is not revoked yet. */
     void revokeFamily(UUID familyId, Instant at);
 
+    /** Revokes every token of this user or agency, in every session, that is not revoked yet. */
+    void revokeAllOf(UUID subjectId, Instant at);
+
     /** Deletes the tokens that expired before {@code before}. @return how many */
     int deleteExpiredBefore(Instant before);
 }

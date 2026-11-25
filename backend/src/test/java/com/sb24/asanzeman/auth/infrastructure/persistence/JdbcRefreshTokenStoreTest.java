@@ -115,6 +115,21 @@ class JdbcRefreshTokenStoreTest {
     }
 
     @Test
+    void revokingAllOfASubjectRevokesEverySessionOfItAndNoOtherSubject() {
+        UUID subject = UUID.randomUUID();
+        var session = new Session(subject, "sky", Role.AGENCY, null);
+        store.save(new RefreshTokenRecord(UUID.randomUUID(), UUID.randomUUID(), session, "s1", END, null, null));
+        store.save(new RefreshTokenRecord(UUID.randomUUID(), UUID.randomUUID(), session, "s2", END, null, null));
+        store.save(token(UUID.randomUUID(), "other"));
+
+        store.revokeAllOf(subject, NOW);
+
+        assertThat(store.findByHash("s1").orElseThrow().revokedAt()).isEqualTo(NOW);
+        assertThat(store.findByHash("s2").orElseThrow().revoked()).isTrue();
+        assertThat(store.findByHash("other").orElseThrow().revoked()).isFalse();
+    }
+
+    @Test
     void revokingAgainKeepsTheFirstRevokeTime() {
         UUID family = UUID.randomUUID();
         store.save(token(family, "a"));
