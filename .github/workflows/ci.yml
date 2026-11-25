@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # a new vulnerability can be published for a dependency that has not changed: scan every Monday morning
+    - cron: "0 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "26"
+          cache: maven
+      # unit tests, the Modulith and ArchUnit boundary tests, the OpenAPI contract test and the JaCoCo coverage gate (D50);
+      # the Testcontainers Oracle tests are left out (-Dintegration=true runs them)
+      - name: Verify
+        working-directory: backend
+        run: ./mvnw -B verify
+
+  dependency-scan:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "26"
+          cache: maven
+      # fails on a HIGH or CRITICAL vulnerability that has a fix; the same script runs on a developer machine
+      - name: Scan the runtime dependencies
+        run: backend/ci/scan-dependencies.sh

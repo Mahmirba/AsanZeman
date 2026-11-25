@@ -92,6 +92,7 @@ Do **not** apply: `idempotency-patterns`, `spring-data-redis`, `spring-cloud-gat
 cd backend
 ./mvnw clean verify                      # unit tests + Modulith/ArchUnit boundary tests + JaCoCo gate
 ./mvnw verify -Dintegration=true         # + *IT on Testcontainers Oracle Free (Docker required)
+backend/ci/scan-dependencies.sh            # Trivy scan of the runtime dependencies (needs Docker; the CI gate runs the same script)
 ./mvnw spring-boot:run                   # needs application.properties with real values
 cd ../deploy && docker compose up        # Oracle Free + WireMock stubs + the app (copy the example properties first)
 ```
