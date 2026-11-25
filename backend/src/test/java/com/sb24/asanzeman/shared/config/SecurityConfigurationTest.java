@@ -4,6 +4,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -111,6 +112,26 @@ class SecurityConfigurationTest {
     void anAdminTokenReachesAnAdminEndpoint() throws Exception {
         mvc.perform(get("/api/probe/admin").header("Authorization", bearer(Role.ADMIN)))
                 .andExpect(status().isOk()).andExpect(content().string("admin"));
+    }
+
+    @Test
+    void everyAnswerCarriesTheSecurityHeaders() throws Exception {
+        mvc.perform(get("/api/probe/branch").header("Authorization", bearer(Role.BRANCH)))
+                .andExpect(header().string("Strict-Transport-Security", "max-age=31536000 ; includeSubDomains"))
+                .andExpect(header().string("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("X-Frame-Options", "DENY"));
+        // also on a refusal, and over plain HTTP behind a TLS proxy
+        mvc.perform(get("/api/probe/branch")).andExpect(status().isUnauthorized())
+                .andExpect(header().exists("Strict-Transport-Security"))
+                .andExpect(header().exists("Content-Security-Policy"));
+    }
+
+    @Test
+    void theApiDocsAndTheSwaggerPageAreNotPublic() throws Exception {
+        mvc.perform(get("/v3/api-docs")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isUnauthorized());
     }
 
     @Test

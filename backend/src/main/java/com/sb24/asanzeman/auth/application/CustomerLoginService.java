@@ -29,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
 
 /**
@@ -53,10 +54,13 @@ public class CustomerLoginService implements CustomerLoginUseCase {
     private final StartSessionUseCase sessions;
     private final Clock clock;
     private final OtpSettings settings;
+    private final MeterRegistry metrics;
 
     public CustomerLoginService(VerifyCaptchaUseCase captcha, YaghutAuthenticatorPort yaghut,
             CustomerMobilePort mobiles, OtpGatewayPort gateway, OtpChallengeStorePort challenges,
-            YaghutSessionStorePort yaghutSessions, StartSessionUseCase sessions, Clock clock, OtpSettings settings) {
+            YaghutSessionStorePort yaghutSessions, StartSessionUseCase sessions, Clock clock, OtpSettings settings,
+            MeterRegistry metrics) {
+        this.metrics = metrics;
         this.captcha = captcha;
         this.yaghut = yaghut;
         this.mobiles = mobiles;
@@ -89,6 +93,7 @@ public class CustomerLoginService implements CustomerLoginUseCase {
         }
 
         String otpId = gateway.send(mobile);
+        metrics.counter("azs.otp.sent").increment();
         UUID family = UUID.randomUUID();
         yaghutSessions.save(family, account.sessionId(), account.sessionExpiresAt());
         UUID id = UUID.randomUUID();

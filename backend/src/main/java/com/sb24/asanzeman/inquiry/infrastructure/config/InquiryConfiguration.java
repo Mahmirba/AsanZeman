@@ -95,9 +95,9 @@ public class InquiryConfiguration {
 
     @Bean
     InquiryRunService inquiryRunService(InquiryChain chain, InquiryRunRepositoryPort runs, RunEventsPort events,
-            Clock clock, InquiryRunSettings settings) {
+            Clock clock, InquiryRunSettings settings, io.micrometer.core.instrument.MeterRegistry metrics) {
         // one virtual thread per run, not a shared bean: nothing else should pick this executor up by type
         return new InquiryRunService(chain, runs, events, Executors.newVirtualThreadPerTaskExecutor(), clock,
-                settings);
+                settings, metrics);
     }
 }

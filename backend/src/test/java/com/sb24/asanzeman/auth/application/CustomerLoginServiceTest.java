@@ -73,10 +73,13 @@ class CustomerLoginServiceTest {
 
     private CustomerLoginService service;
 
+    private final io.micrometer.core.instrument.simple.SimpleMeterRegistry metrics =
+            new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+
     @BeforeEach
     void setUp() {
         service = new CustomerLoginService(captcha, yaghut, mobiles, gateway, challenges, yaghutSessions, sessions,
-                new MutableClock(NOW), SETTINGS);
+                new MutableClock(NOW), SETTINGS, metrics);
     }
 
     private static YaghutAccount account(String code, boolean temporary, boolean expired) {
@@ -103,6 +106,7 @@ class CustomerLoginServiceTest {
         assertThat(saved.getValue().verified()).isFalse();
         verify(yaghutSessions).save(saved.getValue().familyId(), "JS-1", NOW.plusSeconds(3600));
         assertThat(challenge.expiresInSeconds()).isEqualTo(120);
+        assertThat(metrics.get("azs.otp.sent").counter().count()).isEqualTo(1.0);
     }
 
     @Test
@@ -111,6 +115,7 @@ class CustomerLoginServiceTest {
 
         assertThatThrownBy(() -> service.login("ali", "pw", "bad")).isInstanceOf(CaptchaFailedException.class);
         verifyNoInteractions(yaghut, gateway);
+        assertThat(metrics.find("azs.otp.sent").counter()).isNull();
     }
 
     @Test
