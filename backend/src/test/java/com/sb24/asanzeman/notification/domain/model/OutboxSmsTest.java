@@ -44,7 +44,6 @@ class OutboxSmsTest {
     @Test
     void theTemplateKeysPointAtTheMessageConfig() {
         assertThat(SmsTemplate.REQUEST_REGISTERED.messageKey()).isEqualTo("sms.request-registered");
-        assertThat(SmsStatus.valueOf("DEAD")).isEqualTo(SmsStatus.DEAD);
         assertThat(new SmsRejectedException("x").getMessage()).isEqualTo("x");
         assertThat(new SmsCredentialsException("y").getMessage()).isEqualTo("y");
     }

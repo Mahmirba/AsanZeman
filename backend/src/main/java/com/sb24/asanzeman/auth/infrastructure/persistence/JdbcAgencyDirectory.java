@@ -5,6 +5,7 @@ import com.sb24.asanzeman.auth.domain.port.out.AgencyDirectoryPort;
 import com.sb24.asanzeman.shared.persistence.RawUuid;
 import java.sql.Types;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
@@ -21,7 +22,7 @@ public class JdbcAgencyDirectory implements AgencyDirectoryPort {
     }
 
     @Override
-    public Optional<Agency> findById(java.util.UUID id) {
+    public Optional<Agency> findById(UUID id) {
         return jdbc.sql("SELECT id, cif, name, active FROM azs_business.agency WHERE id = :id")
                 .param("id", RawUuid.toBytes(id), Types.VARBINARY)
                 .query((rs, row) -> new Agency(RawUuid.fromBytes(rs.getBytes("id")), rs.getString("cif"),

@@ -1,7 +1,9 @@
 package com.sb24.asanzeman.request.domain.port.out;
 
+import com.sb24.asanzeman.request.domain.model.CollateralAllocation;
 import com.sb24.asanzeman.request.domain.model.CollateralPlan;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 /** The {@code collateral} table: one row per deposit allocation of a request's chosen collateral (4.3). */
@@ -14,5 +16,5 @@ public interface CollateralRepositoryPort {
     boolean exists(UUID requestId);
 
     /** The saved allocations of a request, cash first, in the order they were chosen. */
-    java.util.List<com.sb24.asanzeman.request.domain.model.CollateralAllocation> find(UUID requestId);
+    List<CollateralAllocation> find(UUID requestId);
 }

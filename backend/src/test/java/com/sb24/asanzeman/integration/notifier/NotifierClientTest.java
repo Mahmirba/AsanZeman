@@ -11,6 +11,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.sb24.asanzeman.shared.model.TemporarilyUnavailableException;
 import java.io.IOException;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -33,7 +34,7 @@ class NotifierClientTest {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
         client = new NotifierClient(builder.build(), "https://notifier.test", "svc", "secret", "AZS",
-                java.util.List.of("Asan Zeman"));
+                List.of("Asan Zeman"));
     }
 
     @Test

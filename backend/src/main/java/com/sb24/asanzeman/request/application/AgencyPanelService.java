@@ -21,6 +21,7 @@ import com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort;
 import com.sb24.asanzeman.request.domain.port.out.BranchRepositoryPort;
 import com.sb24.asanzeman.request.domain.port.out.CustomerLookupPort;
 import com.sb24.asanzeman.request.domain.port.out.RequestQueryPort;
+import com.sb24.asanzeman.shared.model.JalaliDate;
 import com.sb24.asanzeman.shared.model.NationalCode;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -73,7 +74,7 @@ public class AgencyPanelService implements AgencyProfileUseCase, ListBranchesUse
         NationalCode code = NationalCode.parse(nationalCode)
                 .orElseThrow(() -> new InvalidRequestDataException("the customer national code is not valid"));
         CustomerSnapshot customer = customers.find(sessionId, code.value());
-        LocalDate today = clock.instant().atZone(TrackingCodeGenerator.TEHRAN).toLocalDate();
+        LocalDate today = clock.instant().atZone(JalaliDate.TEHRAN).toLocalDate();
         customer.requireEligible(today);
         return new CustomerLookupResult(customer.cif(), customer.code(), customer.fullName(), customer.birthDate(),
                 customer.mobile());

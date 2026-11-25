@@ -13,7 +13,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 import com.sb24.asanzeman.shared.model.TemporarilyUnavailableException;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -291,7 +293,7 @@ class YaghutClientTest {
         YaghutCustomer customer = client.customerDetailInfo(new YaghutSession("S1", null), "0012345678");
 
         assertThat(customer).isEqualTo(new YaghutCustomer("555", "0012345678", "Ali", "Rezaei", "Ali Rezaei", "Reza",
-                java.time.LocalDate.of(1990, 5, 17), "09121234567", "123", "S", "T", "ACTUAL", "MALE"));
+                LocalDate.of(1990, 5, 17), "09121234567", "123", "S", "T", "ACTUAL", "MALE"));
     }
 
     @Test
@@ -327,7 +329,7 @@ class YaghutClientTest {
         var deposits = client.deposits(new YaghutSession("S1", null), "555");
 
         assertThat(deposits).containsExactly(new YaghutDeposit("D-100", "SHORT_ACCOUNT", 12L, "INDIVIDUAL",
-                "OWNER_OF_DEPOSIT_AND_SIGNATURE", "OPEN", "IRR", "ACTUAL", new java.math.BigDecimal("5000000000.50")));
+                "OWNER_OF_DEPOSIT_AND_SIGNATURE", "OPEN", "IRR", "ACTUAL", new BigDecimal("5000000000.50")));
     }
 
     @Test
@@ -359,7 +361,7 @@ class YaghutClientTest {
         var deposits = client.deposits(new YaghutSession("S1", null), "555");
 
         assertThat(deposits).extracting(YaghutDeposit::availableBalance)
-                .containsExactly(new java.math.BigDecimal("1200"), null, null);
+                .containsExactly(new BigDecimal("1200"), null, null);
         assertThat(deposits.get(2).typeCode()).isNull();
     }
 

@@ -24,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -43,7 +44,7 @@ class YaghutCustomerLookupTest {
     @BeforeEach
     void setUp() {
         lookup = new YaghutCustomerLookup(userSessions, client);
-        org.mockito.Mockito.lenient().when(userSessions.require(SESSION)).thenReturn(new YaghutUserSession("S1", END));
+        Mockito.lenient().when(userSessions.require(SESSION)).thenReturn(new YaghutUserSession("S1", END));
     }
 
     @Test
@@ -111,7 +112,7 @@ class YaghutCustomerLookupTest {
         when(client.customerDetailInfo(YAGHUT, "1000000011")).thenThrow(down);
 
         assertThatThrownBy(() -> lookup.find(SESSION, "1000000011")).isSameAs(down);
-        verify(userSessions, org.mockito.Mockito.never()).end(SESSION);
+        verify(userSessions, Mockito.never()).end(SESSION);
     }
 
     @Test

@@ -2,15 +2,19 @@ package com.sb24.asanzeman.shared.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.sb24.asanzeman.shared.model.DomainException;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.support.ResourceBundleMessageSource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.InsufficientAuthenticationException;
+import org.springframework.web.context.request.ServletWebRequest;
 import tools.jackson.databind.ObjectMapper;
 
 class ProblemDetailSecurityHandlersTest {
@@ -55,9 +59,9 @@ class ProblemDetailSecurityHandlersTest {
     void frameworkErrorWithoutBodyStillGetsTheProblemShape() {
         var handler = new ProblemDetailExceptionHandler(messages());
         var response = handler.handleExceptionInternal(new IllegalStateException("x"), null,
-                new org.springframework.http.HttpHeaders(), HttpStatus.NOT_ACCEPTABLE,
-                new org.springframework.web.context.request.ServletWebRequest(new MockHttpServletRequest()));
-        var body = (org.springframework.http.ProblemDetail) response.getBody();
+                new HttpHeaders(), HttpStatus.NOT_ACCEPTABLE,
+                new ServletWebRequest(new MockHttpServletRequest()));
+        var body = (ProblemDetail) response.getBody();
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_ACCEPTABLE);
         assertThat(body.getProperties()).containsEntry("code", "http.406");
         assertThat(body.getDetail()).isEqualTo("قالب درخواستی پشتیبانی نمی‌شود.");
@@ -65,9 +69,9 @@ class ProblemDetailSecurityHandlersTest {
 
     @Test
     void statusMappingCoversEveryKind() {
-        assertThat(ProblemDetailExceptionHandler.statusOf(com.sb24.asanzeman.shared.model.DomainException.Kind.TEMPORARILY_UNAVAILABLE))
+        assertThat(ProblemDetailExceptionHandler.statusOf(DomainException.Kind.TEMPORARILY_UNAVAILABLE))
                 .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-        assertThat(ProblemDetailExceptionHandler.statusOf(com.sb24.asanzeman.shared.model.DomainException.Kind.UNAUTHORIZED))
+        assertThat(ProblemDetailExceptionHandler.statusOf(DomainException.Kind.UNAUTHORIZED))
                 .isEqualTo(HttpStatus.UNAUTHORIZED);
         var problem = new ProblemDetailExceptionHandler(messages())
                 .build(HttpStatus.CONFLICT, "service.temporarily-unavailable", "/x", List.of("AAA"));

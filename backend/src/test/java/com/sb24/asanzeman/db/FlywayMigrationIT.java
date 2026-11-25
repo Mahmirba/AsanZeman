@@ -3,7 +3,9 @@ package com.sb24.asanzeman.db;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sb24.asanzeman.support.OracleTestContainer;
+import com.sb24.asanzeman.support.TestKeys;
 import javax.sql.DataSource;
+import org.assertj.core.api.Assertions;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +28,7 @@ class FlywayMigrationIT {
         registry.add("spring.datasource.url", OracleTestContainer::jdbcUrl);
         registry.add("spring.datasource.username", () -> "azs_app");
         registry.add("spring.datasource.password", () -> "test");
-        com.sb24.asanzeman.support.TestKeys.register(registry);
+        TestKeys.register(registry);
     }
 
     @Autowired
@@ -74,10 +76,10 @@ class FlywayMigrationIT {
     void agencyCodeMustBeFourDigitsAndCifUnique() {
         var jdbc = new JdbcTemplate(dataSource);
         jdbc.update("INSERT INTO azs_business.agency (cif, code, name) VALUES ('9001', '1234', 'Test Agency')");
-        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+        Assertions.assertThatThrownBy(() ->
                 jdbc.update("INSERT INTO azs_business.agency (cif, code, name) VALUES ('9002', '12A4', 'Bad code')"))
                 .hasMessageContaining("CK_AGENCY_CODE_DIGITS");
-        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+        Assertions.assertThatThrownBy(() ->
                 jdbc.update("INSERT INTO azs_business.agency (cif, code, name) VALUES ('9001', '5678', 'Dup cif')"))
                 .hasMessageContaining("UX_AGENCY_CIF");
         jdbc.update("DELETE FROM azs_business.agency WHERE cif = '9001'");

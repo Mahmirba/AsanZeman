@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
 import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
 import com.sb24.asanzeman.support.OracleTestContainer;
+import com.sb24.asanzeman.support.TestKeys;
+import java.nio.ByteBuffer;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,7 +27,7 @@ class AuditLogIT {
         registry.add("spring.datasource.url", OracleTestContainer::jdbcUrl);
         registry.add("spring.datasource.username", () -> "azs_app");
         registry.add("spring.datasource.password", () -> "test");
-        com.sb24.asanzeman.support.TestKeys.register(registry);
+        TestKeys.register(registry);
     }
 
     @Autowired
@@ -63,7 +65,7 @@ class AuditLogIT {
     }
 
     private static byte[] toRaw(UUID id) {
-        return java.nio.ByteBuffer.allocate(16).putLong(id.getMostSignificantBits())
+        return ByteBuffer.allocate(16).putLong(id.getMostSignificantBits())
                 .putLong(id.getLeastSignificantBits()).array();
     }
 }

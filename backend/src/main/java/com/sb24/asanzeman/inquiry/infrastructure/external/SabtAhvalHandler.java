@@ -9,6 +9,7 @@ import com.sb24.asanzeman.integration.inquiry.InquiryClient;
 import com.sb24.asanzeman.integration.inquiry.InquiryEndpoint;
 import com.sb24.asanzeman.integration.inquiry.InquiryReply;
 import com.sb24.asanzeman.shared.model.JalaliDate;
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import tools.jackson.databind.JsonNode;
@@ -89,7 +90,7 @@ public class SabtAhvalHandler extends JsonInquiryHandler {
     }
 
     /** {@code birthDateField} is a Jalali date as the number {@code yyyyMMdd}. */
-    private static java.time.LocalDate birthDate(JsonNode person) {
+    private static LocalDate birthDate(JsonNode person) {
         int value = person.path("birthDateField").asInt(0);
         return JalaliDate.of(value / 10000, value / 100 % 100, value % 100).toGregorian();
     }

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.sb24.asanzeman.integration.arcaptcha.ArcaptchaClient;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -23,10 +24,10 @@ class ArcaptchaConfigurationTest {
                         "azs.integration.arcaptcha.connect-timeout=2s", "azs.integration.arcaptcha.read-timeout=5s",
                         "azs.integration.arcaptcha.tls.skip-verify=false");
 
-        base.run(context -> org.assertj.core.api.Assertions.assertThat(context.getStartupFailure())
+        base.run(context -> Assertions.assertThat(context.getStartupFailure())
                 .hasRootCauseInstanceOf(IllegalStateException.class).rootCause().hasMessageContaining("allow-disabled"));
         base.withPropertyValues("azs.integration.arcaptcha.allow-disabled=true")
-                .run(context -> org.assertj.core.api.Assertions.assertThat(context).hasNotFailed());
+                .run(context -> Assertions.assertThat(context).hasNotFailed());
     }
 
     @Test

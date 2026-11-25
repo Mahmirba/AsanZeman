@@ -17,14 +17,15 @@ import com.sb24.asanzeman.inquiry.domain.model.InquiryOutcome;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryRun;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryRunNotFoundException;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryType;
-import com.sb24.asanzeman.inquiry.domain.model.InquiryVerdict;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryVerdict.Decision;
+import com.sb24.asanzeman.inquiry.domain.model.InquiryVerdict;
 import com.sb24.asanzeman.inquiry.domain.model.RunStatus;
 import com.sb24.asanzeman.inquiry.domain.port.in.InquiryRunFinished;
 import com.sb24.asanzeman.inquiry.domain.port.in.RunInquiriesUseCase;
 import com.sb24.asanzeman.inquiry.domain.port.out.InquiryRunRepositoryPort;
 import com.sb24.asanzeman.inquiry.domain.port.out.RunEventsPort;
 import com.sb24.asanzeman.support.MutableClock;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -58,8 +59,8 @@ class InquiryRunServiceTest {
     private final Executor now = Runnable::run; // the "background" runs at once, so the tests need no waiting
     private InquiryRunService service;
 
-    private final io.micrometer.core.instrument.simple.SimpleMeterRegistry metrics =
-            new io.micrometer.core.instrument.simple.SimpleMeterRegistry();
+    private final SimpleMeterRegistry metrics =
+            new SimpleMeterRegistry();
 
     @BeforeEach
     void setUp() {

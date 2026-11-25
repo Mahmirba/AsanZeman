@@ -44,7 +44,7 @@ class BranchIntegrityJobTest {
         var nightly = BranchIntegrityJob.class.getMethod("nightly");
 
         assertThat(nightly.getAnnotation(SchedulerLock.class).name()).isEqualTo("branch-integrity");
-        assertThat(nightly.getAnnotation(Scheduled.class).cron()).contains("branch.integrity.cron");
+        assertThat(nightly.getAnnotation(Scheduled.class).cron()).contains("branch-integrity.cron");
         assertThat(BranchIntegrityJob.class.getMethod("atStartup").getAnnotation(SchedulerLock.class).name())
                 .isEqualTo("branch-integrity");
     }

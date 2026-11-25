@@ -1,8 +1,10 @@
 package com.sb24.asanzeman.integration.yaghut;
 
 import com.sb24.asanzeman.shared.model.TemporarilyUnavailableException;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -13,6 +15,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -33,7 +36,7 @@ public class YaghutClient {
     private static final Logger log = LoggerFactory.getLogger(YaghutClient.class);
     /** Decimals are read exactly: a balance must never pass through a double. */
     private static final JsonMapper JSON = JsonMapper.builder()
-            .enable(tools.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
 
     private record Reply(int status, String body, List<String> setCookies) {
     }
@@ -132,10 +135,10 @@ public class YaghutClient {
         return value instanceof Number n ? n.longValue() : null;
     }
 
-    private static java.math.BigDecimal decimal(Map<String, Object> map, String key) {
+    private static BigDecimal decimal(Map<String, Object> map, String key) {
         Object value = map.get(key);
         try {
-            return value == null ? null : new java.math.BigDecimal(value.toString());
+            return value == null ? null : new BigDecimal(value.toString());
         } catch (NumberFormatException e) {
             log.warn("Yaghut {} is not a number: {}", key, value);
             return null;
@@ -155,7 +158,7 @@ public class YaghutClient {
         return text(customer, "title");
     }
 
-    private static java.time.LocalDate birthDate(String value) {
+    private static LocalDate birthDate(String value) {
         try {
             return YaghutDates.parseDate(value);
         } catch (IllegalArgumentException e) {

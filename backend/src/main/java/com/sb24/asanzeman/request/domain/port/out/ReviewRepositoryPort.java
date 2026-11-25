@@ -1,5 +1,7 @@
 package com.sb24.asanzeman.request.domain.port.out;
 
+import com.sb24.asanzeman.request.domain.model.RejectionReason;
+import com.sb24.asanzeman.request.domain.model.Request;
 import com.sb24.asanzeman.request.domain.model.RequestStatus;
 import com.sb24.asanzeman.request.domain.model.Review;
 import com.sb24.asanzeman.request.domain.model.ReviewLock;
@@ -38,7 +40,7 @@ public interface ReviewRepositoryPort {
     boolean reasonExists(UUID reasonId, String kind);
 
     /** The admin's active reasons of that kind, in their order. */
-    List<com.sb24.asanzeman.request.domain.model.RejectionReason> reasons(String kind);
+    List<RejectionReason> reasons(String kind);
 
     /**
      * Stores the revocation request of an issuance request (4.2): linked to it, and already held by {@code lock}'s
@@ -46,5 +48,5 @@ public interface ReviewRepositoryPort {
      *
      * @param lock the holder, or {@code null} to leave it in the branch's queue
      */
-    void insertRevocation(com.sb24.asanzeman.request.domain.model.Request revocation, UUID parentId, ReviewLock lock);
+    void insertRevocation(Request revocation, UUID parentId, ReviewLock lock);
 }

@@ -7,11 +7,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.sb24.asanzeman.shared.config.SecurityConfiguration;
 import com.sb24.asanzeman.shared.model.DomainException;
 import com.sb24.asanzeman.shared.model.TemporarilyUnavailableException;
 import com.sb24.asanzeman.shared.validation.IranianNationalCode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +21,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -30,7 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** D48: HTTP-level contract of the error handling, including the security filter chain. */
 @WebMvcTest(controllers = ProblemDetailExceptionHandlerTest.ProbeController.class)
 @Import({ProblemDetailExceptionHandlerTest.ProbeController.class, ProblemDetailExceptionHandler.class,
-        ProblemDetailSecurityHandlers.class, com.sb24.asanzeman.shared.config.SecurityConfiguration.class})
+        ProblemDetailSecurityHandlers.class, SecurityConfiguration.class})
 @TestPropertySource(locations = "classpath:application-test.properties")
 class ProblemDetailExceptionHandlerTest {
 
@@ -39,7 +42,7 @@ class ProblemDetailExceptionHandlerTest {
 
     /** The security chain now validates bearer tokens, so it needs a decoder; these tests send none. */
     @MockitoBean
-    org.springframework.security.oauth2.jwt.JwtDecoder jwtDecoder;
+    JwtDecoder jwtDecoder;
 
     static final class LockedException extends DomainException {
         LockedException(String holder) {
@@ -143,7 +146,7 @@ class ProblemDetailExceptionHandlerTest {
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value("internal.error"))
                 .andExpect(jsonPath("$.detail").value("خطای داخلی رخ داده است. لطفاً بعداً تلاش کنید."))
-                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("secret internals"))));
+                .andExpect(content().string(Matchers.not(Matchers.containsString("secret internals"))));
     }
 
     @Test

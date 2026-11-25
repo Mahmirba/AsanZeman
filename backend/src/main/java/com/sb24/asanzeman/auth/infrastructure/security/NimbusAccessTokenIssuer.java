@@ -3,6 +3,7 @@ package com.sb24.asanzeman.auth.infrastructure.security;
 import com.sb24.asanzeman.auth.domain.model.Session;
 import com.sb24.asanzeman.auth.domain.port.out.AccessTokenIssuerPort;
 import java.time.Instant;
+import java.util.UUID;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -33,7 +34,7 @@ public class NimbusAccessTokenIssuer implements AccessTokenIssuerPort {
     }
 
     @Override
-    public String issue(Session session, java.util.UUID familyId, String jti, Instant issuedAt, Instant expiresAt) {
+    public String issue(Session session, UUID familyId, String jti, Instant issuedAt, Instant expiresAt) {
         JwtClaimsSet.Builder claims = JwtClaimsSet.builder().issuer(issuer).subject(session.subjectName())
                 .issuedAt(issuedAt).expiresAt(expiresAt).id(jti).claim(USER_ID_CLAIM, session.subjectId().toString())
                 .claim(ROLE_CLAIM, session.role().name()).claim(SESSION_CLAIM, familyId.toString());

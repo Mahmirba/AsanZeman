@@ -23,6 +23,7 @@ import com.sb24.asanzeman.request.domain.model.NotYourBranchException;
 import com.sb24.asanzeman.request.domain.model.PageResult;
 import com.sb24.asanzeman.request.domain.model.PriceClass;
 import com.sb24.asanzeman.request.domain.model.RejectionReason;
+import com.sb24.asanzeman.request.domain.model.RequestLockedByOtherException;
 import com.sb24.asanzeman.request.domain.model.RequestStatus;
 import com.sb24.asanzeman.request.domain.model.RequestSummary;
 import com.sb24.asanzeman.request.domain.model.RequestType;
@@ -33,15 +34,19 @@ import com.sb24.asanzeman.request.domain.port.in.BranchReviewUseCase;
 import com.sb24.asanzeman.request.domain.port.in.ReviewResult;
 import com.sb24.asanzeman.shared.model.Rials;
 import com.sb24.asanzeman.shared.web.ProblemDetailExceptionHandler;
+import jakarta.servlet.http.HttpServletRequest;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -50,6 +55,8 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class BranchRequestControllerTest {
@@ -98,22 +105,22 @@ class BranchRequestControllerTest {
 
     @Test
     void theReportStreamsACsvFileWithTheBothBranchesTheGuaranteeNumberAndTheRejection() throws Exception {
-        org.mockito.Mockito.doAnswer(call -> {
-            java.util.function.Consumer<List<BranchRequestRow>> sink = call.getArgument(2);
+        Mockito.doAnswer(call -> {
+            Consumer<List<BranchRequestRow>> sink = call.getArgument(2);
             sink.accept(List.of(row("sara")));
             return null;
         }).when(queries).export(eq(ALI), any(), any());
 
         var started = mvc.perform(get("/api/branch/requests/export").param("status", "ISSUED"))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted())
+                .andExpect(MockMvcResultMatchers.request().asyncStarted())
                 .andReturn();
-        var result = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+        var result = mvc.perform(MockMvcRequestBuilders
                 .asyncDispatch(started)).andExpect(status().isOk()).andReturn();
 
         assertThat(result.getResponse().getContentType()).startsWith("text/csv");
         assertThat(result.getResponse().getHeader("Content-Disposition")).contains("attachment").contains("report.csv");
         String csv = new String(result.getResponse().getContentAsByteArray(),
-                java.nio.charset.StandardCharsets.UTF_8);
+                StandardCharsets.UTF_8);
         assertThat(csv).startsWith("﻿کد ملی مشتری,").contains("شعبه رسیدگی‌کننده")
                 .contains("1000000011,555,Ali Rezaei,1000000000,0123,Valiasr,0456,");
     }
@@ -210,7 +217,7 @@ class BranchRequestControllerTest {
 
     private BranchCommand sent(String ip) {
         var command = ArgumentCaptor.forClass(BranchCommand.class);
-        verify(reviews, org.mockito.Mockito.atLeastOnce()).take(command.capture());
+        verify(reviews, Mockito.atLeastOnce()).take(command.capture());
         assertThat(command.getValue().clientIp()).isEqualTo(ip);
         return command.getValue();
     }
@@ -283,7 +290,7 @@ class BranchRequestControllerTest {
     @Test
     void theRefusalsHaveTheirStatusAndPersianText() throws Exception {
         when(reviews.take(any())).thenThrow(new NotYourBranchException());
-        when(reviews.approve(any())).thenThrow(new com.sb24.asanzeman.request.domain.model.RequestLockedByOtherException(
+        when(reviews.approve(any())).thenThrow(new RequestLockedByOtherException(
                 new ReviewLock(UUID.randomUUID(), "sara", NOW, NOW)));
         when(reviews.abandon(any())).thenThrow(new InvalidRequestDataException("x"));
 
@@ -299,7 +306,7 @@ class BranchRequestControllerTest {
         assertThat(BranchRequestController.class.getAnnotation(PreAuthorize.class).value())
                 .isEqualTo("hasAnyRole('BRANCH','ADMIN')");
         assertThat(BranchRequestController.class.getMethod("forceRelease", Jwt.class, UUID.class,
-                BranchRequestController.ReleaseBody.class, jakarta.servlet.http.HttpServletRequest.class)
+                BranchRequestController.ReleaseBody.class, HttpServletRequest.class)
                 .getAnnotation(PreAuthorize.class).value()).isEqualTo("hasRole('ADMIN')");
     }
 }

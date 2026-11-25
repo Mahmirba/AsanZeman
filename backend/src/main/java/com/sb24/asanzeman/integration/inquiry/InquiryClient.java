@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
@@ -47,7 +48,7 @@ public class InquiryClient {
                 .exchange((request, response) -> reply(response)));
     }
 
-    private static InquiryReply reply(org.springframework.http.client.ClientHttpResponse response) throws IOException {
+    private static InquiryReply reply(ClientHttpResponse response) throws IOException {
         return new InquiryReply(response.getStatusCode().value(),
                 new String(response.getBody().readAllBytes(), StandardCharsets.UTF_8));
     }

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.sb24.asanzeman.request.domain.model.CollateralAllocation;
 import com.sb24.asanzeman.request.domain.model.CollateralDeposit;
 import com.sb24.asanzeman.request.domain.model.CollateralKind;
+import com.sb24.asanzeman.request.domain.model.CollateralPlan;
 import com.sb24.asanzeman.request.domain.model.CollateralPolicy;
 import com.sb24.asanzeman.request.domain.model.InsufficientBalanceException;
 import com.sb24.asanzeman.request.domain.model.InvalidCollateralException;
@@ -13,7 +14,9 @@ import com.sb24.asanzeman.request.domain.model.PriceClass;
 import com.sb24.asanzeman.shared.model.DomainException;
 import com.sb24.asanzeman.shared.model.Rials;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -63,8 +66,8 @@ class CollateralCalculatorTest {
         assertThat(plan.pledgeBase()).isEqualTo(Rials.of(800_000_000L));
         assertThat(plan.totalCollateral()).isEqualTo(Rials.of(1_000_000_000L));
         assertThat(plan.allocations()).extracting(CollateralAllocation::kind, CollateralAllocation::sharePercent)
-                .containsExactly(org.assertj.core.groups.Tuple.tuple(CollateralKind.CASH, 20),
-                        org.assertj.core.groups.Tuple.tuple(CollateralKind.PLEDGE, 80));
+                .containsExactly(Tuple.tuple(CollateralKind.CASH, 20),
+                        Tuple.tuple(CollateralKind.PLEDGE, 80));
     }
 
     @Test
@@ -124,9 +127,9 @@ class CollateralCalculatorTest {
         // 800M base: 300M on the cheap deposit (x1.00), the other 500M on the expensive one (x1.05 = 525M)
         assertThat(plan.allocations()).extracting(CollateralAllocation::depositNumber, a -> a.allocated().value(),
                 a -> a.collateral().value()).containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("D1", 200_000_000L, 200_000_000L),
-                        org.assertj.core.groups.Tuple.tuple("C1", 300_000_000L, 300_000_000L),
-                        org.assertj.core.groups.Tuple.tuple("E1", 500_000_000L, 525_000_000L));
+                        Tuple.tuple("D1", 200_000_000L, 200_000_000L),
+                        Tuple.tuple("C1", 300_000_000L, 300_000_000L),
+                        Tuple.tuple("E1", 500_000_000L, 525_000_000L));
         assertThat(plan.totalCollateral()).isEqualTo(Rials.of(1_025_000_000L));
     }
 
@@ -135,8 +138,8 @@ class CollateralCalculatorTest {
         var plan = calculator.plan(A, 100, List.of(cheap("B", 600_000_000L), cheap("A", 600_000_000L)), none());
 
         assertThat(plan.allocations()).extracting(CollateralAllocation::depositNumber,
-                a -> a.allocated().value()).containsExactly(org.assertj.core.groups.Tuple.tuple("B", 600_000_000L),
-                        org.assertj.core.groups.Tuple.tuple("A", 400_000_000L));
+                a -> a.allocated().value()).containsExactly(Tuple.tuple("B", 600_000_000L),
+                        Tuple.tuple("A", 400_000_000L));
     }
 
     @Test
@@ -161,9 +164,9 @@ class CollateralCalculatorTest {
 
         assertThat(plan.allocations()).extracting(CollateralAllocation::depositNumber, CollateralAllocation::kind,
                 a -> a.allocated().value()).containsExactly(
-                        org.assertj.core.groups.Tuple.tuple("D1", CollateralKind.CASH, 200_000_000L),
-                        org.assertj.core.groups.Tuple.tuple("D1", CollateralKind.PLEDGE, 400_000_000L),
-                        org.assertj.core.groups.Tuple.tuple("D2", CollateralKind.PLEDGE, 400_000_000L));
+                        Tuple.tuple("D1", CollateralKind.CASH, 200_000_000L),
+                        Tuple.tuple("D1", CollateralKind.PLEDGE, 400_000_000L),
+                        Tuple.tuple("D2", CollateralKind.PLEDGE, 400_000_000L));
     }
 
     @Test
@@ -283,8 +286,8 @@ class CollateralCalculatorTest {
 
     @Test
     void aPlanKeepsItsOwnCopyOfTheAllocations() {
-        var list = new java.util.ArrayList<CollateralAllocation>();
-        var plan = new com.sb24.asanzeman.request.domain.model.CollateralPlan(list, Rials.ZERO, Rials.ZERO, Rials.ZERO);
+        var list = new ArrayList<CollateralAllocation>();
+        var plan = new CollateralPlan(list, Rials.ZERO, Rials.ZERO, Rials.ZERO);
         list.add(null);
 
         assertThat(plan.allocations()).isEmpty();

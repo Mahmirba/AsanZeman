@@ -3,6 +3,7 @@ package com.sb24.asanzeman.integration.notifier.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sb24.asanzeman.integration.notifier.NotifierClient;
+import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Duration;
 import java.util.List;
@@ -16,7 +17,7 @@ class NotifierConfigurationTest {
     @Configuration(proxyBeanMethods = false)
     static class Meters {
         @Bean
-        io.micrometer.core.instrument.MeterRegistry meterRegistry() {
+        MeterRegistry meterRegistry() {
             return new SimpleMeterRegistry();
         }
     }

@@ -7,6 +7,8 @@ import com.sb24.asanzeman.auth.domain.model.Role;
 import com.sb24.asanzeman.auth.domain.model.Session;
 import com.sb24.asanzeman.support.H2Auth;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -158,7 +160,7 @@ class JdbcRefreshTokenStoreTest {
         AtomicInteger winners = new AtomicInteger();
         ExecutorService pool = Executors.newFixedThreadPool(callers);
         try {
-            java.util.List<Future<?>> done = new java.util.ArrayList<>();
+            List<Future<?>> done = new ArrayList<>();
             for (int i = 0; i < callers; i++) {
                 done.add(pool.submit(() -> {
                     start.await();

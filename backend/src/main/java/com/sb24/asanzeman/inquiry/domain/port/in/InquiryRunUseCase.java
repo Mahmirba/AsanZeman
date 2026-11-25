@@ -1,7 +1,9 @@
 package com.sb24.asanzeman.inquiry.domain.port.in;
 
+import com.sb24.asanzeman.inquiry.domain.model.Gender;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryContext;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryRunView;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Starts and reads the background runs of the inquiry chain (5.1). The caller has already checked who owns the request. */
@@ -19,7 +21,7 @@ public interface InquiryRunUseCase {
      * The gender the civil registry (Sabte Ahval) gave for this request, from its newest passed Sabte Ahval answer; empty
      * when no run has passed it yet (D26).
      */
-    java.util.Optional<com.sb24.asanzeman.inquiry.domain.model.Gender> genderOf(UUID requestId);
+    Optional<Gender> genderOf(UUID requestId);
 
     /** @return whether the request's latest run has finished and every inquiry passed: it may go on to the collateral */
     boolean cleared(UUID requestId);

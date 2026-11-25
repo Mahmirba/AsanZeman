@@ -70,6 +70,6 @@ public class InquiryRejectionService {
                 request.status().name(), rejected.status().name(), event.rejectionMessageKey(), null, null, null));
         String agencyName = agencies.find(request.agencyId()).map(a -> a.name()).orElse("");
         notifier.requestRejectedByInquiry(request.id(), request.customer().mobile(), agencyName,
-                JalaliDate.fromGregorian(clock.instant().atZone(TrackingCodeGenerator.TEHRAN).toLocalDate()).toSlashed());
+                JalaliDate.ofInstant(clock.instant()).toSlashed());
     }
 }

@@ -22,15 +22,20 @@ import com.sb24.asanzeman.request.domain.port.out.CollateralRepositoryPort;
 import com.sb24.asanzeman.request.domain.port.out.ReviewRepositoryPort;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.IntStream;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -59,7 +64,7 @@ class BranchQueryServiceTest {
     @Test
     void aBranchUserSearchesOnlyTheirOwnBranchWhateverTheCriteriaSay() {
         var page = new PageResult<>(List.of(row("0123", "0123")), 1, 0, 20);
-        when(queries.search(org.mockito.ArgumentMatchers.any(), eq(0), eq(20))).thenReturn(page);
+        when(queries.search(ArgumentMatchers.any(), eq(0), eq(20))).thenReturn(page);
 
         assertThat(service.search(ALI, ANY, 0, 20)).isSameAs(page);
 
@@ -72,7 +77,7 @@ class BranchQueryServiceTest {
 
     @Test
     void anAdminSearchesEveryBranch() {
-        when(queries.search(org.mockito.ArgumentMatchers.any(), eq(0), eq(20)))
+        when(queries.search(ArgumentMatchers.any(), eq(0), eq(20)))
                 .thenReturn(new PageResult<>(List.of(), 0, 0, 20));
 
         service.search(ADMIN, ANY, 0, 20);
@@ -84,27 +89,27 @@ class BranchQueryServiceTest {
 
     @Test
     void theReportReadsPageAfterPageInTheUsersScopeUntilTheEnd() {
-        var first = new PageResult<>(java.util.stream.IntStream.range(0, 200).mapToObj(i -> row("0123", "0123")).toList(),
+        var first = new PageResult<>(IntStream.range(0, 200).mapToObj(i -> row("0123", "0123")).toList(),
                 201, 0, 200);
         var second = new PageResult<>(List.of(row("0123", "0123")), 201, 1, 200);
-        when(queries.search(org.mockito.ArgumentMatchers.any(), eq(0), eq(200))).thenReturn(first);
-        when(queries.search(org.mockito.ArgumentMatchers.any(), eq(1), eq(200))).thenReturn(second);
-        var sizes = new java.util.ArrayList<Integer>();
+        when(queries.search(ArgumentMatchers.any(), eq(0), eq(200))).thenReturn(first);
+        when(queries.search(ArgumentMatchers.any(), eq(1), eq(200))).thenReturn(second);
+        var sizes = new ArrayList<Integer>();
 
         service.export(ALI, ANY, page -> sizes.add(page.size()));
 
         assertThat(sizes).containsExactly(200, 1);
         var scoped = ArgumentCaptor.forClass(BranchSearchCriteria.class);
-        verify(queries, org.mockito.Mockito.times(2)).search(scoped.capture(), org.mockito.ArgumentMatchers.anyInt(), eq(200));
+        verify(queries, Mockito.times(2)).search(scoped.capture(), ArgumentMatchers.anyInt(), eq(200));
         assertThat(scoped.getAllValues()).allSatisfy(c -> assertThat(c.branchCode()).isEqualTo("0123"));
     }
 
     @Test
     void anEmptyReportCallsTheSinkNever() {
-        when(queries.search(org.mockito.ArgumentMatchers.any(), eq(0), eq(200)))
+        when(queries.search(ArgumentMatchers.any(), eq(0), eq(200)))
                 .thenReturn(new PageResult<>(List.of(), 0, 0, 200));
 
-        service.export(ADMIN, ANY, page -> org.junit.jupiter.api.Assertions.fail("nothing to write"));
+        service.export(ADMIN, ANY, page -> Assertions.fail("nothing to write"));
     }
 
     @Test

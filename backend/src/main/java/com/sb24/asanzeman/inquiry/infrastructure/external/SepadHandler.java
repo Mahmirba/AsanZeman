@@ -8,7 +8,6 @@ import com.sb24.asanzeman.integration.inquiry.InquiryClient;
 import com.sb24.asanzeman.integration.inquiry.InquiryReply;
 import com.sb24.asanzeman.shared.model.JalaliDate;
 import java.time.Clock;
-import java.time.ZoneId;
 import java.util.Map;
 import tools.jackson.databind.JsonNode;
 
@@ -33,9 +32,7 @@ public class SepadHandler extends JsonInquiryHandler {
     static final String NOT_ALLOWED_TEXT = "غیرمجاز";
     static final int MIN_AGE = 18;
     static final int MAX_AGE = 50;
-    private static final ZoneId TEHRAN = ZoneId.of("Asia/Tehran");
-
-    private final Clock clock;
+        private final Clock clock;
 
     public SepadHandler(InquiryClient client, Clock clock) {
         super(InquiryType.SEPAD, client);
@@ -48,7 +45,7 @@ public class SepadHandler extends JsonInquiryHandler {
         if (context.civil() == null || context.civil().gender() != Gender.MALE) {
             return false;
         }
-        int age = context.ageOn(clock.instant().atZone(TEHRAN).toLocalDate());
+        int age = context.ageOn(clock.instant().atZone(JalaliDate.TEHRAN).toLocalDate());
         return age >= MIN_AGE && age <= MAX_AGE;
     }
 

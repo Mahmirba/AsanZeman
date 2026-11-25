@@ -10,11 +10,14 @@ import static org.mockito.Mockito.when;
 
 import com.sb24.asanzeman.inquiry.domain.model.InquiryVerdict.Decision;
 import com.sb24.asanzeman.inquiry.domain.port.in.InquiryRunFinished;
+import com.sb24.asanzeman.request.domain.model.AgencyInfo;
 import com.sb24.asanzeman.request.domain.model.Request;
 import com.sb24.asanzeman.request.domain.model.RequestBusyException;
 import com.sb24.asanzeman.request.domain.model.RequestStatus;
 import com.sb24.asanzeman.request.domain.model.RequestTest;
 import com.sb24.asanzeman.request.domain.model.RequestType;
+import com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort;
+import com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort;
 import com.sb24.asanzeman.request.domain.port.out.RequestRepositoryPort;
 import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
 import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
@@ -31,6 +34,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.event.EventListener;
 import org.springframework.transaction.annotation.Transactional;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,9 +45,9 @@ class InquiryRejectionServiceTest {
     @Mock
     private RequestRepositoryPort requests;
     @Mock
-    private com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort agencies;
+    private AgencyRegistryPort agencies;
     @Mock
-    private com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort notifier;
+    private CustomerNotifierPort notifier;
     @Mock
     private RecordAuditUseCase audit;
 
@@ -69,7 +73,7 @@ class InquiryRejectionServiceTest {
     void aRejectionRejectsTheRequestAndIsAudited() {
         Request request = request(RequestStatus.REGISTERED_AT_AGENCY);
         when(agencies.find(request.agencyId())).thenReturn(Optional.of(
-                new com.sb24.asanzeman.request.domain.model.AgencyInfo(request.agencyId(), "0042", "Sky Travel", true)));
+                new AgencyInfo(request.agencyId(), "0042", "Sky Travel", true)));
         when(requests.findByIdForUpdate(request.id())).thenReturn(Optional.of(request));
 
         service.on(finished(request, Decision.REJECT));
@@ -122,6 +126,6 @@ class InquiryRejectionServiceTest {
         var on = InquiryRejectionService.class.getMethod("on", InquiryRunFinished.class);
 
         assertThat(on.getAnnotation(Transactional.class)).isNotNull();
-        assertThat(on.getAnnotation(org.springframework.context.event.EventListener.class)).isNotNull();
+        assertThat(on.getAnnotation(EventListener.class)).isNotNull();
     }
 }

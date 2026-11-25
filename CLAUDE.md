@@ -10,7 +10,7 @@ AsanZeman (آسان ضمان) is a bank system for issuing *travel-return guaran
 
 ## Sources of truth, in order
 
-1. `plan.md` — the implementation plan and the **decision log D1–D50**. When anything below, a skill, or a sample project disagrees with it, `plan.md` wins.
+1. `plan.md` — the implementation plan and the **decision log D1–D55**. When anything below, a skill, or a sample project disagrees with it, `plan.md` wins.
 2. `docs/architecture/AsanZeman_Architecture_Document_v1.0.docx` — the architecture document (Persian). Section references like §4-3-4 point here. Diagram sources are in `docs/architecture/diagrams/` and `docs/architecture/sequence/`.
 3. SRS-AZS v1.0 — business rules the architecture doesn't spell out (collateral formulas, rejection messages).
 
@@ -58,7 +58,7 @@ Resources: one `src/main/resources/application.properties` (D36) — no profile 
 - **Ownership lock** (D1): `locked_by`, `locked_at`, `last_activity_at` on `request`; every change goes through `SELECT … FOR UPDATE NOWAIT` (`@Lock(PESSIMISTIC_WRITE)` + `jakarta.persistence.lock.timeout=0`). ORA-00054 → 409. `UNDER_REVIEW` auto-releases after 60 min idle; `UNDER_ACTION` never auto-releases. «لغو اقدام» (D44) = `abandon` from `UNDER_ACTION`.
 - **Cancel vs revoke** (D11): before «اقدام» → `CANCELLED`; from `UNDER_REVIEW` on → a `REVOCATION` request with `parent_request_id`; completing it sets the parent to `REVOKED`. There is **no `EXPIRED`** status and no expiry job (D19).
 - **Inquiries** (D3, D26, D27): stage 1 = Sabte Ahval; stage 2 = the other 8 in parallel; results `PASSED | NEGATIVE | FAILED | SKIPPED`. Only `NEGATIVE` rejects; `FAILED` blocks and allows «تلاش مجدد». Stage deadlines 10 s / 15 s; a retry starts only if the remaining stage time ≥ the service timeout. Gender and birth date come from Sabte Ahval, never from Yaghut.
-- **Customer data** (D2, D21, D22): snapshot from Yaghut `customerDetailInfo` at registration, stored **plain text**, used for the request's whole life. **Nothing is masked anywhere** (`azs.privacy.masking-enabled=false` exists but stays off).
+- **Customer data** (D2, D21, D22): snapshot from Yaghut `customerDetailInfo` at registration, stored **plain text**, used for the request's whole life. **Nothing is masked anywhere** (there is no masking switch).
 - **Balances** are never stored and are read once, when the customer chooses collateral. No re-check at approval (D16 withdrawn).
 - **Collateral** (D14, D15, D18): cash ≥ 20 %; pledge = `(amount − cash) × factor`, cheap deposits first (×1.00) then expensive (×1.05, ≤ 95 % of balance); `BigDecimal`, round **up** to whole rials.
 - **Tokens** (D5, D7): RS256 JWT, `Authorization: Bearer` only, **no cookies, no CSRF**. Access 15 min; refresh 8 h with rotation + reuse detection (bank/agency); customer gets one 30-min session, no refresh.

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sb24.asanzeman.shared.model.DomainException;
+import org.assertj.core.api.ThrowableAssert;
 import org.junit.jupiter.api.Test;
 
 class AdminDataTest {
@@ -56,7 +57,7 @@ class AdminDataTest {
         assertThat(new AgencyDuplicateException().kind()).isEqualTo(DomainException.Kind.CONFLICT);
     }
 
-    private static void assertInvalid(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
+    private static void assertInvalid(ThrowableAssert.ThrowingCallable call) {
         assertThatThrownBy(call).isInstanceOf(InvalidRequestDataException.class);
     }
 }

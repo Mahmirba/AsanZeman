@@ -1,5 +1,8 @@
 package com.sb24.asanzeman.request.domain.port.in;
 
+import java.util.UUID;
+
+
 /**
  * The branch's work on an issuance request (4.1, SRS review use case). Every method runs in one short transaction under
  * {@code FOR UPDATE NOWAIT}, checks the branch rule, the request's status and the ownership, and is audited.
@@ -22,7 +25,7 @@ public interface BranchReviewUseCase {
      *
      * @throws com.sb24.asanzeman.request.domain.model.InvalidRequestDataException unknown reason, or no comment, or too long
      */
-    ReviewResult reject(BranchCommand command, java.util.UUID reasonId, String comment);
+    ReviewResult reject(BranchCommand command, UUID reasonId, String comment);
 
     /**
      * The holder records the guarantee number from Farangin: «صادر شده». The customer gets an SMS.

@@ -1,5 +1,8 @@
 package com.sb24.asanzeman.request.domain.model;
 
+import java.util.regex.Pattern;
+
+
 /**
  * The number Farangin gave the guarantee, which the branch user types in when it is issued (SRS: «شماره ضمانتنامه»).
  * Letters, digits, dash, slash and underscore, 1 to 30 characters.
@@ -9,7 +12,7 @@ package com.sb24.asanzeman.request.domain.model;
  */
 public record GuaranteeNumber(String value) {
 
-    private static final java.util.regex.Pattern FORMAT = java.util.regex.Pattern.compile("[0-9A-Za-z/_-]{1,30}");
+    private static final Pattern FORMAT = Pattern.compile("[0-9A-Za-z/_-]{1,30}");
 
     public GuaranteeNumber {
         value = value == null ? "" : value.trim();

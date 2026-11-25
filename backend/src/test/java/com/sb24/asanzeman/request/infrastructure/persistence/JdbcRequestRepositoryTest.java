@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sb24.asanzeman.request.domain.model.Companion;
 import com.sb24.asanzeman.request.domain.model.Request;
+import com.sb24.asanzeman.request.domain.model.RequestStatus;
 import com.sb24.asanzeman.request.domain.model.TrackingCode;
 import com.sb24.asanzeman.shared.model.JalaliDate;
 import com.sb24.asanzeman.shared.model.Rials;
@@ -113,7 +114,7 @@ class JdbcRequestRepositoryTest {
         var waiting = request(8, List.of());
         repository.insert(old);
         repository.insert(waiting);
-        repository.updateStatus(waiting.id(), com.sb24.asanzeman.request.domain.model.RequestStatus.PENDING_BRANCH_REVIEW, NOW);
+        repository.updateStatus(waiting.id(), RequestStatus.PENDING_BRANCH_REVIEW, NOW);
 
         assertThat(repository.incompleteSince(NOW)).containsExactly(old.id());
         assertThat(repository.incompleteSince(NOW.minusSeconds(1))).isEmpty();
@@ -141,11 +142,11 @@ class JdbcRequestRepositoryTest {
         repository.insert(saved);
 
         assertThat(repository.findByIdForUpdate(saved.id())).contains(saved);
-        repository.updateStatus(saved.id(), com.sb24.asanzeman.request.domain.model.RequestStatus.CANCELLED,
+        repository.updateStatus(saved.id(), RequestStatus.CANCELLED,
                 NOW.plusSeconds(5));
 
         assertThat(repository.findById(saved.id()).orElseThrow().status())
-                .isEqualTo(com.sb24.asanzeman.request.domain.model.RequestStatus.CANCELLED);
+                .isEqualTo(RequestStatus.CANCELLED);
         assertThat(jdbc.sql("SELECT version FROM azs_business.request WHERE tracking_code = :c")
                 .param("c", saved.trackingCode().value()).query(Integer.class).single()).isEqualTo(1);
     }

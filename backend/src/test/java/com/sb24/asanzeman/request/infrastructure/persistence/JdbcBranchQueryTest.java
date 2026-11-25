@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.sb24.asanzeman.request.domain.model.BranchRequestRow;
 import com.sb24.asanzeman.request.domain.model.BranchSearchCriteria;
 import com.sb24.asanzeman.request.domain.model.Companion;
+import com.sb24.asanzeman.request.domain.model.CustomerSnapshot;
 import com.sb24.asanzeman.request.domain.model.Request;
 import com.sb24.asanzeman.request.domain.model.RequestStatus;
 import com.sb24.asanzeman.request.domain.model.RequestSummary;
@@ -52,7 +53,7 @@ class JdbcBranchQueryTest {
                 JalaliDate.of(1405, 8, 30), counter), List.of(), at);
         var c = base.customer();
         var saved = new Request(base.id(), base.trackingCode(), base.type(), status, agency, branch, base.amount(),
-                base.dueDate(), new com.sb24.asanzeman.request.domain.model.CustomerSnapshot(c.cif(), customerCode,
+                base.dueDate(), new CustomerSnapshot(c.cif(), customerCode,
                         c.firstName(), c.lastName(), c.fullName(), c.fatherName(), c.birthDate(), c.mobile(), null,
                         null, null, "ACTUAL", null), List.of(new Companion("Sara", "0012345679",
                                 LocalDate.of(2016, 4, 1), "P1")), "Sky Travel", at);

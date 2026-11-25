@@ -4,8 +4,8 @@ import com.sb24.asanzeman.request.domain.model.TrackingCode;
 import com.sb24.asanzeman.request.domain.port.out.TrackingCounterPort;
 import com.sb24.asanzeman.shared.model.JalaliDate;
 import java.time.Clock;
-import java.time.ZoneId;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Component
 public class TrackingCodeGenerator {
 
-    static final ZoneId TEHRAN = ZoneId.of("Asia/Tehran");
 
     private final TrackingCounterPort counters;
     private final Clock clock;
@@ -26,9 +25,9 @@ public class TrackingCodeGenerator {
         this.clock = clock;
     }
 
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+    @Transactional(propagation = Propagation.MANDATORY)
     public TrackingCode next(String branchCode, String agencyCode) {
-        JalaliDate day = JalaliDate.fromGregorian(clock.instant().atZone(TEHRAN).toLocalDate());
+        JalaliDate day = JalaliDate.ofInstant(clock.instant());
         int counter = counters.next(branchCode, agencyCode, day.toYyMmDd());
         return TrackingCode.of(branchCode, agencyCode, day, counter);
     }

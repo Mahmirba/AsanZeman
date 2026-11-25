@@ -5,22 +5,27 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sb24.asanzeman.request.domain.model.TrackingCodesExhaustedException;
 import com.sb24.asanzeman.support.H2Auth;
+import java.util.ArrayList;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /** Real SQL on in-memory H2; the MANDATORY transaction is the caller's, so the tests call the SQL part directly. */
 class JdbcTrackingCounterTest {
 
-    private final javax.sql.DataSource dataSource = H2Auth.newDataSource();
+    private final DataSource dataSource = H2Auth.newDataSource();
     private final JdbcClient jdbc = JdbcClient.create(dataSource);
-    private final org.springframework.transaction.support.TransactionTemplate tx =
-            new org.springframework.transaction.support.TransactionTemplate(
-                    new org.springframework.jdbc.datasource.DataSourceTransactionManager(dataSource));
+    private final TransactionTemplate tx =
+            new TransactionTemplate(
+                    new DataSourceTransactionManager(dataSource));
     private final JdbcTrackingCounter counter = new JdbcTrackingCounter(jdbc);
 
     @Test
@@ -55,7 +60,7 @@ class JdbcTrackingCounterTest {
         Set<Integer> numbers = ConcurrentHashMap.newKeySet();
         CountDownLatch start = new CountDownLatch(1);
         try (ExecutorService pool = Executors.newFixedThreadPool(callers)) {
-            var futures = new java.util.ArrayList<java.util.concurrent.Future<?>>();
+            var futures = new ArrayList<Future<?>>();
             for (int i = 0; i < callers; i++) {
                 futures.add(pool.submit(() -> {
                     start.await();

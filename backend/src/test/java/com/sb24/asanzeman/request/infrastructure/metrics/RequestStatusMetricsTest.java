@@ -8,6 +8,7 @@ import com.sb24.asanzeman.support.H2Auth;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.sql.Types;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
@@ -18,7 +19,7 @@ class RequestStatusMetricsTest {
 
     private final UUID agency = UUID.randomUUID();
 
-    @org.junit.jupiter.api.BeforeEach
+    @BeforeEach
     void setUp() {
         jdbc.sql("INSERT INTO azs_business.agency (id, cif, code, name) VALUES (:id, '9001', '0042', 'Sky')")
                 .param("id", RawUuid.toBytes(agency), Types.VARBINARY).update();

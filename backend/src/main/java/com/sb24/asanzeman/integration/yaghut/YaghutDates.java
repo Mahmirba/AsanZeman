@@ -1,13 +1,14 @@
 package com.sb24.asanzeman.integration.yaghut;
 
+import com.sb24.asanzeman.shared.model.JalaliDate;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -19,9 +20,7 @@ import java.util.regex.Pattern;
 final class YaghutDates {
 
     private static final Pattern WITH_ABBREVIATION = Pattern.compile("^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})([A-Za-z]{2,5})$");
-    private static final ZoneId TEHRAN = ZoneId.of("Asia/Tehran");
-
-    private YaghutDates() {
+        private YaghutDates() {
     }
 
     /** @return the instant, or {@code null} for a missing value */
@@ -70,7 +69,7 @@ final class YaghutDates {
             case "IRST" -> ZoneOffset.of("+03:30");
             case "IRDT" -> ZoneOffset.of("+04:30");
             case "UTC", "GMT" -> ZoneOffset.UTC;
-            default -> TEHRAN;
+            default -> JalaliDate.TEHRAN;
         };
     }
 }

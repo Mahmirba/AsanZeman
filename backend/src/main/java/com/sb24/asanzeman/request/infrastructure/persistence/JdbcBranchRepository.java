@@ -1,7 +1,8 @@
 package com.sb24.asanzeman.request.infrastructure.persistence;
 
-import com.sb24.asanzeman.request.domain.model.BranchLink;
 import com.sb24.asanzeman.request.domain.model.BranchData;
+import com.sb24.asanzeman.request.domain.model.BranchLink;
+import com.sb24.asanzeman.request.domain.model.BranchSummary;
 import com.sb24.asanzeman.request.domain.model.BranchSyncResult;
 import com.sb24.asanzeman.request.domain.port.out.BranchRepositoryPort;
 import com.sb24.asanzeman.shared.persistence.DbTime;
@@ -11,6 +12,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
@@ -82,7 +84,7 @@ public class JdbcBranchRepository implements BranchRepositoryPort {
     }
 
     @Override
-    public java.util.List<BranchLink> links() {
+    public List<BranchLink> links() {
         return jdbc.sql("SELECT branch_code, active, parent_branch FROM azs_business.branch ORDER BY branch_code")
                 .query((rs, row) -> new BranchLink(rs.getString("branch_code"), rs.getInt("active") == 1,
                         rs.getString("parent_branch"))).list();
@@ -96,19 +98,19 @@ public class JdbcBranchRepository implements BranchRepositoryPort {
     }
 
     @Override
-    public java.util.Optional<String> nameOf(String branchCode) {
+    public Optional<String> nameOf(String branchCode) {
         return jdbc.sql("SELECT name FROM azs_business.branch WHERE branch_code = :c")
                 .param("c", branchCode, Types.VARCHAR).query(String.class).optional();
     }
 
     @Override
-    public java.util.List<com.sb24.asanzeman.request.domain.model.BranchSummary> searchOpen(String prefix, int limit) {
+    public List<BranchSummary> searchOpen(String prefix, int limit) {
         String like = escapeLike(prefix == null ? "" : prefix.trim()) + "%";
         return jdbc.sql("SELECT branch_code, name, city FROM azs_business.branch WHERE active = 1 "
                 + "AND parent_branch = branch_code AND (name LIKE :p ESCAPE '!' OR branch_code LIKE :p ESCAPE '!') "
                 + "ORDER BY name, branch_code FETCH FIRST " + limit + " ROWS ONLY")
                 .param("p", like, Types.VARCHAR)
-                .query((rs, row) -> new com.sb24.asanzeman.request.domain.model.BranchSummary(
+                .query((rs, row) -> new BranchSummary(
                         rs.getString("branch_code"), rs.getString("name"), rs.getString("city")))
                 .list();
     }

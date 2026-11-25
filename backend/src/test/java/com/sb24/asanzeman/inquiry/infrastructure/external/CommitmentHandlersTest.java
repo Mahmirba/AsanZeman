@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 
 import com.sb24.asanzeman.inquiry.domain.model.InquiryOutcome;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryType;
+import java.util.ArrayList;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -24,7 +25,7 @@ class CommitmentHandlersTest {
     }
 
     private static String rows(String... allowed) {
-        var items = new java.util.ArrayList<String>();
+        var items = new ArrayList<String>();
         for (String a : allowed) {
             items.add("{\"darsadTaahodArziRafNashodeh\":\"0\",\"mablagh\":\"0\",\"izMojaz\":" + a + "}");
         }

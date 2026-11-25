@@ -1,5 +1,6 @@
 package com.sb24.asanzeman.inquiry.application;
 
+import com.sb24.asanzeman.inquiry.domain.model.FailureKind;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryContext;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryOutcome;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryType;
@@ -48,7 +49,7 @@ final class FakeHandler implements InquiryHandler {
             startedTogether.countDown();
             try {
                 if (!startedTogether.await(5, TimeUnit.SECONDS)) {
-                    return InquiryOutcome.failed(type, com.sb24.asanzeman.inquiry.domain.model.FailureKind.TIMEOUT);
+                    return InquiryOutcome.failed(type, FailureKind.TIMEOUT);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

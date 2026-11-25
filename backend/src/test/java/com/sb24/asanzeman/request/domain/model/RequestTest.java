@@ -9,6 +9,8 @@ import com.sb24.asanzeman.shared.model.Rials;
 import com.sb24.asanzeman.shared.model.TemporarilyUnavailableException;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -52,7 +54,7 @@ public class RequestTest {
 
     @Test
     void theCompanionListIsCopied() {
-        var list = new java.util.ArrayList<>(List.of(companion()));
+        var list = new ArrayList<>(List.of(companion()));
         Request request = register(customer(LocalDate.of(1990, 5, 17), "ACTUAL"), Rials.of(1), list);
 
         list.clear();
@@ -101,9 +103,9 @@ public class RequestTest {
     @Test
     void atMostFiveCompanions() {
         var adult = customer(LocalDate.of(1990, 5, 17), "ACTUAL");
-        assertThat(register(adult, Rials.of(1), java.util.Collections.nCopies(5, companion())).companions())
+        assertThat(register(adult, Rials.of(1), Collections.nCopies(5, companion())).companions())
                 .hasSize(5);
-        assertThatThrownBy(() -> register(adult, Rials.of(1), java.util.Collections.nCopies(6, companion())))
+        assertThatThrownBy(() -> register(adult, Rials.of(1), Collections.nCopies(6, companion())))
                 .isInstanceOf(InvalidRequestDataException.class);
     }
 

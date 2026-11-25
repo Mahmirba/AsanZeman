@@ -14,6 +14,7 @@ import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
@@ -79,8 +80,8 @@ class JdbcCollateralRepositoryTest {
         var found = repository.find(request);
 
         assertThat(found).extracting(CollateralAllocation::depositNumber, CollateralAllocation::kind)
-                .containsExactly(org.assertj.core.groups.Tuple.tuple("D-100", CollateralKind.CASH),
-                        org.assertj.core.groups.Tuple.tuple("D-300", CollateralKind.PLEDGE));
+                .containsExactly(Tuple.tuple("D-100", CollateralKind.CASH),
+                        Tuple.tuple("D-300", CollateralKind.PLEDGE));
         var pledge = found.get(1);
         assertThat(pledge.priceClass()).isEqualTo(PriceClass.EXPENSIVE);
         assertThat(pledge.sharePercent()).isEqualTo(80);

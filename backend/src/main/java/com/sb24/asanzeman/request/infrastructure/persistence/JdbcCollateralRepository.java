@@ -1,12 +1,16 @@
 package com.sb24.asanzeman.request.infrastructure.persistence;
 
 import com.sb24.asanzeman.request.domain.model.CollateralAllocation;
+import com.sb24.asanzeman.request.domain.model.CollateralKind;
 import com.sb24.asanzeman.request.domain.model.CollateralPlan;
+import com.sb24.asanzeman.request.domain.model.PriceClass;
 import com.sb24.asanzeman.request.domain.port.out.CollateralRepositoryPort;
+import com.sb24.asanzeman.shared.model.Rials;
 import com.sb24.asanzeman.shared.persistence.DbTime;
 import com.sb24.asanzeman.shared.persistence.RawUuid;
 import java.sql.Types;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
@@ -50,18 +54,18 @@ public class JdbcCollateralRepository implements CollateralRepositoryPort {
     }
 
     @Override
-    public java.util.List<CollateralAllocation> find(UUID requestId) {
+    public List<CollateralAllocation> find(UUID requestId) {
         return jdbc.sql("""
                 SELECT deposit_number, kind, price_class, share_percent, factor, allocated, collateral
                   FROM azs_business.collateral WHERE request_id = :request ORDER BY kind, created_at, deposit_number
                 """)
                 .param("request", RawUuid.toBytes(requestId), Types.VARBINARY)
                 .query((rs, row) -> new CollateralAllocation(rs.getString("deposit_number"),
-                        com.sb24.asanzeman.request.domain.model.CollateralKind.valueOf(rs.getString("kind")),
-                        com.sb24.asanzeman.request.domain.model.PriceClass.valueOf(rs.getString("price_class")),
+                        CollateralKind.valueOf(rs.getString("kind")),
+                        PriceClass.valueOf(rs.getString("price_class")),
                         rs.getInt("share_percent"), rs.getBigDecimal("factor"),
-                        com.sb24.asanzeman.shared.model.Rials.of(rs.getLong("allocated")),
-                        com.sb24.asanzeman.shared.model.Rials.of(rs.getLong("collateral")))).list();
+                        Rials.of(rs.getLong("allocated")),
+                        Rials.of(rs.getLong("collateral")))).list();
     }
 
     @Override

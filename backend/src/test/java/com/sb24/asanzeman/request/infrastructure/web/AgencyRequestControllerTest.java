@@ -11,25 +11,43 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.sb24.asanzeman.auth.domain.model.YaghutSessionExpiredException;
+import com.sb24.asanzeman.request.domain.model.CancelOutcome;
+import com.sb24.asanzeman.request.domain.model.Companion;
 import com.sb24.asanzeman.request.domain.model.CustomerUnderageException;
 import com.sb24.asanzeman.request.domain.model.DuplicateRegistrationException;
+import com.sb24.asanzeman.request.domain.model.PageResult;
+import com.sb24.asanzeman.request.domain.model.RequestBusyException;
+import com.sb24.asanzeman.request.domain.model.RequestDetails;
+import com.sb24.asanzeman.request.domain.model.RequestNotCancellableException;
+import com.sb24.asanzeman.request.domain.model.RequestNotFoundException;
+import com.sb24.asanzeman.request.domain.model.RequestSearchCriteria;
 import com.sb24.asanzeman.request.domain.model.RequestStatus;
-import com.sb24.asanzeman.request.domain.port.in.CompanionInput;
+import com.sb24.asanzeman.request.domain.model.RequestSummary;
+import com.sb24.asanzeman.request.domain.model.RequestType;
+import com.sb24.asanzeman.request.domain.model.RevocationNotAvailableException;
+import com.sb24.asanzeman.request.domain.port.in.CancelRequestCommand;
+import com.sb24.asanzeman.request.domain.port.in.CancelRequestResult;
 import com.sb24.asanzeman.request.domain.port.in.CancelRequestUseCase;
+import com.sb24.asanzeman.request.domain.port.in.CompanionInput;
 import com.sb24.asanzeman.request.domain.port.in.GetRequestUseCase;
 import com.sb24.asanzeman.request.domain.port.in.RegisterRequestCommand;
-import com.sb24.asanzeman.request.domain.port.in.SearchRequestsUseCase;
 import com.sb24.asanzeman.request.domain.port.in.RegisterRequestUseCase;
 import com.sb24.asanzeman.request.domain.port.in.RegisteredRequest;
+import com.sb24.asanzeman.request.domain.port.in.SearchRequestsUseCase;
 import com.sb24.asanzeman.shared.web.ProblemDetailExceptionHandler;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -38,6 +56,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 class AgencyRequestControllerTest {
@@ -83,7 +105,7 @@ class AgencyRequestControllerTest {
                 + "}";
     }
 
-    private org.springframework.test.web.servlet.ResultActions send(String json) throws Exception {
+    private ResultActions send(String json) throws Exception {
         return mvc.perform(post("/api/agency/requests").contentType(MediaType.APPLICATION_JSON).content(json)
                 .header("User-Agent", "Firefox").with(request -> {
                     request.setRemoteAddr("10.0.0.5");
@@ -166,7 +188,7 @@ class AgencyRequestControllerTest {
     void moreThanFiveCompanionsIs400() throws Exception {
         String one = "{\"fullName\":\"A\",\"nationalCode\":\"" + NATIONAL_CODE
                 + "\",\"birthDate\":\"1394/01/01\",\"passportNumber\":\"P1\"}";
-        String six = "[" + String.join(",", java.util.Collections.nCopies(6, one)) + "]";
+        String six = "[" + String.join(",", Collections.nCopies(6, one)) + "]";
 
         send(body("1000", "1405/11/01", six)).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.violations.companions").exists());
@@ -211,22 +233,22 @@ class AgencyRequestControllerTest {
 
     // ---- tracking list, export, details, cancel -------------------------------------------------------------
 
-    private static final com.sb24.asanzeman.request.domain.model.RequestSummary ROW =
-            new com.sb24.asanzeman.request.domain.model.RequestSummary(UUID.randomUUID(), "012300420508300001",
-                    com.sb24.asanzeman.request.domain.model.RequestType.ISSUANCE, RequestStatus.REGISTERED_AT_AGENCY,
+    private static final RequestSummary ROW =
+            new RequestSummary(UUID.randomUUID(), "012300420508300001",
+                    RequestType.ISSUANCE, RequestStatus.REGISTERED_AT_AGENCY,
                     "1000000011", "555", "Ali Rezaei", 250_000_000L, "0123", "Valiasr", LocalDate.of(2027, 1, 21),
                     Instant.parse("2026-11-21T10:00:00Z"), "Sky Travel", "09121234567");
 
-    private static org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder getRequests(
+    private static MockHttpServletRequestBuilder getRequests(
             String suffix) {
-        return org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+        return MockMvcRequestBuilders
                 .get("/api/agency/requests" + suffix);
     }
 
     @Test
     void theListIsPagedAndLabelledAndScopedToTheTokenAgency() throws Exception {
-        when(search.search(any(), org.mockito.ArgumentMatchers.eq(2), org.mockito.ArgumentMatchers.eq(10)))
-                .thenReturn(new com.sb24.asanzeman.request.domain.model.PageResult<>(List.of(ROW), 21, 2, 10));
+        when(search.search(any(), ArgumentMatchers.eq(2), ArgumentMatchers.eq(10)))
+                .thenReturn(new PageResult<>(List.of(ROW), 21, 2, 10));
 
         mvc.perform(getRequests("").param("page", "2").param("size", "10").param("type", "ISSUANCE")
                         .param("name", "Rez").param("nationalCode", NATIONAL_CODE)
@@ -242,10 +264,10 @@ class AgencyRequestControllerTest {
                 .andExpect(jsonPath("$.items[0].registeredAtJalali").value("1405/08/30 13:30:00"))
                 .andExpect(jsonPath("$.items[0].branchName").value("Valiasr"));
 
-        ArgumentCaptor<com.sb24.asanzeman.request.domain.model.RequestSearchCriteria> criteria =
-                ArgumentCaptor.forClass(com.sb24.asanzeman.request.domain.model.RequestSearchCriteria.class);
-        verify(search).search(criteria.capture(), org.mockito.ArgumentMatchers.eq(2),
-                org.mockito.ArgumentMatchers.eq(10));
+        ArgumentCaptor<RequestSearchCriteria> criteria =
+                ArgumentCaptor.forClass(RequestSearchCriteria.class);
+        verify(search).search(criteria.capture(), ArgumentMatchers.eq(2),
+                ArgumentMatchers.eq(10));
         assertThat(criteria.getValue().agencyId()).isEqualTo(AGENCY);
         assertThat(criteria.getValue().customerCode()).isEqualTo(NATIONAL_CODE);
         assertThat(criteria.getValue().name()).isEqualTo("Rez");
@@ -266,23 +288,23 @@ class AgencyRequestControllerTest {
 
     @Test
     void theExportStreamsACsvFileWithTheSameFilters() throws Exception {
-        org.mockito.Mockito.doAnswer(call -> {
-            java.util.function.Consumer<List<com.sb24.asanzeman.request.domain.model.RequestSummary>> sink =
+        Mockito.doAnswer(call -> {
+            Consumer<List<RequestSummary>> sink =
                     call.getArgument(1);
             sink.accept(List.of(ROW));
             return null;
         }).when(search).export(any(), any());
 
         var started = mvc.perform(getRequests("/export").param("name", "Rez")).andExpect(
-                org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted())
+                MockMvcResultMatchers.request().asyncStarted())
                 .andReturn();
-        var result = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+        var result = mvc.perform(MockMvcRequestBuilders
                 .asyncDispatch(started)).andExpect(status().isOk()).andReturn();
 
         assertThat(result.getResponse().getContentType()).startsWith("text/csv");
         assertThat(result.getResponse().getHeader("Content-Disposition")).contains("attachment")
                 .contains("requests.csv");
-        String csv = new String(result.getResponse().getContentAsByteArray(), java.nio.charset.StandardCharsets.UTF_8);
+        String csv = new String(result.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
         assertThat(csv).startsWith("﻿کد ملی مشتری,").contains("1000000011,555,Ali Rezaei,250000000,0123,Valiasr");
         verify(search).export(any(), any());
     }
@@ -294,8 +316,8 @@ class AgencyRequestControllerTest {
 
     @Test
     void detailsShowTheCompanionsWithJalaliBirthDates() throws Exception {
-        var details = new com.sb24.asanzeman.request.domain.model.RequestDetails(ROW,
-                List.of(new com.sb24.asanzeman.request.domain.model.Companion("Sara Rezaei", NATIONAL_CODE,
+        var details = new RequestDetails(ROW,
+                List.of(new Companion("Sara Rezaei", NATIONAL_CODE,
                         LocalDate.of(2015, 3, 21), "P1234567")));
         when(get.get(AGENCY, ROW.id())).thenReturn(details);
 
@@ -309,7 +331,7 @@ class AgencyRequestControllerTest {
 
     @Test
     void anUnknownRequestIs404WithAPersianProblem() throws Exception {
-        doThrow(new com.sb24.asanzeman.request.domain.model.RequestNotFoundException()).when(get)
+        doThrow(new RequestNotFoundException()).when(get)
                 .get(any(), any());
 
         mvc.perform(getRequests("/" + UUID.randomUUID()))
@@ -320,8 +342,8 @@ class AgencyRequestControllerTest {
 
     @Test
     void cancelTakesTheAgencyAndNameFromTheTokenAndReportsTheOutcome() throws Exception {
-        when(cancel.cancel(any())).thenReturn(new com.sb24.asanzeman.request.domain.port.in.CancelRequestResult(
-                ROW.id(), com.sb24.asanzeman.request.domain.model.CancelOutcome.CANCELLED, RequestStatus.CANCELLED));
+        when(cancel.cancel(any())).thenReturn(new CancelRequestResult(
+                ROW.id(), CancelOutcome.CANCELLED, RequestStatus.CANCELLED));
 
         mvc.perform(post("/api/agency/requests/" + ROW.id() + "/cancel").header("User-Agent", "Firefox")
                         .with(request -> {
@@ -332,7 +354,7 @@ class AgencyRequestControllerTest {
                 .andExpect(jsonPath("$.outcome").value("CANCELLED"))
                 .andExpect(jsonPath("$.status").value("CANCELLED"));
 
-        verify(cancel).cancel(new com.sb24.asanzeman.request.domain.port.in.CancelRequestCommand(AGENCY,
+        verify(cancel).cancel(new CancelRequestCommand(AGENCY,
                 "Sky Travel", ROW.id(), "10.0.0.5", "Firefox"));
     }
 
@@ -343,8 +365,8 @@ class AgencyRequestControllerTest {
                 .issuedAt(Instant.now()).expiresAt(Instant.now().plusSeconds(900)).build();
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt));
         when(register.register(any())).thenReturn(REGISTERED);
-        when(cancel.cancel(any())).thenReturn(new com.sb24.asanzeman.request.domain.port.in.CancelRequestResult(
-                ROW.id(), com.sb24.asanzeman.request.domain.model.CancelOutcome.CANCELLED, RequestStatus.CANCELLED));
+        when(cancel.cancel(any())).thenReturn(new CancelRequestResult(
+                ROW.id(), CancelOutcome.CANCELLED, RequestStatus.CANCELLED));
 
         send(body("100000000", "1405/11/01", null)).andExpect(status().isCreated());
         mvc.perform(post("/api/agency/requests/" + ROW.id() + "/cancel")).andExpect(status().isOk());
@@ -352,8 +374,8 @@ class AgencyRequestControllerTest {
         ArgumentCaptor<RegisterRequestCommand> registered = ArgumentCaptor.forClass(RegisterRequestCommand.class);
         verify(register).register(registered.capture());
         assertThat(registered.getValue().registeredBy()).isEqualTo("ali.sky");
-        ArgumentCaptor<com.sb24.asanzeman.request.domain.port.in.CancelRequestCommand> cancelled =
-                ArgumentCaptor.forClass(com.sb24.asanzeman.request.domain.port.in.CancelRequestCommand.class);
+        ArgumentCaptor<CancelRequestCommand> cancelled =
+                ArgumentCaptor.forClass(CancelRequestCommand.class);
         verify(cancel).cancel(cancelled.capture());
         assertThat(cancelled.getValue().agencyName()).isEqualTo("Sky Travel");
         assertThat(cancelled.getValue().actor()).isEqualTo("ali.sky");
@@ -361,16 +383,16 @@ class AgencyRequestControllerTest {
 
     @Test
     void cancelRefusalsAreConflictsWithPersianTexts() throws Exception {
-        doThrow(new com.sb24.asanzeman.request.domain.model.RevocationNotAvailableException()).when(cancel)
+        doThrow(new RevocationNotAvailableException()).when(cancel)
                 .cancel(any());
         mvc.perform(post("/api/agency/requests/" + ROW.id() + "/cancel")).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("request.revocation-not-available"));
 
-        doThrow(new com.sb24.asanzeman.request.domain.model.RequestBusyException()).when(cancel).cancel(any());
+        doThrow(new RequestBusyException()).when(cancel).cancel(any());
         mvc.perform(post("/api/agency/requests/" + ROW.id() + "/cancel")).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("request.busy"));
 
-        doThrow(new com.sb24.asanzeman.request.domain.model.RequestNotCancellableException()).when(cancel)
+        doThrow(new RequestNotCancellableException()).when(cancel)
                 .cancel(any());
         mvc.perform(post("/api/agency/requests/" + ROW.id() + "/cancel")).andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("request.not-cancellable"));

@@ -3,11 +3,14 @@ package com.sb24.asanzeman.shared.model;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class JalaliDateTest {
 
@@ -81,22 +84,32 @@ class JalaliDateTest {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {"1405/08/30", " 1405/08/30 ", "۱۴۰۵/۰۸/۳۰", "١٤٠٥/٠٨/٣٠"})
+    @ValueSource(strings = {"1405/08/30", " 1405/08/30 ", "۱۴۰۵/۰۸/۳۰", "١٤٠٥/٠٨/٣٠"})
     void parsesTheSrsFormatWithAnyDigits(String text) {
         assertThat(JalaliDate.parse(text)).isEqualTo(JalaliDate.of(1405, 8, 30));
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(strings = {"", "1405-08-30", "1405/8/30", "1405/08", "1405/13/01",
+    @ValueSource(strings = {"", "1405-08-30", "1405/8/30", "1405/08", "1405/13/01",
             "1405/12/30", "abcd/ef/gh", "1405/08/30/1", "1405/08/3", "ٰ", "٪/01/01", "ۺ/01/01"})
     void rejectsAnythingThatIsNotARealJalaliDate(String text) {
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> JalaliDate.parse(text))
+        Assertions.assertThatThrownBy(() -> JalaliDate.parse(text))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void aMissingDateIsRejected() {
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> JalaliDate.parse(null))
+        Assertions.assertThatThrownBy(() -> JalaliDate.parse(null))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void anInstantIsDatedInTehranNotInUtc() {
+        // 22:00 UTC on 20 March is 01:30 on 21 March in Tehran (UTC+3:30): the first day of 1403
+        assertThat(JalaliDate.ofInstant(Instant.parse("2024-03-20T22:00:00Z")))
+                .isEqualTo(JalaliDate.of(1403, 1, 2));
+        assertThat(JalaliDate.ofInstant(Instant.parse("2024-03-20T10:00:00Z")))
+                .isEqualTo(JalaliDate.of(1403, 1, 1));
+        assertThat(JalaliDate.TEHRAN.getId()).isEqualTo("Asia/Tehran");
     }
 }

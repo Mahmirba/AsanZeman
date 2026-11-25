@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
@@ -51,7 +52,7 @@ class YaghutDatesTest {
     @ParameterizedTest
     @ValueSource(strings = {"1990-05-17", "19900517", " 1990-05-17 ", "1990-05-17T00:00:00IRST", "1990-05-17 00:00:00"})
     void parsesADateWithOrWithoutATimePart(String text) {
-        assertThat(YaghutDates.parseDate(text)).isEqualTo(java.time.LocalDate.of(1990, 5, 17));
+        assertThat(YaghutDates.parseDate(text)).isEqualTo(LocalDate.of(1990, 5, 17));
     }
 
     @ParameterizedTest

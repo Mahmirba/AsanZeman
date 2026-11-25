@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.sb24.asanzeman.auth.domain.model.Agency;
 import com.sb24.asanzeman.auth.domain.model.ClientInfo;
 import com.sb24.asanzeman.auth.domain.model.InvalidSessionException;
 import com.sb24.asanzeman.auth.domain.model.IssuedTokens;
@@ -17,6 +18,7 @@ import com.sb24.asanzeman.auth.domain.model.RefreshTokenRecord;
 import com.sb24.asanzeman.auth.domain.model.Role;
 import com.sb24.asanzeman.auth.domain.model.Session;
 import com.sb24.asanzeman.auth.domain.port.out.AccessTokenIssuerPort;
+import com.sb24.asanzeman.auth.domain.port.out.AgencyDirectoryPort;
 import com.sb24.asanzeman.auth.domain.port.out.JwtBlacklistPort;
 import com.sb24.asanzeman.auth.domain.port.out.RefreshTokenStorePort;
 import com.sb24.asanzeman.auth.domain.service.RefreshTokens;
@@ -36,6 +38,7 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -55,7 +58,7 @@ class TokenServiceTest {
     @Mock
     private JwtBlacklistPort blacklist;
     @Mock
-    private com.sb24.asanzeman.auth.domain.port.out.AgencyDirectoryPort agencies;
+    private AgencyDirectoryPort agencies;
     @Mock
     private RecordAuditUseCase audit;
 
@@ -151,7 +154,7 @@ class TokenServiceTest {
         service.start(SESSION, CLIENT);
 
         ArgumentCaptor<String> jti = ArgumentCaptor.forClass(String.class);
-        verify(issuer, org.mockito.Mockito.times(2)).issue(any(), any(), jti.capture(), any(), any());
+        verify(issuer, Mockito.times(2)).issue(any(), any(), jti.capture(), any(), any());
         assertThat(jti.getAllValues().get(0)).isNotEqualTo(jti.getAllValues().get(1));
     }
 
@@ -229,7 +232,7 @@ class TokenServiceTest {
         RefreshTokenRecord old = agencyToken("a");
         when(store.findByHash(RefreshTokens.hash("a"))).thenReturn(Optional.of(old));
         when(agencies.findById(AGENCY_SESSION.subjectId())).thenReturn(Optional.of(
-                new com.sb24.asanzeman.auth.domain.model.Agency(AGENCY_SESSION.subjectId(), "9001", "Sky", true)));
+                new Agency(AGENCY_SESSION.subjectId(), "9001", "Sky", true)));
         when(store.markUsed(old.id(), NOW)).thenReturn(true);
         when(issuer.issue(eq(AGENCY_SESSION), any(UUID.class), anyString(), eq(NOW), any())).thenReturn("jwt");
 
@@ -244,7 +247,7 @@ class TokenServiceTest {
         when(store.findByHash(RefreshTokens.hash("off"))).thenReturn(Optional.of(off));
         when(store.findByHash(RefreshTokens.hash("gone"))).thenReturn(Optional.of(gone));
         when(agencies.findById(AGENCY_SESSION.subjectId())).thenReturn(Optional.of(
-                new com.sb24.asanzeman.auth.domain.model.Agency(AGENCY_SESSION.subjectId(), "9001", "Sky", false)),
+                new Agency(AGENCY_SESSION.subjectId(), "9001", "Sky", false)),
                 Optional.empty());
 
         assertThatThrownBy(() -> service.refresh("off", CLIENT)).isInstanceOf(InvalidSessionException.class);

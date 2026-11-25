@@ -3,6 +3,7 @@ package com.sb24.asanzeman.notification.infrastructure.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.sb24.asanzeman.notification.domain.model.OutboxSms;
+import com.sb24.asanzeman.shared.persistence.DbTime;
 import com.sb24.asanzeman.shared.persistence.RawUuid;
 import com.sb24.asanzeman.support.H2Auth;
 import java.sql.Types;
@@ -99,14 +100,14 @@ class JdbcSmsOutboxTest {
         OutboxSms sms = queue("hello", NOW);
         // the second worker read the row before the first one claimed it
         var stale = jdbc.sql(JdbcSmsOutbox.CLAIM).param("id", RawUuid.toBytes(sms.id()), Types.VARBINARY)
-                .param("now", com.sb24.asanzeman.shared.persistence.DbTime.toDb(NOW), Types.TIMESTAMP)
-                .param("leaseEnd", com.sb24.asanzeman.shared.persistence.DbTime.toDb(NOW.plus(LEASE)),
+                .param("now", DbTime.toDb(NOW), Types.TIMESTAMP)
+                .param("leaseEnd", DbTime.toDb(NOW.plus(LEASE)),
                         Types.TIMESTAMP);
 
         assertThat(stale.update()).isEqualTo(1);
         assertThat(jdbc.sql(JdbcSmsOutbox.CLAIM).param("id", RawUuid.toBytes(sms.id()), Types.VARBINARY)
-                .param("now", com.sb24.asanzeman.shared.persistence.DbTime.toDb(NOW), Types.TIMESTAMP)
-                .param("leaseEnd", com.sb24.asanzeman.shared.persistence.DbTime.toDb(NOW.plus(LEASE)),
+                .param("now", DbTime.toDb(NOW), Types.TIMESTAMP)
+                .param("leaseEnd", DbTime.toDb(NOW.plus(LEASE)),
                         Types.TIMESTAMP).update()).isZero();
     }
 

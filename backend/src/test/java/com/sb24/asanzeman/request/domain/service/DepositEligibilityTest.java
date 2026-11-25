@@ -8,6 +8,7 @@ import com.sb24.asanzeman.request.domain.model.DepositRules;
 import com.sb24.asanzeman.request.domain.model.PriceClass;
 import com.sb24.asanzeman.shared.model.Rials;
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -161,7 +162,7 @@ class DepositEligibilityTest {
 
     @Test
     void theRulesKeepTheirOwnCopyOfTheirSets() {
-        var owners = new java.util.HashSet<>(Set.of("INDIVIDUAL"));
+        var owners = new HashSet<>(Set.of("INDIVIDUAL"));
         var rules = new DepositRules("IRR", owners, Map.of(), Map.of());
         owners.clear();
 
