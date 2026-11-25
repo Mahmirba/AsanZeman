@@ -22,7 +22,7 @@ trap 'rm -rf "$work"' EXIT
 ./mvnw -B -q dependency:list -DincludeScope=runtime -DoutputFile="$work/deps.txt"
 
 # "   group:artifact:jar:version:scope" (or with a classifier) -> group:artifact:version, one per line
-grep -E '^\s+[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:' "$work/deps.txt" | sed 's/ -- .*//; s/^ *//' \
+{ grep -E '^[[:space:]]+[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+:' "$work/deps.txt" || true; } | sed 's/ -- .*//; s/^ *//' \
   | awk -F: '{ if (NF == 5) { print $1 ":" $2 ":" $4 } else if (NF >= 6) { print $1 ":" $2 ":" $5 } }' \
   | sort -u > "$work/gav.txt"
 
