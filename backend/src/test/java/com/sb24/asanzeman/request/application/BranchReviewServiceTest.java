@@ -61,6 +61,8 @@ class BranchReviewServiceTest {
     @Mock
     private CustomerNotifierPort notifier;
     @Mock
+    private com.sb24.asanzeman.inquiry.domain.port.in.InquiryRunUseCase inquiries;
+    @Mock
     private AgencyRegistryPort agencies;
     @Mock
     private BranchRepositoryPort branches;
@@ -72,7 +74,7 @@ class BranchReviewServiceTest {
     @BeforeEach
     void setUp() {
         service = new BranchReviewService(reviews, notifier, agencies, branches, audit, new MutableClock(NOW),
-                new ReviewSettings(Duration.ofMinutes(60)));
+                new ReviewSettings(Duration.ofMinutes(60)), inquiries);
     }
 
     private static Request request(RequestStatus status) {
@@ -184,7 +186,7 @@ class BranchReviewServiceTest {
         assertThat(result.heldBy()).isNull();
         verify(reviews).recordRejection(request.id(), REASON, "documents are incomplete");
         verify(notifier).requestRejected(request.id(), request.customer().mobile(), "Sky Travel", "Valiasr",
-                "1405/09/02");
+                "1405/09/02", "");
     }
 
     @Test
@@ -219,7 +221,7 @@ class BranchReviewServiceTest {
 
         service.reject(command(ALI, request), REASON, "x".repeat(200));
 
-        verify(notifier).requestRejected(request.id(), request.customer().mobile(), "", "0123", "1405/09/02");
+        verify(notifier).requestRejected(request.id(), request.customer().mobile(), "", "0123", "1405/09/02", "");
     }
 
     // ---- issue ----------------------------------------------------------------------------------------------
@@ -238,7 +240,7 @@ class BranchReviewServiceTest {
         assertThat(result.heldBy()).isNull();
         verify(reviews).recordIssue(request.id(), "GT-001/2026", NOW);
         verify(notifier).guaranteeIssued(request.id(), request.customer().mobile(), "Sky Travel", "Valiasr",
-                "1405/09/02");
+                "1405/09/02", "");
         var entry = ArgumentCaptor.forClass(AuditEntry.class);
         verify(audit).record(entry.capture());
         assertThat(entry.getValue()).extracting(AuditEntry::action, AuditEntry::reason)
@@ -263,6 +265,36 @@ class BranchReviewServiceTest {
                 .isInstanceOf(RequestNotReviewableException.class);
         verifyNoInteractions(notifier);
         verify(reviews, never()).recordIssue(any(), any(), any());
+    }
+
+    // ---- the salutation line (6.4) ------------------------------------------------------------------------
+
+    @Test
+    void theCustomerIsAddressedByTheRegistryGenderWhenItIsKnown() {
+        Request request = request(RequestStatus.UNDER_ACTION);
+        found(request, ALI);
+        when(inquiries.genderOf(request.id())).thenReturn(Optional.of(com.sb24.asanzeman.inquiry.domain.model.Gender.MALE));
+        when(branches.nameOf(anyString())).thenReturn(Optional.of("Valiasr"));
+
+        service.issue(command(ALI, request), "GT-1");
+
+        verify(notifier).guaranteeIssued(request.id(), request.customer().mobile(), "", "Valiasr", "1405/09/02",
+                "آقا Ali Rezaei\n");
+    }
+
+    @Test
+    void aRevocationIsAddressedByTheGenderOfItsIssuanceRequest() {
+        UUID issuanceId = UUID.randomUUID();
+        Request revocation = revocation(RequestStatus.UNDER_REVIEW);
+        foundRevocation(revocation, issuanceId);
+        when(reviews.reasonExists(REASON, "REVOCATION")).thenReturn(true);
+        when(inquiries.genderOf(issuanceId)).thenReturn(Optional.of(com.sb24.asanzeman.inquiry.domain.model.Gender.FEMALE));
+        when(branches.nameOf(anyString())).thenReturn(Optional.of("Valiasr"));
+
+        service.reject(command(ALI, revocation), REASON, "still in use");
+
+        verify(notifier).revocationRejected(revocation.id(), revocation.customer().mobile(), "", "Valiasr",
+                "1405/09/02", "خانم Ali Rezaei\n");
     }
 
     // ---- revocation (4.2) -----------------------------------------------------------------------------------
@@ -294,8 +326,8 @@ class BranchReviewServiceTest {
         assertThat(result.status()).isEqualTo(RequestStatus.REJECTED);
         verify(reviews).recordRejection(revocation.id(), REASON, "still in use");
         verify(notifier).revocationRejected(revocation.id(), revocation.customer().mobile(), "Sky Travel", "Valiasr",
-                "1405/09/02");
-        verify(notifier, never()).requestRejected(any(), any(), any(), any(), any());
+                "1405/09/02", "");
+        verify(notifier, never()).requestRejected(any(), any(), any(), any(), any(), any());
         var entry = ArgumentCaptor.forClass(AuditEntry.class);
         verify(audit).record(entry.capture());
         assertThat(entry.getValue().action()).isEqualTo("REJECT_REVOCATION");
@@ -333,7 +365,7 @@ class BranchReviewServiceTest {
         verify(reviews).save(revocation.id(), RequestStatus.COMPLETED, null, NOW);
         verify(reviews).save(issuanceId, RequestStatus.REVOKED, null, NOW);
         verify(notifier).guaranteeRevoked(issuanceId, issued.customer().mobile(), "Sky Travel", "Valiasr",
-                "1405/09/02");
+                "1405/09/02", "");
         verify(notifier).agencyRevocationCompleted(revocation.id(), "09129990000",
                 revocation.trackingCode().value(), "Valiasr", "1405/09/02");
         var entries = ArgumentCaptor.forClass(AuditEntry.class);

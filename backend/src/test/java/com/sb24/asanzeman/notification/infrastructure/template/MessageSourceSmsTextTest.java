@@ -38,9 +38,20 @@ class MessageSourceSmsTextTest {
     }
 
     @Test
+    void theSalutationLineSitsBetweenTheGreetingAndTheBodyOrIsLeftOut() {
+        String known = texts.render(SmsTemplate.GUARANTEE_ISSUED,
+                List.of("Sky Travel", "Valiasr", "1405/09/02", "آقا Ali Rezaei\n"));
+        String unknown = texts.render(SmsTemplate.GUARANTEE_ISSUED,
+                List.of("Sky Travel", "Valiasr", "1405/09/02", ""));
+
+        assertThat(known).startsWith("بانک سامان\nمشتری گرامی\nآقا Ali Rezaei\nضمانت‌نامه");
+        assertThat(unknown).startsWith("بانک سامان\nمشتری گرامی\nضمانت‌نامه").endsWith("\n1405/09/02");
+    }
+
+    @Test
     void everyTemplateHasATextInTheMessageConfig() {
         for (SmsTemplate template : SmsTemplate.values()) {
-            assertThat(texts.render(template, List.of("x", "y", "z"))).isNotBlank();
+            assertThat(texts.render(template, List.of("x", "y", "z", "w"))).isNotBlank();
         }
     }
 }

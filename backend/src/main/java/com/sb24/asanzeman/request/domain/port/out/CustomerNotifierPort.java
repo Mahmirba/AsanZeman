@@ -28,17 +28,25 @@ public interface CustomerNotifierPort {
     /** SMS event 7: the customer did not complete the request within 7 days and it was rejected (the scheduler, Phase 8). */
     void requestExpired(UUID requestId, String mobile, String agencyName, String sentDate);
 
-    /** SMS event 4: the branch rejected the request. The salutation line is left out: the registry gender is not at hand here (6.4). */
-    void requestRejected(UUID requestId, String mobile, String agencyName, String branchName, String sentDate);
+    /**
+     * SMS event 3: the branch rejected the request.
+     *
+     * @param salutation the «آقا/خانم + name» line with its line break, or empty when the gender is not known (6.4)
+     */
+    void requestRejected(UUID requestId, String mobile, String agencyName, String branchName, String sentDate,
+            String salutation);
 
     /** SMS event 3: the branch recorded the guarantee number, so the guarantee is issued. */
-    void guaranteeIssued(UUID requestId, String mobile, String agencyName, String branchName, String sentDate);
+    void guaranteeIssued(UUID requestId, String mobile, String agencyName, String branchName, String sentDate,
+            String salutation);
 
     /** SMS event 5: the branch revoked the guarantee. */
-    void guaranteeRevoked(UUID requestId, String mobile, String agencyName, String branchName, String sentDate);
+    void guaranteeRevoked(UUID requestId, String mobile, String agencyName, String branchName, String sentDate,
+            String salutation);
 
     /** SMS event 7: the branch did not approve the revocation request. */
-    void revocationRejected(UUID requestId, String mobile, String agencyName, String branchName, String sentDate);
+    void revocationRejected(UUID requestId, String mobile, String agencyName, String branchName, String sentDate,
+            String salutation);
 
     /** SMS to the agency: its revocation request was completed. Does nothing when the agency has no mobile number. */
     void agencyRevocationCompleted(UUID requestId, String agencyMobile, String trackingCode, String branchName,

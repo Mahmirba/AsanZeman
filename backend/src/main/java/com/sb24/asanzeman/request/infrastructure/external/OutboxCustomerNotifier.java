@@ -28,30 +28,30 @@ public class OutboxCustomerNotifier implements CustomerNotifierPort {
 
     @Override
     public void requestRejected(UUID requestId, String mobile, String agencyName, String branchName,
-            String sentDate) {
+            String sentDate, String salutation) {
         sms.enqueue(new EnqueueSmsCommand(mobile, SmsTemplate.REQUEST_REJECTED,
-                List.of(agencyName, branchName, sentDate), requestId));
+                List.of(agencyName, branchName, sentDate, salutation), requestId));
     }
 
     @Override
     public void guaranteeIssued(UUID requestId, String mobile, String agencyName, String branchName,
-            String sentDate) {
+            String sentDate, String salutation) {
         sms.enqueue(new EnqueueSmsCommand(mobile, SmsTemplate.GUARANTEE_ISSUED,
-                List.of(agencyName, branchName, sentDate), requestId));
+                List.of(agencyName, branchName, sentDate, salutation), requestId));
     }
 
     @Override
     public void guaranteeRevoked(UUID requestId, String mobile, String agencyName, String branchName,
-            String sentDate) {
+            String sentDate, String salutation) {
         sms.enqueue(new EnqueueSmsCommand(mobile, SmsTemplate.GUARANTEE_REVOKED,
-                List.of(agencyName, branchName, sentDate), requestId));
+                List.of(agencyName, branchName, sentDate, salutation), requestId));
     }
 
     @Override
     public void revocationRejected(UUID requestId, String mobile, String agencyName, String branchName,
-            String sentDate) {
+            String sentDate, String salutation) {
         sms.enqueue(new EnqueueSmsCommand(mobile, SmsTemplate.REVOCATION_REJECTED,
-                List.of(agencyName, branchName, sentDate), requestId));
+                List.of(agencyName, branchName, sentDate, salutation), requestId));
     }
 
     @Override

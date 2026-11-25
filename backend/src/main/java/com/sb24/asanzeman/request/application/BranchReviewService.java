@@ -1,5 +1,6 @@
 package com.sb24.asanzeman.request.application;
 
+import com.sb24.asanzeman.inquiry.domain.port.in.InquiryRunUseCase;
 import com.sb24.asanzeman.request.domain.model.GuaranteeNumber;
 import com.sb24.asanzeman.request.domain.model.InvalidRequestDataException;
 import com.sb24.asanzeman.request.domain.model.Request;
@@ -14,6 +15,7 @@ import com.sb24.asanzeman.request.domain.port.out.AgencyRegistryPort;
 import com.sb24.asanzeman.request.domain.port.out.BranchRepositoryPort;
 import com.sb24.asanzeman.request.domain.port.out.CustomerNotifierPort;
 import com.sb24.asanzeman.request.domain.port.out.ReviewRepositoryPort;
+import com.sb24.asanzeman.request.domain.service.Salutation;
 import com.sb24.asanzeman.shared.audit.domain.model.AuditEntry;
 import com.sb24.asanzeman.shared.audit.domain.port.in.RecordAuditUseCase;
 import com.sb24.asanzeman.shared.model.JalaliDate;
@@ -51,9 +53,12 @@ public class BranchReviewService implements BranchReviewUseCase {
     private final RecordAuditUseCase audit;
     private final Clock clock;
     private final ReviewSettings settings;
+    private final InquiryRunUseCase inquiries;
 
     public BranchReviewService(ReviewRepositoryPort reviews, CustomerNotifierPort notifier, AgencyRegistryPort agencies,
-            BranchRepositoryPort branches, RecordAuditUseCase audit, Clock clock, ReviewSettings settings) {
+            BranchRepositoryPort branches, RecordAuditUseCase audit, Clock clock, ReviewSettings settings,
+            InquiryRunUseCase inquiries) {
+        this.inquiries = inquiries;
         this.reviews = reviews;
         this.notifier = notifier;
         this.agencies = agencies;
@@ -92,12 +97,12 @@ public class BranchReviewService implements BranchReviewUseCase {
         Request request = applied.after().request();
         if (revocation) {
             notifier.revocationRejected(request.id(), request.customer().mobile(), agencyName(request),
-                    branchName(request), today());
+                    branchName(request), today(), salutation(request, before.parentId()));
             notifier.agencyRevocationRejected(request.id(), agencyMobile(request), request.trackingCode().value(),
                     branchName(request), today());
         } else {
             notifier.requestRejected(request.id(), request.customer().mobile(), agencyName(request),
-                    branchName(request), today());
+                    branchName(request), today(), salutation(request, request.id()));
         }
         return applied.result();
     }
@@ -109,7 +114,7 @@ public class BranchReviewService implements BranchReviewUseCase {
         reviews.recordIssue(command.requestId(), number.value(), clock.instant());
         Request request = applied.after().request();
         notifier.guaranteeIssued(request.id(), request.customer().mobile(), agencyName(request), branchName(request),
-                today());
+                today(), salutation(request, request.id()));
         return applied.result();
     }
 
@@ -130,7 +135,7 @@ public class BranchReviewService implements BranchReviewUseCase {
                 "by revocation " + command.requestId());
         Request request = revoked.request();
         notifier.guaranteeRevoked(request.id(), request.customer().mobile(), agencyName(request),
-                branchName(request), today());
+                branchName(request), today(), salutation(request, request.id()));
         Request revocation = applied.after().request();
         notifier.agencyRevocationCompleted(revocation.id(), agencyMobile(revocation), revocation.trackingCode().value(),
                 branchName(revocation), today());
@@ -209,6 +214,12 @@ public class BranchReviewService implements BranchReviewUseCase {
 
     private String agencyName(Request request) {
         return agencies.find(request.agencyId()).map(a -> a.name()).orElse("");
+    }
+
+    /** The customer's gender is from the issuance request's inquiries; a revocation request has none of its own. */
+    private String salutation(Request request, UUID issuanceId) {
+        String gender = inquiries.genderOf(issuanceId).map(Enum::name).orElse(null);
+        return Salutation.line(gender, request.customer().fullName());
     }
 
     private String agencyMobile(Request request) {

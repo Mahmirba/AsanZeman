@@ -255,6 +255,23 @@ class InquiryRunServiceTest {
     }
 
     @Test
+    void theGenderIsTheNewestPassedSabtAhvalAnswerAndEmptyWhenThereIsNone() {
+        var civil = new CivilData(Gender.FEMALE, LocalDate.of(1990, 5, 17));
+        when(runs.passedSince(REQUEST, Instant.EPOCH)).thenReturn(
+                Map.of(InquiryType.SABT_AHVAL, InquiryOutcome.passed(InquiryType.SABT_AHVAL, civil)));
+
+        assertThat(service.genderOf(REQUEST)).contains(Gender.FEMALE);
+
+        var other = UUID.randomUUID();
+        when(runs.passedSince(other, Instant.EPOCH)).thenReturn(Map.of());
+        assertThat(service.genderOf(other)).isEmpty();
+        var noCivil = UUID.randomUUID();
+        when(runs.passedSince(noCivil, Instant.EPOCH)).thenReturn(
+                Map.of(InquiryType.SABT_AHVAL, InquiryOutcome.passed(InquiryType.SABT_AHVAL, null)));
+        assertThat(service.genderOf(noCivil)).isEmpty();
+    }
+
+    @Test
     void anUnknownRunOrAnotherRequestsRunIsNotFound() {
         UUID id = UUID.randomUUID();
         when(runs.find(REQUEST, id)).thenReturn(Optional.empty());

@@ -3,6 +3,7 @@ package com.sb24.asanzeman.inquiry.application;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryContext;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryCooldownException;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryOutcome;
+import com.sb24.asanzeman.inquiry.domain.model.InquiryType;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryRun;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryRunNotFoundException;
 import com.sb24.asanzeman.inquiry.domain.model.InquiryRunView;
@@ -70,6 +71,13 @@ public class InquiryRunService implements InquiryRunUseCase {
         }
         background.execute(() -> execute(run, context));
         return view(run);
+    }
+
+    @Override
+    public java.util.Optional<com.sb24.asanzeman.inquiry.domain.model.Gender> genderOf(UUID requestId) {
+        InquiryOutcome answer = runs.passedSince(requestId, Instant.EPOCH).get(InquiryType.SABT_AHVAL);
+        return answer == null || answer.civil() == null ? java.util.Optional.empty()
+                : java.util.Optional.of(answer.civil().gender());
     }
 
     @Override
