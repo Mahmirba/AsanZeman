@@ -165,6 +165,19 @@ class JdbcReviewRepositoryTest {
     }
 
     @Test
+    void aGuaranteeNumberAlreadyOnAnotherRequestIsRefused() {
+        UUID first = request(1, RequestStatus.UNDER_ACTION);
+        UUID second = request(2, RequestStatus.UNDER_ACTION);
+        reviews.recordIssue(first, "GT-001", T0);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> reviews.recordIssue(second, "GT-001", T0))
+                .isInstanceOf(com.sb24.asanzeman.request.domain.model.GuaranteeNumberTakenException.class);
+        assertThat(jdbc.sql("SELECT COUNT(*) FROM azs_business.request WHERE id = :id AND guarantee_number IS NULL")
+                .param("id", RawUuid.toBytes(second), Types.VARBINARY).query(Integer.class).single()).isEqualTo(1);
+        reviews.recordIssue(second, "GT-002", T0); // another number is fine
+    }
+
+    @Test
     void onlyAnActiveIssuanceReasonCanBeUsed() {
         UUID active = reason("ISSUANCE", 1);
         UUID inactive = reason("ISSUANCE", 0);
