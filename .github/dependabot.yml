@@ -1,0 +1,8 @@
+# The workflow pins each GitHub Action to a commit hash (a tag can be moved to different code). A pin does not update
+# itself, so Dependabot proposes the newer hash, with its version in the comment, once a week.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
