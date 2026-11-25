@@ -26,7 +26,7 @@ class ArcaptchaVerifierAdapterTest {
     private ArcaptchaClient client;
 
     private static ArcaptchaProperties properties(boolean enabled) {
-        return new ArcaptchaProperties("https://captcha.test/verify", enabled,
+        return new ArcaptchaProperties("https://captcha.test/verify", enabled, !enabled,
                 new ArcaptchaProperties.Keys("bank-site", "bank-secret"),
                 new ArcaptchaProperties.Keys("agency-site", "agency-secret"),
                 new ArcaptchaProperties.Keys("customer-site", "customer-secret"),
