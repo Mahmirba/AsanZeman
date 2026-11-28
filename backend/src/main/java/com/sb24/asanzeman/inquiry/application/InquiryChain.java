@@ -43,19 +43,7 @@ public class InquiryChain implements RunInquiriesUseCase {
         InquiryContext context = start;
         List<InquiryOutcome> all = new ArrayList<>();
         for (int i = 0; i < settings.stages().size(); i++) {
-            List<InquiryHandler> stage = settings.stages().get(i).stream().map(handlers::get).toList();
-            InquiryContext current = context;
-            // Sabte Ahval, which supplies the civil data, always applies; the others may depend on that data
-            List<InquiryHandler> applicable = stage.stream()
-                    .filter(h -> h.type() == InquiryType.SABT_AHVAL || h.appliesTo(current)).toList();
-            stage.stream().filter(h -> !applicable.contains(h)).forEach(h -> all.add(InquiryOutcome.skipped(h.type())));
-
-            List<InquiryOutcome> outcomes = new ArrayList<>(applicable.stream()
-                    .filter(h -> reusable.containsKey(h.type())).map(h -> reusable.get(h.type())).toList());
-            List<InquiryHandler> toAsk = applicable.stream().filter(h -> !reusable.containsKey(h.type())).toList();
-            stages.run(toAsk, context, settings.deadlines().get(i)).stream()
-                    .map(InquiryChain::civilDataRequired).forEach(outcomes::add);
-            all.addAll(outcomes);
+            List<InquiryOutcome> outcomes = runStage(i, context, reusable, all);
 
             InquiryOutcome negative = first(outcomes, InquiryResult.NEGATIVE);
             if (negative != null) {
@@ -71,6 +59,27 @@ public class InquiryChain implements RunInquiriesUseCase {
             }
         }
         return new InquiryVerdict(InquiryVerdict.Decision.PROCEED, null, all);
+    }
+
+    /**
+     * One stage: inquiries that do not apply are skipped, reusable outcomes stand in for their inquiry, and the rest are
+     * asked together. Every outcome is added to {@code all}; the ones that decide the run are returned.
+     */
+    private List<InquiryOutcome> runStage(int index, InquiryContext context, Map<InquiryType, InquiryOutcome> reusable,
+            List<InquiryOutcome> all) {
+        List<InquiryHandler> stage = settings.stages().get(index).stream().map(handlers::get).toList();
+        // Sabte Ahval, which supplies the civil data, always applies; the others may depend on that data
+        List<InquiryHandler> applicable = stage.stream()
+                .filter(h -> h.type() == InquiryType.SABT_AHVAL || h.appliesTo(context)).toList();
+        stage.stream().filter(h -> !applicable.contains(h)).forEach(h -> all.add(InquiryOutcome.skipped(h.type())));
+
+        List<InquiryOutcome> outcomes = new ArrayList<>(applicable.stream()
+                .filter(h -> reusable.containsKey(h.type())).map(h -> reusable.get(h.type())).toList());
+        List<InquiryHandler> toAsk = applicable.stream().filter(h -> !reusable.containsKey(h.type())).toList();
+        stages.run(toAsk, context, settings.deadlines().get(index)).stream()
+                .map(InquiryChain::civilDataRequired).forEach(outcomes::add);
+        all.addAll(outcomes);
+        return outcomes;
     }
 
     /** Sabte Ahval that passes without a gender and birth date cannot feed the next stage: no usable answer. */
