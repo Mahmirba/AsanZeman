@@ -1,5 +1,6 @@
 package com.sb24.asanzeman.support;
 
+import java.time.Duration;
 import org.testcontainers.oracle.OracleContainer;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
@@ -18,6 +19,7 @@ public final class OracleTestContainer {
             .withPassword("test")
             .withCopyFileToContainer(MountableFile.forClasspathResource("db/oracle-test-users.sql"),
                     "/container-entrypoint-initdb.d/01_users.sql")
+            .withStartupTimeout(Duration.ofMinutes(5))
             .withReuse(true);
 
     static {
