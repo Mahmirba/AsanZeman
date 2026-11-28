@@ -94,10 +94,11 @@ cd backend
 ./mvnw verify -Dintegration=true         # + *IT on Testcontainers Oracle Free (Docker required)
 ci/scan-dependencies.sh                  # Trivy scan of the runtime dependencies (Docker + network; CI runs the same script)
 ./mvnw spring-boot:run                   # needs application.properties with real values
-cd ../deploy && docker compose up        # Oracle Free + WireMock stubs + the app (copy the example properties first)
+cd ../deploy && docker compose up -d     # local Oracle Free only (needs deploy/.env); the app runs on the host
+java deploy/fake/FakeServices.java       # fake external services on :8089 (config: copy deploy/application.local.example.properties)
 ```
 
-Layout on disk: `backend/` (Maven project), `backend/db/dba` and `backend/db/undo` (DBA scripts), `deploy/` (compose, WireMock stubs), `docs/` (architecture, OpenAPI), `.github/workflows/ci.yml`.
+Layout on disk: `backend/` (Maven project), `backend/db/dba` and `backend/db/undo` (DBA scripts), `deploy/` (local Oracle compose, fake services, WireMock stubs, `vm/` systemd unit and server properties for D55), `docs/` (architecture, OpenAPI), `.github/workflows/ci.yml`.
 
 ## Git
 
