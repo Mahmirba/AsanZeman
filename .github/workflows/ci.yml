@@ -22,11 +22,11 @@ jobs:
           distribution: temurin
           java-version: "26"
           cache: maven
-      # unit tests, the Modulith and ArchUnit boundary tests, the OpenAPI contract test and the JaCoCo coverage gate (D50);
-      # the Testcontainers Oracle tests are left out (-Dintegration=true runs them)
+      # unit tests, the Modulith and ArchUnit boundary tests, the OpenAPI contract test, the JaCoCo coverage gate (D50) and the
+      # Oracle Free integration tests (*IT, Testcontainers; the runner has Docker)
       - name: Verify
         working-directory: backend
-        run: ./mvnw -B verify
+        run: ./mvnw -B verify -Dintegration=true
 
   dependency-scan:
     name: Dependency vulnerability scan
